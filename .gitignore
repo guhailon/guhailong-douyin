@@ -1,0 +1,8 @@
+# 构建产物（本地 smoke build 用完即删，绝不能提交 Linux 编的 .deb）
+.theos/
+packages/
+*.deb
+# xuu 的闭源付费 dylib 只当本地行为参考，绝不进仓库、不分发
+reference-xuu/
+dyyy-source.tar.gz
+.DS_Store

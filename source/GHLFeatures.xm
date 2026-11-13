@@ -1,0 +1,1937 @@
+// 顾海龙抖音 (GHL) — 新增功能实现
+// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。
+// 原 MIT 声明与 huami 版权行保留在 LICENSE 文件中，未做任何改动。
+//
+// 约定：
+// - 所有开关都受 NSUserDefaults 控制，关掉即恢复默认行为。
+// - 拿不准的 hook 点只写日志探针，不硬猜、不做假实现。
+// - 诊断日志写到 /var/mobile/Library/Logs/GuHaiLongDouyin.log
+#import "GHLFeatures.h"
+#import "AwemeHeaders.h"
+#import "DYYYConstants.h"
+#import "DYYYManager.h"
+#import "DYYYUtils.h"
+#import "DYYYFloatingButtonCoordinator.h"
+#import "DYYYFloatClearButton.h"
+#import "DYYYToast.h"
+#import <AVKit/AVKit.h>
+#import <ReplayKit/ReplayKit.h>
+#import <objc/runtime.h>
+
+@class GHLFeatures;
+
+@interface GHLFeatures : NSObject
+@end
+
+// 前向声明（part 4 定义，part 2 的左滑返回要用）
+static UIViewController *GHLTopViewController(void);
+
+#pragma mark - 基础工具
+
+BOOL GHLGetBool(NSString *key) {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:key];
+}
+
+NSString *GHLGetString(NSString *key) {
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:key];
+    return [value isKindOfClass:[NSString class]] ? value : nil;
+}
+
+BOOL GHLKeywordFilterEnabled(void) {
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_KEYWORD_FILTER];
+    if (!value) return YES; // 没设置过默认开，保持上游已有过滤行为不变
+    return [value boolValue];
+}
+
+static dispatch_queue_t GHLLogQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      queue = dispatch_queue_create("com.guhailong.douyin.log", DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
+void GHLLog(NSString *format, ...) {
+    if (!format) return;
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+    NSString *line = [NSString stringWithFormat:@"[%@] [GHL] %@\n", [[NSDate date] description], message];
+    NSLog(@"%@", line);
+    dispatch_async(GHLLogQueue(), ^{
+      @try {
+          NSString *path = @"/var/mobile/Library/Logs/GuHaiLongDouyin.log";
+          NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
+          if (!handle) {
+              [[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
+              [line writeToFile:path atomically:NO encoding:NSUTF8StringEncoding error:nil];
+              return;
+          }
+          [handle seekToEndOfFile];
+          [handle writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+          [handle closeFile];
+      } @catch (__unused NSException *exception) {
+      }
+    });
+}
+
+void GHLRunOnMain(dispatch_block_t block) {
+    if ([NSThread isMainThread]) {
+        block();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), block);
+    }
+}
+
+#pragma mark - 当前视频 / 播放器
+
+AWEAwemeModel *GHLCurrentAwemeModel(void) {
+    @try {
+        UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+        if ([controller respondsToSelector:@selector(model)]) {
+            id model = [(AWEPlayInteractionViewController *)controller model];
+            if ([model isKindOfClass:NSClassFromString(@"AWEAwemeModel")]) return model;
+        }
+    } @catch (__unused NSException *exception) {
+    }
+    return nil;
+}
+
+static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
+    if (!view) return;
+    for (CALayer *sublayer in view.layer.sublayers ?: @[]) {
+        if ([sublayer isKindOfClass:[AVPlayerLayer class]]) {
+            [out addObject:(AVPlayerLayer *)sublayer];
+        }
+    }
+    for (UIView *subview in view.subviews) {
+        GHLCollectPlayerLayersInView(subview, out);
+    }
+}
+
+AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
+    __block AVPlayerLayer *found = nil;
+    void (^collect)(void) = ^{
+      @try {
+          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+          NSMutableArray<AVPlayerLayer *> *layers = [NSMutableArray array];
+          GHLCollectPlayerLayersInView(window, layers);
+          for (AVPlayerLayer *layer in layers) {
+              AVPlayer *player = layer.player;
+              if (player && player.rate > 0) {
+                  found = layer;
+                  break;
+              }
+          }
+          if (!found && layers.count > 0) found = layers.firstObject;
+      } @catch (__unused NSException *exception) {
+      }
+    };
+    if ([NSThread isMainThread]) {
+        collect();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), collect);
+    }
+    return found;
+}
+
+AVPlayer *GHLFindPlayingAVPlayer(void) {
+    return GHLFindPlayingAVPlayerLayer().player;
+}
+
+double GHLCurrentPlayerTime(void) {
+    AVPlayer *player = GHLFindPlayingAVPlayer();
+    if (!player || !player.currentItem) return -1;
+    return CMTimeGetSeconds(player.currentTime);
+}
+
+void GHLSeekCurrentPlayerBySeconds(double seconds) {
+    AVPlayer *player = GHLFindPlayingAVPlayer();
+    if (!player || !player.currentItem) {
+        GHLLog(@"快进：没找到正在播放的播放器");
+        return;
+    }
+    CMTime current = player.currentTime;
+    CMTime duration = player.currentItem.duration;
+    double target = CMTimeGetSeconds(current) + seconds;
+    if (target < 0) target = 0;
+    if (CMTIME_IS_VALID(duration) && CMTIME_IS_NUMERIC(duration)) {
+        double total = CMTimeGetSeconds(duration);
+        if (target > total) target = total;
+    }
+    [player seekToTime:CMTimeMakeWithSeconds(target, NSEC_PER_SEC)
+       toleranceBefore:kCMTimeZero
+        toleranceAfter:kCMTimeZero];
+    GHLLog(@"快进：%+.0f 秒 -> %.1f", seconds, target);
+}
+
+void GHLPauseCurrentPlayer(void) {
+    AVPlayer *player = GHLFindPlayingAVPlayer();
+    if (!player) {
+        GHLLog(@"暂停：没找到正在播放的播放器");
+        return;
+    }
+    [player pause];
+    GHLLog(@"已暂停当前视频");
+}
+
+#pragma mark - (1) 睡眠定时
+
+static NSTimer *ghlSleepTimer = nil;
+
+void GHLRestartSleepTimer(void) {
+    GHLRunOnMain(^{
+      [ghlSleepTimer invalidate];
+      ghlSleepTimer = nil;
+      NSString *choice = GHLGetString(GHL_KEY_SLEEP_TIMER) ?: @"关闭";
+      NSTimeInterval minutes = 0;
+      if ([choice isEqualToString:@"15分钟"]) minutes = 15;
+      else if ([choice isEqualToString:@"30分钟"]) minutes = 30;
+      else if ([choice isEqualToString:@"60分钟"]) minutes = 60;
+      if (minutes <= 0) {
+          GHLLog(@"睡眠定时：关闭");
+          return;
+      }
+      ghlSleepTimer = [NSTimer scheduledTimerWithTimeInterval:minutes * 60
+                                                      repeats:NO
+                                                        block:^(NSTimer *timer) {
+                                                          GHLPauseCurrentPlayer();
+                                                          [DYYYUtils showToast:@"睡眠定时到，已暂停播放"];
+                                                          GHLLog(@"睡眠定时到（%@），已暂停", choice);
+                                                        }];
+      [DYYYUtils showToast:[NSString stringWithFormat:@"睡眠定时已设：%@后暂停", choice]];
+      GHLLog(@"睡眠定时：已设 %@", choice);
+    });
+}
+
+#pragma mark - (9) 夜间护眼
+
+void GHLApplyNightMode(BOOL on) {
+    GHLRunOnMain(^{
+      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+      if (on) {
+          if (![defaults objectForKey:@"GHLNightSavedBrightness"]) {
+              [defaults setFloat:[UIScreen mainScreen].brightness forKey:@"GHLNightSavedBrightness"];
+          }
+          NSString *value = GHLGetString(GHL_KEY_NIGHT_BRIGHTNESS);
+          CGFloat target = value.length > 0 ? [value floatValue] : 0.3f;
+          if (target <= 0 || target > 1) target = 0.3f;
+          [UIScreen mainScreen].brightness = target;
+          if (window) window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+          GHLLog(@"夜间护眼：开，亮度 %.2f", target);
+      } else {
+          NSNumber *saved = [defaults objectForKey:@"GHLNightSavedBrightness"];
+          if (saved) [UIScreen mainScreen].brightness = [saved floatValue];
+          [defaults removeObjectForKey:@"GHLNightSavedBrightness"];
+          if (window) window.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+          GHLLog(@"夜间护眼：关，已恢复亮度");
+      }
+    });
+}
+
+#pragma mark - (2) 画中画
+
+static AVPictureInPictureController *ghlPiPController = nil;
+
+void GHLStartPiP(void) {
+    GHLRunOnMain(^{
+      if (![AVPictureInPictureController isPictureInPictureSupported]) {
+          [DYYYUtils showToast:@"当前设备不支持画中画"];
+          GHLLog(@"画中画：设备不支持");
+          return;
+      }
+      AVPlayerLayer *layer = GHLFindPlayingAVPlayerLayer();
+      if (!layer || !layer.player) {
+          [DYYYUtils showToast:@"没找到正在播放的视频"];
+          GHLLog(@"画中画：没找到播放器图层");
+          return;
+      }
+      @try {
+          ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+          [ghlPiPController startPictureInPicture];
+          GHLLog(@"画中画：已启动");
+      } @catch (NSException *exception) {
+          [DYYYUtils showToast:@"画中画启动失败"];
+          GHLLog(@"画中画启动失败：%@", exception.reason);
+      }
+    });
+}
+
+#pragma mark - (4) 记忆倍速（按作者）
+
+static NSString *GHLAuthorKeyForModel(AWEAwemeModel *model) {
+    AWEUserModel *author = model.author;
+    if (!author) return nil;
+    if (author.userID.length > 0) return author.userID;
+    if (author.secUserID.length > 0) return author.secUserID;
+    if (author.shortID.length > 0) return author.shortID;
+    return author.nickname;
+}
+
+static void GHLRecordSpeedForCurrentAuthor(double speed) {
+    if (!GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) return;
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    NSString *authorKey = GHLAuthorKeyForModel(model);
+    if (!authorKey) return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *speeds = [[defaults objectForKey:@"GHLAuthorSpeeds"] mutableCopy] ?: [NSMutableDictionary dictionary];
+    speeds[authorKey] = @(speed);
+    [defaults setObject:speeds forKey:@"GHLAuthorSpeeds"];
+    GHLLog(@"记忆倍速：作者 %@ 记为 %.2f", authorKey, speed);
+}
+
+static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out) {
+    if (!vc) return;
+    if ([vc isKindOfClass:NSClassFromString(@"AWEAwemePlayVideoViewController")] ||
+        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerFeedPlayerViewController")] ||
+        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerViewController_Merge")]) {
+        [out addObject:vc];
+    }
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLFindPlayerViewControllersInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLFindPlayerViewControllersInVC(vc.presentedViewController, out);
+}
+
+static void GHLApplyStoredSpeedForCurrentAuthor(void) {
+    if (!GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) return;
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    NSString *authorKey = GHLAuthorKeyForModel(model);
+    if (!authorKey) return;
+    NSNumber *speed = [[NSUserDefaults standardUserDefaults] objectForKey:@"GHLAuthorSpeeds"][authorKey];
+    if (!speed) return;
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    UIViewController *root = window.rootViewController;
+    while (root.presentedViewController) root = root.presentedViewController;
+    NSMutableArray *players = [NSMutableArray array];
+    GHLFindPlayerViewControllersInVC(root, players);
+    for (id playerVC in players) {
+        if ([playerVC respondsToSelector:@selector(setVideoControllerPlaybackRate:)]) {
+            @try {
+                [(AWEAwemePlayVideoViewController *)playerVC setVideoControllerPlaybackRate:[speed doubleValue]];
+                GHLLog(@"记忆倍速：作者 %@ 恢复 %.2f", authorKey, [speed doubleValue]);
+            } @catch (__unused NSException *exception) {
+            }
+            break;
+        }
+    }
+}
+
+#pragma mark - (6) 一键清爽模式 / (12) 直播间净化（开关联动）
+
+// 直播间净化涉及的上游隐藏键
+static NSArray<NSString *> *GHLLiveHideKeys(void) {
+    return @[
+        @"DYYYHideLiveView", @"DYYYHideLiveRoomShareCompanion", @"DYYYHideLiveRoomMirroring",
+        @"DYYYHideLiveRoomFullscreen", @"DYYYHideLiveRoomClose", @"DYYYHideLiveRoomClear",
+        @"DYYYHideLivePopup", @"DYYYHideLivePlayground", @"DYYYHideLiveLikeAnimation",
+        @"DYYYHideLiveHotMessage", @"DYYYHideLiveGoodsMsg", @"DYYYHideLiveGIF",
+        @"DYYYHideLiveDiscovery", @"DYYYHideLiveDetail", @"DYYYHideLiveDanmaku",
+        @"DYYYHideLiveCapsuleView", @"DYYYHideEnterLive", @"DYYYHideAvatarLive",
+        @"DYYYHideTabLive", @"DYYYHideLiveDuration"
+    ];
+}
+
+void GHLApplyLivePurification(BOOL on) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (on) {
+        NSMutableDictionary *saved = [NSMutableDictionary dictionary];
+        for (NSString *key in GHLLiveHideKeys()) {
+            saved[key] = @([defaults boolForKey:key]);
+            [defaults setBool:YES forKey:key];
+        }
+        [defaults setObject:saved forKey:@"GHLLivePurifySaved"];
+        GHLLog(@"直播间净化：开，已全开 %lu 个直播间隐藏项", (unsigned long)GHLLiveHideKeys().count);
+    } else {
+        NSDictionary *saved = [defaults objectForKey:@"GHLLivePurifySaved"];
+        if ([saved isKindOfClass:[NSDictionary class]]) {
+            for (NSString *key in GHLLiveHideKeys()) {
+                NSNumber *value = saved[key];
+                if (value) [defaults setBool:[value boolValue] forKey:key];
+            }
+            [defaults removeObjectForKey:@"GHLLivePurifySaved"];
+        }
+        GHLLog(@"直播间净化：关，已恢复之前的值");
+    }
+}
+
+void GHLApplyCleanMode(BOOL on) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setBool:on forKey:@"DYYYEnablePure"];
+    if (on) {
+        [defaults setBool:YES forKey:@"DYYYEnableFloatClearButton"];
+        reloadClearButtonConfiguration();
+        GHLLog(@"一键清爽：开（首页净化+清屏按钮）");
+    } else {
+        GHLLog(@"一键清爽：关（首页净化已关）");
+    }
+}
+
+#pragma mark - 解析接口（复用 DYYY 的接口格式：apiKey + 分享链接）
+
+static void GHLFetchParseJSONForShareLink(NSString *shareLink, void (^completion)(NSDictionary *dataDict)) {
+    NSString *apiKey = GHLGetString(@"DYYYInterfaceDownload");
+    if (shareLink.length == 0 || apiKey.length == 0) {
+        GHLRunOnMain(^{
+          [DYYYUtils showToast:@"请先在设置里填解析接口 Key"];
+        });
+        GHLLog(@"解析接口：分享链接或 API Key 为空");
+        if (completion) completion(nil);
+        return;
+    }
+    NSString *apiUrl = [NSString stringWithFormat:@"%@%@", apiKey, [shareLink stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]];
+    NSURL *url = [NSURL URLWithString:apiUrl];
+    if (!url) {
+        if (completion) completion(nil);
+        return;
+    }
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url
+                                                             completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                                               if (error || !data) {
+                                                                   GHLLog(@"解析接口请求失败：%@", error.localizedDescription);
+                                                                   if (completion) completion(nil);
+                                                                   return;
+                                                               }
+                                                               NSError *jsonError = nil;
+                                                               NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+                                                               if (jsonError || ![json isKindOfClass:[NSDictionary class]]) {
+                                                                   GHLLog(@"解析接口返回数据解析失败");
+                                                                   if (completion) completion(nil);
+                                                                   return;
+                                                               }
+                                                               NSInteger code = [json[@"code"] integerValue];
+                                                               if (code != 0 && code != 200) {
+                                                                   GHLLog(@"解析接口返回错误：%@", json[@"msg"] ?: @"未知错误");
+                                                                   if (completion) completion(nil);
+                                                                   return;
+                                                               }
+                                                               if (completion) completion(json[@"data"]);
+                                                             }];
+    [task resume];
+}
+
+// 从解析结果里取最清晰的一条视频直链
+static NSString *GHLBestVideoURLFromParseData(NSDictionary *dataDict) {
+    if (![dataDict isKindOfClass:[NSDictionary class]]) return nil;
+    NSArray *videoList = dataDict[@"video_list"];
+    if ([videoList isKindOfClass:[NSArray class]] && videoList.count > 0) {
+        id first = videoList[0];
+        if ([first isKindOfClass:[NSDictionary class]] && [first[@"url"] length] > 0) return first[@"url"];
+    }
+    NSArray *videos = dataDict[@"videos"];
+    if ([videos isKindOfClass:[NSArray class]] && videos.count > 0 && [videos[0] length] > 0) return videos[0];
+    if ([dataDict[@"video_url"] length] > 0) return dataDict[@"video_url"];
+    if ([dataDict[@"url"] length] > 0) return dataDict[@"url"];
+    return nil;
+}
+
+#pragma mark - (18) 去水印分享直链
+
+void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model) {
+    if (!model) return;
+    NSString *shareLink = model.shareURL;
+    if (shareLink.length == 0) {
+        [DYYYUtils showToast:@"无法获取分享链接"];
+        return;
+    }
+    [DYYYUtils showToast:@"正在解析无水印链接…"];
+    GHLFetchParseJSONForShareLink(shareLink, ^(NSDictionary *dataDict) {
+      GHLRunOnMain(^{
+        NSString *bestURL = GHLBestVideoURLFromParseData(dataDict);
+        if (!bestURL) {
+            [DYYYUtils showToast:@"解析失败，换个接口 Key 试试"];
+            return;
+        }
+        [[UIPasteboard generalPasteboard] setString:bestURL];
+        [DYYYUtils showToast:@"无水印链接已复制"];
+        GHLLog(@"去水印直链：已复制 %@", bestURL);
+      });
+    });
+}
+
+#pragma mark - (25) 视频截图去水印
+
+void GHLSaveCleanScreenshotForAwemeModel(AWEAwemeModel *model, double seconds) {
+    if (!model) return;
+    NSString *shareLink = model.shareURL;
+    if (shareLink.length == 0) {
+        [DYYYUtils showToast:@"无法获取分享链接，干净截图失败"];
+        return;
+    }
+    [DYYYUtils showToast:@"正在取无水印画面…"];
+    GHLFetchParseJSONForShareLink(shareLink, ^(NSDictionary *dataDict) {
+      NSString *bestURL = GHLBestVideoURLFromParseData(dataDict);
+      if (!bestURL) {
+          GHLRunOnMain(^{
+            [DYYYUtils showToast:@"解析失败，干净截图没存成"];
+          });
+          return;
+      }
+      NSURL *videoURL = [NSURL URLWithString:bestURL];
+      NSURLSessionDownloadTask *task = [[NSURLSession sharedSession] downloadTaskWithURL:videoURL
+                                                                       completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+                                                                         if (error || !location) {
+                                                                             GHLLog(@"干净截图：视频下载失败 %@", error.localizedDescription);
+                                                                             return;
+                                                                         }
+                                                                         AVURLAsset *asset = [AVURLAsset URLAssetWithURL:location options:nil];
+                                                                         AVAssetImageGenerator *generator = [AVAssetImageGenerator assetImageGeneratorWithAsset:asset];
+                                                                         generator.appliesPreferredTrackTransform = YES;
+                                                                         generator.requestedTimeToleranceBefore = kCMTimeZero;
+                                                                         generator.requestedTimeToleranceAfter = kCMTimeZero;
+                                                                         NSError *imageError = nil;
+                                                                         CMTime time = CMTimeMakeWithSeconds(seconds > 0 ? seconds : 0, NSEC_PER_SEC);
+                                                                         CGImageRef imageRef = [generator copyCGImageAtTime:time actualTime:NULL error:&imageError];
+                                                                         if (!imageRef) {
+                                                                             GHLLog(@"干净截图：取帧失败 %@", imageError.localizedDescription);
+                                                                             return;
+                                                                         }
+                                                                         UIImage *image = [UIImage imageWithCGImage:imageRef];
+                                                                         CGImageRelease(imageRef);
+                                                                         GHLRunOnMain(^{
+                                                                           UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
+                                                                           [DYYYUtils showToast:@"干净截图已存到相册"];
+                                                                           GHLLog(@"干净截图：已存相册（%.1fs 处）", seconds);
+                                                                         });
+                                                                       }];
+      [task resume];
+    });
+}
+
+#pragma mark - (30) 视频原声提取
+
+void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model) {
+    if (!model || !model.video) return;
+    NSURL *videoURL = nil;
+    if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
+    } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
+    }
+    if (!videoURL) {
+        [DYYYUtils showToast:@"拿不到视频地址，提不出来"];
+        return;
+    }
+    [DYYYUtils showToast:@"正在下载视频并提取原声…"];
+    [DYYYManager downloadMediaWithProgress:videoURL
+                                 mediaType:MediaTypeVideo
+                                     audio:nil
+                                  progress:nil
+                                completion:^(BOOL success, NSURL *fileURL) {
+                                  if (!success || !fileURL) {
+                                      GHLRunOnMain(^{
+                                        [DYYYUtils showToast:@"视频下载失败，原声没提出来"];
+                                      });
+                                      GHLLog(@"原声提取：视频下载失败");
+                                      return;
+                                  }
+                                  AVURLAsset *asset = [AVURLAsset URLAssetWithURL:fileURL options:nil];
+                                  if (![[asset tracksWithMediaType:AVMediaTypeAudio] count]) {
+                                      GHLRunOnMain(^{
+                                        [DYYYUtils showToast:@"这个视频没有音轨"];
+                                      });
+                                      GHLLog(@"原声提取：视频没有音轨");
+                                      return;
+                                  }
+                                  AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
+                                  if (!exportSession) {
+                                      GHLLog(@"原声提取：建导出会话失败");
+                                      return;
+                                  }
+                                  NSString *outputName = [NSString stringWithFormat:@"ghl_audio_%@.m4a", [[NSUUID UUID] UUIDString]];
+                                  NSURL *outputURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:outputName];
+                                  exportSession.outputURL = outputURL;
+                                  exportSession.outputFileType = AVFileTypeAppleM4A;
+                                  [exportSession exportAsynchronouslyWithCompletionHandler:^{
+                                    if (exportSession.status != AVAssetExportSessionStatusCompleted) {
+                                        GHLLog(@"原声提取：导出失败 %@", exportSession.error.localizedDescription);
+                                        GHLRunOnMain(^{
+                                          [DYYYUtils showToast:@"原声导出失败"];
+                                        });
+                                        return;
+                                    }
+                                    GHLRunOnMain(^{
+                                      UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ outputURL ] applicationActivities:nil];
+                                      UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+                                      [rootVC presentViewController:activityVC animated:YES completion:nil];
+                                      [DYYYUtils showToast:@"原声已提出来，选个地方存"];
+                                      GHLLog(@"原声提取：完成 %@", outputURL.lastPathComponent);
+                                    });
+                                  }];
+                                }];
+}
+
+#pragma mark - (24) 私信防撤回（探针）
+
+void GHLProbeAntiRecall(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *hits = [NSMutableArray array];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        if ([name containsString:@"Recall"] || [name containsString:@"Revoke"] || [name containsString:@"Withdraw"]) {
+            [hits addObject:name];
+            if (hits.count >= 50) break;
+        }
+    }
+    free(classes);
+    GHLLog(@"私信防撤回探针：疑似撤回相关类 %lu 个：%@", (unsigned long)hits.count, hits);
+    if (hits.count == 0) {
+        GHLLog(@"私信防撤回探针：没找到撤回相关的类，功能待真机进一步验证，开关目前只做记录");
+    }
+}
+
+#pragma mark - 手势：双击快进 / 三指双击清屏 / 边缘滑动切视频
+
+static char kGHLGesturesInstalledKey;
+static char kGHLSidebarOrderAppliedKey;
+
+static void GHLHandleDoubleTapSeek(UITapGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    // (37) 双击下载开了就优先下载，不快进
+    if (GHLGetBool(GHL_KEY_DOUBLE_TAP_DOWNLOAD)) {
+        GHLDownloadCurrentVideoWithProgress();
+        return;
+    }
+    if (!GHLGetBool(GHL_KEY_SEEK_GESTURES)) return;
+    // 双击点赞没关时不抢手势，避免一点赞就快进
+    if (!GHLGetBool(@"DYYYDisableDoubleTapLike")) return;
+    CGPoint point = [gesture locationInView:gesture.view];
+    CGFloat width = gesture.view.bounds.size.width;
+    if (point.x < width / 3.0) {
+        GHLSeekCurrentPlayerBySeconds(-10);
+    } else if (point.x > width * 2.0 / 3.0) {
+        GHLSeekCurrentPlayerBySeconds(10);
+    }
+}
+
+static void GHLHandleTripleTapClear(UITapGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    if (!GHLGetBool(GHL_KEY_TRIPLE_TAP_CLEAR)) return;
+    __block HideUIButton *clearButton = nil;
+    GHLRunOnMain(^{
+      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+      NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
+      while (stack.count > 0 && !clearButton) {
+          UIView *view = stack.lastObject;
+          [stack removeLastObject];
+          if ([view isKindOfClass:NSClassFromString(@"HideUIButton")]) {
+              clearButton = (HideUIButton *)view;
+              break;
+          }
+          [stack addObjectsFromArray:view.subviews];
+      }
+    });
+    if (clearButton) {
+        [clearButton handleTap];
+        GHLLog(@"三指双击清屏：已触发");
+    } else {
+        [DYYYUtils showToast:@"请先开启一键清屏悬浮按钮"];
+    }
+}
+
+static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateEnded) return;
+    if (!GHLGetBool(GHL_KEY_EDGE_SWIPE_NEXT)) return;
+    GHLRunOnMain(^{
+      @try {
+          UIView *rootView = gesture.view;
+          NSMutableArray *stack = [NSMutableArray arrayWithObject:rootView];
+          UITableView *feedTable = nil;
+          while (stack.count > 0 && !feedTable) {
+              UIView *view = stack.lastObject;
+              [stack removeLastObject];
+              if ([view isKindOfClass:[UITableView class]] && [NSStringFromClass([view class]) containsString:@"Feed"]) {
+                  feedTable = (UITableView *)view;
+                  break;
+              }
+              [stack addObjectsFromArray:view.subviews];
+          }
+          if (!feedTable) {
+              for (UIView *subview in rootView.subviews) {
+                  if ([subview isKindOfClass:[UITableView class]]) {
+                      feedTable = (UITableView *)subview;
+                      break;
+                  }
+              }
+          }
+          if (!feedTable) {
+              GHLLog(@"边缘滑动：没找到 Feed 列表");
+              return;
+          }
+          NSArray<NSIndexPath *> *visible = [feedTable indexPathsForVisibleRows];
+          if (!visible || visible.count == 0) return;
+          NSIndexPath *last = visible.lastObject;
+          NSInteger rows = [feedTable numberOfRowsInSection:last.section];
+          if (last.row + 1 < rows) {
+              NSIndexPath *next = [NSIndexPath indexPathForRow:last.row + 1 inSection:last.section];
+              [feedTable scrollToRowAtIndexPath:next atScrollPosition:UITableViewScrollPositionTop animated:YES];
+              GHLLog(@"边缘滑动：切到下一个视频");
+          }
+      } @catch (__unused NSException *exception) {
+      }
+    });
+}
+
+static void GHLInstallFeedGesturesOnView(UIView *view) {
+    if (!view) return;
+    if (objc_getAssociatedObject(view, &kGHLGesturesInstalledKey)) return;
+    objc_setAssociatedObject(view, &kGHLGesturesInstalledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleDoubleTapSeek:)];
+    doubleTap.numberOfTapsRequired = 2;
+    doubleTap.numberOfTouchesRequired = 1;
+    doubleTap.cancelsTouchesInView = NO;
+    [view addGestureRecognizer:doubleTap];
+
+    UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleTripleTapClear:)];
+    tripleTap.numberOfTapsRequired = 2;
+    tripleTap.numberOfTouchesRequired = 3;
+    tripleTap.cancelsTouchesInView = NO;
+    [view addGestureRecognizer:tripleTap];
+
+    UIScreenEdgePanGestureRecognizer *edgeSwipe = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleEdgeSwipeNext:)];
+    edgeSwipe.edges = UIRectEdgeRight;
+    [view addGestureRecognizer:edgeSwipe];
+
+    UIScreenEdgePanGestureRecognizer *leftSwipe = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleLeftSwipeBack:)];
+    leftSwipe.edges = UIRectEdgeLeft;
+    [view addGestureRecognizer:leftSwipe];
+}
+
+static void GHLHandleLeftSwipeBack(UIScreenEdgePanGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateEnded) return;
+    if (!GHLGetBool(GHL_KEY_LEFT_SWIPE_BACK)) return;
+    GHLRunOnMain(^{
+      UIViewController *topVC = GHLTopViewController();
+      if (topVC.navigationController && topVC.navigationController.viewControllers.count > 1) {
+          [topVC.navigationController popViewControllerAnimated:YES];
+          GHLLog(@"左滑返回：已返回上一页");
+      } else if (topVC.presentedViewController) {
+          [topVC dismissViewControllerAnimated:YES completion:nil];
+          GHLLog(@"左滑返回：已关闭当前页");
+      }
+    });
+}
+
+#pragma mark - (22) 侧边栏自定义排序
+
+static void GHLApplySidebarOrderInView(UIView *view) {
+    if (!GHLGetBool(GHL_KEY_SIDEBAR_REORDER)) return;
+    NSString *orderString = GHLGetString(GHL_KEY_SIDEBAR_ORDER);
+    if (orderString.length == 0) return;
+    NSArray<NSString *> *desiredOrder = [orderString componentsSeparatedByString:@","];
+    NSMutableArray<NSString *> *cleanOrder = [NSMutableArray array];
+    for (NSString *item in desiredOrder) {
+        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) [cleanOrder addObject:trimmed];
+    }
+    if (cleanOrder.count < 2) return;
+
+    // 找到装着点赞/评论/分享/收藏按钮的容器
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        NSMutableArray *buttons = [NSMutableArray array];
+        for (UIView *subview in candidate.subviews) {
+            if ([subview isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")]) [buttons addObject:subview];
+        }
+        if (buttons.count >= 2) {
+            // 当前从上到下的标签顺序
+            NSArray *sortedNow = [buttons sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+              if (a.center.y < b.center.y) return NSOrderedAscending;
+              if (a.center.y > b.center.y) return NSOrderedDescending;
+              return NSOrderedSame;
+            }];
+            NSMutableArray<NSString *> *currentLabels = [NSMutableArray array];
+            for (AWEFeedVideoButton *button in sortedNow) {
+                [currentLabels addObject:button.accessibilityLabel ?: @""];
+            }
+            // 期望顺序：列表里的按给定排，没列出的保持原相对顺序缀在后面
+            NSMutableArray<NSString *> *targetLabels = [NSMutableArray array];
+            for (NSString *label in cleanOrder) {
+                if ([currentLabels containsObject:label]) [targetLabels addObject:label];
+            }
+            for (NSString *label in currentLabels) {
+                if (![targetLabels containsObject:label]) [targetLabels addObject:label];
+            }
+            if ([targetLabels isEqualToArray:currentLabels]) return;
+            // 按目标顺序分配现在的 y 位置
+            NSMutableArray<NSNumber *> *slots = [NSMutableArray array];
+            for (UIView *button in sortedNow) [slots addObject:@(button.center.y)];
+            NSMutableDictionary<NSString *, AWEFeedVideoButton *> *byLabel = [NSMutableDictionary dictionary];
+            for (AWEFeedVideoButton *button in buttons) {
+                if (button.accessibilityLabel.length > 0) byLabel[button.accessibilityLabel] = button;
+            }
+            for (NSUInteger i = 0; i < targetLabels.count && i < slots.count; i++) {
+                AWEFeedVideoButton *button = byLabel[targetLabels[i]];
+                if (!button) continue;
+                CGPoint center = button.center;
+                center.y = [slots[i] floatValue];
+                button.center = center;
+            }
+            GHLLog(@"侧边栏排序：已按 %@ 排列", [targetLabels componentsJoinedByString:@","]);
+            return;
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+}
+
+#pragma mark - (7)(29) 评论区：关键词屏蔽 + 自动展开
+
+static BOOL GHLCommentFilterActive(void) {
+    if (!GHLGetBool(GHL_KEY_COMMENT_AUTO_EXPAND) && ![GHLGetString(GHL_KEY_COMMENT_BLOCK_KEYWORDS) length]) return NO;
+    return YES;
+}
+
+static NSArray<NSString *> *GHLCommentBlockKeywords(void) {
+    NSString *raw = GHLGetString(GHL_KEY_COMMENT_BLOCK_KEYWORDS);
+    if (raw.length == 0) return @[];
+    NSMutableArray<NSString *> *out = [NSMutableArray array];
+    for (NSString *item in [raw componentsSeparatedByString:@","]) {
+        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) [out addObject:trimmed];
+    }
+    return out;
+}
+
+static void GHLCollectLabelsInView(UIView *view, NSMutableArray<UILabel *> *out) {
+    if ([view isKindOfClass:[UILabel class]]) [out addObject:(UILabel *)view];
+    for (UIView *subview in view.subviews) GHLCollectLabelsInView(subview, out);
+}
+
+static void GHLCollectButtonsInView(UIView *view, NSMutableArray<UIButton *> *out) {
+    if ([view isKindOfClass:[UIButton class]]) [out addObject:(UIButton *)view];
+    for (UIView *subview in view.subviews) GHLCollectButtonsInView(subview, out);
+}
+
+static char kGHLExpandTappedKey;
+
+// 在评论面板里：屏蔽含关键词的评论格、点一遍展开按钮
+static void GHLProcessVisibleCommentCells(UITableView *tableView) {
+    if (!tableView) return;
+    NSArray<NSString *> *blockKeywords = GHLCommentBlockKeywords();
+    BOOL autoExpand = GHLGetBool(GHL_KEY_COMMENT_AUTO_EXPAND);
+    BOOL expandReplies = GHLGetBool(GHL_KEY_EXPAND_REPLIES);
+    for (UITableViewCell *cell in tableView.visibleCells) {
+        @try {
+            if (blockKeywords.count > 0) {
+                NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+                GHLCollectLabelsInView(cell.contentView, labels);
+                BOOL blocked = NO;
+                for (UILabel *label in labels) {
+                    for (NSString *keyword in blockKeywords) {
+                        if (label.text.length > 0 && [label.text containsString:keyword]) {
+                            blocked = YES;
+                            break;
+                        }
+                    }
+                    if (blocked) break;
+                }
+                cell.hidden = blocked;
+                if (blocked) GHLLog(@"评论屏蔽：已藏一条含关键词的评论");
+            }
+            if (autoExpand || expandReplies) {
+                NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
+                GHLCollectButtonsInView(cell.contentView, buttons);
+                for (UIButton *button in buttons) {
+                    if (objc_getAssociatedObject(button, &kGHLExpandTappedKey)) continue;
+                    NSString *title = button.titleLabel.text ?: @"";
+                    BOOL isFullText = autoExpand && ([title containsString:@"全文"] || [title containsString:@"展开"]);
+                    BOOL isReplyExpand = expandReplies && ([title containsString:@"条回复"] || [title containsString:@"展开"]);
+                    if (isFullText || isReplyExpand) {
+                        objc_setAssociatedObject(button, &kGHLExpandTappedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                        [button sendActionsForControlEvents:UIControlEventTouchUpInside];
+                        GHLLog(@"评论展开：已点“%@”", title);
+                    }
+                }
+            }
+        } @catch (__unused NSException *exception) {
+        }
+    }
+}
+
+static NSTimer *ghlCommentTimer = nil;
+
+static void GHLStartCommentProcessing(UIViewController *containerVC) {
+    [ghlCommentTimer invalidate];
+    ghlCommentTimer = nil;
+    if (!GHLCommentFilterActive() && !GHLGetBool(GHL_KEY_EXPAND_REPLIES)) return;
+    __weak UIViewController *weakVC = containerVC;
+    ghlCommentTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
+                                                      repeats:YES
+                                                        block:^(NSTimer *timer) {
+                                                          UIViewController *vc = weakVC;
+                                                          if (!vc || !vc.view.window) {
+                                                              [timer invalidate];
+                                                              ghlCommentTimer = nil;
+                                                              return;
+                                                          }
+                                                          NSMutableArray *stack = [NSMutableArray arrayWithObject:vc.view];
+                                                          while (stack.count > 0) {
+                                                              UIView *view = stack.lastObject;
+                                                              [stack removeLastObject];
+                                                              if ([view isKindOfClass:[UITableView class]]) {
+                                                                  GHLProcessVisibleCommentCells((UITableView *)view);
+                                                                  return;
+                                                              }
+                                                              [stack addObjectsFromArray:view.subviews];
+                                                          }
+                                                        }];
+}
+
+static void GHLStopCommentProcessing(void) {
+    [ghlCommentTimer invalidate];
+    ghlCommentTimer = nil;
+}
+
+#pragma mark - (10) 音量键调进度
+
+static double ghlLastVolume = -1;
+static BOOL ghlRestoringVolume = NO;
+static NSTimeInterval ghlLastVolumeEventTime = 0;
+
+static void GHLHandleVolumeChange(NSNotification *note) {
+    if (!GHLGetBool(GHL_KEY_VOLUME_SEEK)) return;
+    if (ghlRestoringVolume) return;
+    NSDictionary *info = note.userInfo;
+    NSString *reason = info[@"AVSystemController_AudioVolumeChangeReasonNotificationParameter"];
+    if (![reason isEqualToString:@"ExplicitVolumeChange"]) return; // 只响应实体按键
+    NSNumber *volumeNumber = info[@"AVSystemController_AudioVolumeNotificationParameter"];
+    if (!volumeNumber) return;
+    double volume = [volumeNumber doubleValue];
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (now - ghlLastVolumeEventTime < 0.25) return; // 防抖
+    ghlLastVolumeEventTime = now;
+    if (ghlLastVolume < 0) {
+        ghlLastVolume = volume;
+        return;
+    }
+    double direction = 0;
+    if (volume > ghlLastVolume + 0.01) direction = 10;
+    else if (volume < ghlLastVolume - 0.01) direction = -10;
+    double previousVolume = ghlLastVolume;
+    ghlLastVolume = volume;
+    if (direction == 0) return;
+    GHLSeekCurrentPlayerBySeconds(direction);
+    // 把系统音量拨回去，避免按一下音量变一下
+    ghlRestoringVolume = YES;
+    @try {
+        [[objc_getClass("AVSystemController") sharedAVSystemController] setVolumeTo:(float)previousVolume forCategory:@"Audio/Video"];
+    } @catch (__unused NSException *exception) {
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      ghlRestoringVolume = NO;
+    });
+}
+
+#pragma mark - (25) 截图监听
+
+static void GHLHandleScreenshotTaken(NSNotification *note) {
+    if (!GHLGetBool(GHL_KEY_SCREENSHOT_CLEAN)) return;
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    if (!model) {
+        GHLLog(@"截图去水印：没找到当前视频");
+        return;
+    }
+    double seconds = GHLCurrentPlayerTime();
+    GHLSaveCleanScreenshotForAwemeModel(model, seconds);
+}
+
+#pragma mark - GHLFeatures（手势回调的 target）
+
+
+@implementation GHLFeatures
+
++ (void)ghl_handleDoubleTapSeek:(UITapGestureRecognizer *)gesture {
+    GHLHandleDoubleTapSeek(gesture);
+}
+
++ (void)ghl_handleTripleTapClear:(UITapGestureRecognizer *)gesture {
+    GHLHandleTripleTapClear(gesture);
+}
+
++ (void)ghl_handleEdgeSwipeNext:(UIScreenEdgePanGestureRecognizer *)gesture {
+    GHLHandleEdgeSwipeNext(gesture);
+}
+
++ (void)ghl_handleLeftSwipeBack:(UIScreenEdgePanGestureRecognizer *)gesture {
+    GHLHandleLeftSwipeBack(gesture);
+}
+
+@end
+
+#pragma mark - Hooks
+
+// (4) 记忆倍速：切视频后恢复该作者的倍速；倍速变化时记下来
+%hook AWEFeedContainerViewController
+- (void)aweme:(id)arg1 currentIndexDidChange:(NSInteger)arg2 {
+    %orig;
+    if (GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(350 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          GHLApplyStoredSpeedForCurrentAuthor();
+        });
+    }
+    GHLMaybeAutoLike();
+}
+%end
+
+%hook AWEAwemePlayVideoViewController
+- (void)setVideoControllerPlaybackRate:(double)arg0 {
+    %orig;
+    GHLRecordSpeedForCurrentAuthor(arg0);
+}
+%end
+
+%hook AWEDPlayerFeedPlayerViewController
+- (void)setVideoControllerPlaybackRate:(double)arg0 {
+    %orig;
+    GHLRecordSpeedForCurrentAuthor(arg0);
+}
+%end
+
+%hook AWEDPlayerViewController_Merge
+- (void)setVideoControllerPlaybackRate:(double)arg0 {
+    %orig;
+    GHLRecordSpeedForCurrentAuthor(arg0);
+}
+%end
+
+// (8) 点赞自动保存 + (10) 手势安装 + (22) 侧边栏排序
+%hook AWEPlayInteractionViewController
+- (void)performLikeAction {
+    %orig;
+    if (!GHLGetBool(GHL_KEY_AUTO_SAVE_LIKED)) return;
+    __weak AWEPlayInteractionViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      @try {
+          AWEPlayInteractionViewController *strongSelf = weakSelf;
+          if (!strongSelf) return;
+          AWEAwemeModel *model = strongSelf.model;
+          if (!model || !model.video) return;
+          // 确认现在是已点赞状态（避免点取消时也下载）
+          __block BOOL liked = NO;
+          NSMutableArray *stack = [NSMutableArray arrayWithObject:strongSelf.view];
+          while (stack.count > 0 && !liked) {
+              UIView *view = stack.lastObject;
+              [stack removeLastObject];
+              if ([view isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
+                  [((AWEFeedVideoButton *)view).accessibilityLabel isEqualToString:@"点赞"]) {
+                  liked = ((UIButton *)view).selected;
+                  break;
+              }
+              [stack addObjectsFromArray:view.subviews];
+          }
+          if (!liked) return;
+          NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+          NSMutableArray *saved = [[defaults objectForKey:@"GHLAutoSavedLikedIDs"] mutableCopy] ?: [NSMutableArray array];
+          if ([saved containsObject:model.itemID]) return;
+          [saved addObject:model.itemID];
+          [defaults setObject:saved forKey:@"GHLAutoSavedLikedIDs"];
+          NSURL *videoURL = nil;
+          NSURL *audioURL = nil;
+          if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
+              videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
+          } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
+              videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
+          }
+          if (model.music && model.music.playURL && model.music.playURL.originURLList.count > 0) {
+              audioURL = [NSURL URLWithString:model.music.playURL.originURLList.firstObject];
+          }
+          if (!videoURL) return;
+          [DYYYManager downloadMedia:videoURL
+                           mediaType:MediaTypeVideo
+                               audio:audioURL
+                          completion:^(BOOL success) {
+                            GHLLog(@"点赞自动保存：%@ %@", model.itemID, success ? @"成功" : @"失败");
+                          }];
+          [DYYYUtils showToast:@"已点赞，视频自动保存中…"];
+      } @catch (__unused NSException *exception) {
+      }
+    });
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    GHLInstallFeedGesturesOnView(self.view);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    GHLApplySidebarOrderInView(self.view);
+    GHLApplyInterfaceScaleInView(self.view);
+    GHLApplyFakeStatsInView(self.view);
+}
+%end
+
+// (38) 深色键盘：评论输入框出现时把键盘改成深色
+%hook AWECommentInputViewController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    GHLApplyDarkKeyboardInView(self.view);
+}
+%end
+
+// (7)(29) 评论面板：关键词屏蔽 + 自动展开
+%hook AWECommentContainerViewController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    GHLStartCommentProcessing(self);
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    %orig;
+    GHLStopCommentProcessing();
+}
+%end
+
+// (7) 评论关键词屏蔽：在 cell 布局时藏掉含关键词的格子（只在评论面板内生效）
+%hook UITableViewCell
+- (void)layoutSubviews {
+    %orig;
+    @try {
+        NSArray<NSString *> *blockKeywords = GHLCommentBlockKeywords();
+        if (blockKeywords.count == 0) return;
+        UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
+        if (!vc) return;
+        NSString *vcName = NSStringFromClass([vc class]);
+        if ([vcName rangeOfString:@"Comment"].location == NSNotFound) return;
+        NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+        GHLCollectLabelsInView(self.contentView, labels);
+        BOOL blocked = NO;
+        for (UILabel *label in labels) {
+            for (NSString *keyword in blockKeywords) {
+                if (label.text.length > 0 && [label.text containsString:keyword]) {
+                    blocked = YES;
+                    break;
+                }
+            }
+            if (blocked) break;
+        }
+        self.hidden = blocked;
+    } @catch (__unused NSException *exception) {
+    }
+}
+%end
+
+#pragma mark - 启动
+
+%ctor {
+    @autoreleasepool {
+        GHLLog(@"顾海龙抖音 1.0.0 已加载（基于 DYYY MIT，仅自用）");
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+        [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          GHLHandleScreenshotTaken(note);
+                        }];
+        [center addObserverForName:@"AVSystemController_SystemVolumeDidChangeNotification"
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          GHLHandleVolumeChange(note);
+                        }];
+        [center addObserverForName:UIApplicationDidEnterBackgroundNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
+                              GHLStartPiP();
+                          }
+                        }];
+        GHLStartHousekeepingTimer();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          if (GHLGetBool(GHL_KEY_NIGHT_MODE)) GHLApplyNightMode(YES);
+          if (GHLGetBool(GHL_KEY_ANTI_RECALL)) GHLProbeAntiRecall();
+          if (GHLGetBool(GHL_KEY_HIDE_TYPING) || GHLGetBool(GHL_KEY_HIDE_READ_RECEIPT) || GHLGetBool(GHL_KEY_ANTI_BURN)) GHLProbePrivacyFeatures();
+          if (GHLGetBool(GHL_KEY_COMMENT_VOICE)) GHLProbeCommentVoice();
+          if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD) || GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT)) GHLProbeLiveRoom();
+          GHLRestartSleepTimer();
+        });
+    }
+}
+
+#pragma mark - (31) 语音包
+// 行为参考（只学流程，不碰对方代码）：选语音包/音色 → 试听 → 发出去。
+// 我们的实现：本机 TTS（AVSpeechSynthesizer）+ 录音后变调（AVAudioEngine）。
+// 诚实说明：这不是真人声音克隆——真要像“语音包里对方那个人”需要对方音色的声音模型
+// （类似 RVC），插件里实时跑不现实；也没有对方音色样本。内置 6 个音色只是变调预设，
+// 等皇上发语音包样本后，再按样本的音调/共振峰调映射参数。直播里发语音目前只做探针，
+// 不 hook、不注入、不发包；对方的远程语音服务（要联网拉音色/可能要 UDID 验证）我们没有，
+// 也不绕过——我们的音色全部是本机生成的，不联网、不验证。
+
+static const GHLVoicePackage kGHLVoicePackages[] = {
+    {"original", "原声", 0, 1.0f, ""},
+    {"female", "女声", 6, 1.0f, ""},
+    {"male", "男声", -4, 0.95f, ""},
+    {"loli", "萝莉", 12, 1.15f, ""},
+    {"uncle", "大叔", -7, 0.9f, ""},
+    {"robot", "机器人", 0, 0.75f, ""},
+};
+static const NSUInteger kGHLVoicePackageCount = sizeof(kGHLVoicePackages) / sizeof(kGHLVoicePackages[0]);
+
+NSArray<NSString *> *GHLVoicePackageIDs(void) {
+    NSMutableArray<NSString *> *ids = [NSMutableArray arrayWithCapacity:kGHLVoicePackageCount];
+    for (NSUInteger i = 0; i < kGHLVoicePackageCount; i++) {
+        [ids addObject:[NSString stringWithUTF8String:kGHLVoicePackages[i].voiceId]];
+    }
+    return ids;
+}
+
+const GHLVoicePackage *GHLVoicePackageForID(NSString *voiceId) {
+    for (NSUInteger i = 0; i < kGHLVoicePackageCount; i++) {
+        if (voiceId && [voiceId isEqualToString:[NSString stringWithUTF8String:kGHLVoicePackages[i].voiceId]]) {
+            return &kGHLVoicePackages[i];
+        }
+    }
+    return &kGHLVoicePackages[0];
+}
+
+NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId) {
+    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
+    return [NSString stringWithUTF8String:pkg->displayName];
+}
+
+static AVSpeechSynthesizer *ghlSpeechSynthesizer = nil;
+
+static AVSpeechUtterance *GHLUtteranceForText(NSString *text, const GHLVoicePackage *pkg) {
+    AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:text];
+    utterance.voice = [AVSpeechSynthesisVoice voiceWithLanguage:@"zh-CN"];
+    // 半音 → pitchMultiplier（2^(半音/12)），限制在 0.5–2.0
+    float pitchMultiplier = powf(2.0f, pkg->pitch / 12.0f);
+    utterance.pitchMultiplier = fmaxf(0.5f, fminf(2.0f, pitchMultiplier));
+    utterance.rate = AVSpeechUtteranceDefaultSpeechRate * pkg->rate;
+    utterance.volume = 1.0f;
+    return utterance;
+}
+
+void GHLPreviewVoicePackage(NSString *voiceId) {
+    if (!GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
+        [DYYYUtils showToast:@"请先打开语音包开关"];
+        return;
+    }
+    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
+    NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", [NSString stringWithUTF8String:pkg->displayName]];
+    GHLRunOnMain(^{
+      if (!ghlSpeechSynthesizer) ghlSpeechSynthesizer = [[AVSpeechSynthesizer alloc] init];
+      if (ghlSpeechSynthesizer.speaking) [ghlSpeechSynthesizer stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
+      [ghlSpeechSynthesizer speakUtterance:GHLUtteranceForText(sample, pkg)];
+      GHLLog(@"语音包试听：%@（变调 %+.0f 半音，语速 %.2f）", [NSString stringWithUTF8String:pkg->displayName], pkg->pitch, pkg->rate);
+    });
+}
+
+void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL)) {
+    if (text.length == 0) {
+        if (completion) completion(nil);
+        return;
+    }
+    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
+    AVSpeechUtterance *utterance = GHLUtteranceForText(text, pkg);
+    AVSpeechSynthesizer *synthesizer = [[AVSpeechSynthesizer alloc] init];
+    NSString *fileName = [NSString stringWithFormat:@"ghl_voice_%@.caf", [[NSUUID UUID] UUIDString]];
+    NSURL *outputURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
+    AVAudioFile *audioFile = nil;
+    NSError *fileError = nil;
+    // 先用默认格式建文件，writeUtterance 回调里按实际格式重建
+    NSDictionary *settings = @{
+        AVFormatIDKey : @(kAudioFormatLinearPCM),
+        AVSampleRateKey : @(22050),
+        AVNumberOfChannelsKey : @(1),
+        AVLinearPCMBitDepthKey : @(16),
+        AVLinearPCMIsNonInterleaved : @(NO),
+        AVLinearPCMIsFloatKey : @(NO),
+        AVLinearPCMIsBigEndianKey : @(NO)
+    };
+    audioFile = [[AVAudioFile alloc] initForWriting:outputURL settings:settings error:&fileError];
+    if (!audioFile) {
+        GHLLog(@"语音包合成：建文件失败 %@", fileError.localizedDescription);
+        if (completion) completion(nil);
+        return;
+    }
+    __block AVAudioFile *file = audioFile;
+    __block BOOL finished = NO;
+    [synthesizer writeUtterance:utterance
+               toBufferCallback:^(AVAudioBuffer *buffer) {
+                 if (!buffer) return;
+                 NSError *writeError = nil;
+                 if ([buffer isKindOfClass:[AVAudioPCMBuffer class]]) {
+                     AVAudioPCMBuffer *pcmBuffer = (AVAudioPCMBuffer *)buffer;
+                     if (pcmBuffer.frameLength == 0) return;
+                     if (![file writeFromBuffer:pcmBuffer error:&writeError]) {
+                         GHLLog(@"语音包合成：写 buffer 失败 %@", writeError.localizedDescription);
+                     }
+                 }
+               }];
+    // 轮询等合成完成（writeUtterance 是异步的，合成器 speaking 结束即完成）
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+      for (int i = 0; i < 600 && !finished; i++) {
+          if (!synthesizer.speaking) {
+              finished = YES;
+              break;
+          }
+          [NSThread sleepForTimeInterval:0.1];
+      }
+      GHLRunOnMain(^{
+        if (finished) {
+            GHLLog(@"语音包合成：完成 %@", outputURL.lastPathComponent);
+        } else {
+            GHLLog(@"语音包合成：超时（60s）");
+        }
+        if (completion) completion(finished ? outputURL : nil);
+      });
+    });
+}
+
+#pragma mark 录音后变调：录 10 秒 → 用选中音色变调播放
+
+static AVAudioRecorder *ghlVoiceRecorder = nil;
+static AVAudioEngine *ghlVoiceEngine = nil;
+static AVAudioPlayerNode *ghlVoicePlayerNode = nil;
+static NSTimer *ghlVoiceRecordTimer = nil;
+
+static void GHLPlayRecordedFileWithVoicePackage(NSURL *fileURL, const GHLVoicePackage *pkg) {
+    NSError *error = nil;
+    AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:fileURL error:&error];
+    if (!audioFile) {
+        GHLLog(@"语音包录音：读文件失败 %@", error.localizedDescription);
+        return;
+    }
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    [session setCategory:AVAudioSessionCategoryPlayback error:nil];
+    [session setActive:YES error:nil];
+    [ghlVoiceEngine stop];
+    ghlVoiceEngine = [[AVAudioEngine alloc] init];
+    ghlVoicePlayerNode = [[AVAudioPlayerNode alloc] init];
+    AVAudioUnitTimePitch *pitchUnit = [[AVAudioUnitTimePitch alloc] init];
+    pitchUnit.pitch = pkg->pitch * 100.0f; // 半音 → 音分
+    pitchUnit.rate = pkg->rate;
+    [ghlVoiceEngine attachNode:ghlVoicePlayerNode];
+    [ghlVoiceEngine attachNode:pitchUnit];
+    [ghlVoiceEngine connect:ghlVoicePlayerNode to:pitchUnit format:audioFile.processingFormat];
+    [ghlVoiceEngine connect:pitchUnit to:ghlVoiceEngine.outputNode format:audioFile.processingFormat];
+    [ghlVoicePlayerNode scheduleFile:audioFile atTime:nil completionHandler:^{
+      GHLLog(@"语音包录音：变调播放完成");
+    }];
+    if (![ghlVoiceEngine startAndReturnError:&error]) {
+        GHLLog(@"语音包录音：引擎启动失败 %@", error.localizedDescription);
+        return;
+    }
+    [ghlVoicePlayerNode play];
+    GHLLog(@"语音包录音：正在用%@音色播放（变调 %+.0f 半音）", [NSString stringWithUTF8String:pkg->displayName], pkg->pitch);
+}
+
+void GHLRecordAndPlayWithVoicePackage(NSString *voiceId) {
+    if (!GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
+        [DYYYUtils showToast:@"请先打开语音包开关"];
+        return;
+    }
+    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    [session requestRecordPermission:^(BOOL granted) {
+      if (!granted) {
+          GHLRunOnMain(^{
+            [DYYYUtils showToast:@"没有麦克风权限，录不了音"];
+          });
+          GHLLog(@"语音包录音：麦克风权限被拒");
+          return;
+      }
+      GHLRunOnMain(^{
+        NSError *error = nil;
+        [session setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionMixWithOthers | AVAudioSessionCategoryOptionDefaultToSpeaker error:&error];
+        [session setActive:YES error:&error];
+        NSString *fileName = [NSString stringWithFormat:@"ghl_voice_record_%@.m4a", [[NSUUID UUID] UUIDString]];
+        NSURL *recordURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
+        NSDictionary *settings = @{
+            AVFormatIDKey : @(kAudioFormatMPEG4AAC),
+            AVSampleRateKey : @(44100),
+            AVNumberOfChannelsKey : @(1),
+            AVEncoderAudioQualityKey : @(AVAudioQualityHigh)
+        };
+        ghlVoiceRecorder = [[AVAudioRecorder alloc] initWithURL:recordURL settings:settings error:&error];
+        if (!ghlVoiceRecorder) {
+            GHLLog(@"语音包录音：建录音器失败 %@", error.localizedDescription);
+            return;
+        }
+        [ghlVoiceRecorder prepareToRecord];
+        [ghlVoiceRecorder record];
+        [DYYYUtils showToast:@"正在录音，说话吧，10 秒后自动用选中的音色播放"];
+        GHLLog(@"语音包录音：开始录（10 秒）");
+        [ghlVoiceRecordTimer invalidate];
+        __block NSURL *recordURLCopy = recordURL;
+        __block const GHLVoicePackage *pkgCopy = pkg;
+        ghlVoiceRecordTimer = [NSTimer scheduledTimerWithTimeInterval:10.0
+                                                              repeats:NO
+                                                                block:^(NSTimer *timer) {
+                                                                  [ghlVoiceRecorder stop];
+                                                                  ghlVoiceRecorder = nil;
+                                                                  GHLPlayRecordedFileWithVoicePackage(recordURLCopy, pkgCopy);
+                                                                }];
+      });
+    }];
+}
+
+void GHLProbeLiveVoiceSender(void) {
+    NSArray<NSString *> *classNames = @[
+        @"IESLiveVoiceSender", @"IESLiveVoiceFragment", @"TTSVoiceModel", @"DYZSVoiceManagerView",
+        @"TTSRemoteVoiceService", @"RemoteVoiceService", @"AWEIMVoiceMessageCell", @"AWELiveVoiceInputView"
+    ];
+    NSMutableArray<NSString *> *found = [NSMutableArray array];
+    for (NSString *name in classNames) {
+        if (NSClassFromString(name)) [found addObject:name];
+    }
+    GHLLog(@"语音包直播探针：抖音里找到 %lu 个相关类：%@", (unsigned long)found.count, found);
+    if (found.count == 0) {
+        GHLLog(@"语音包直播探针：没找到直播发语音的类，往直播里发语音目前做不了（不注入、不猜）");
+    } else {
+        GHLLog(@"语音包直播探针：只记录类存在，不 hook、不发包，发送流程待真机日志进一步验证");
+    }
+}
+
+#pragma mark - (32)-(43) xuu 行为参考功能（代码全部自己写）
+
+static NSInteger ghlAutoLikeCount = 0;
+static NSTimer *ghlHousekeepingTimer = nil;
+static NSTimeInterval ghlLiveEnteredTime = 0;
+static UILabel *ghlLiveDurationLabel = nil;
+static BOOL ghlLiveRecording = NO;
+static NSTimeInterval ghlRedPacketLastTap = 0;
+static NSTimeInterval ghlLotteryLastTap = 0;
+static BOOL ghlLiveAudioMutedByUs = NO;
+static BOOL ghlFakeStatsLogged = NO;
+
+static UIViewController *GHLTopViewController(void) {
+    UIViewController *vc = [UIApplication sharedApplication].keyWindow.rootViewController;
+    while (vc.presentedViewController) vc = vc.presentedViewController;
+    if ([vc isKindOfClass:[UINavigationController class]]) vc = ((UINavigationController *)vc).visibleViewController ?: vc;
+    if ([vc isKindOfClass:[UITabBarController class]]) vc = ((UITabBarController *)vc).selectedViewController ?: vc;
+    return vc;
+}
+
+BOOL GHLIsInLiveRoom(void) {
+    UIViewController *vc = GHLTopViewController();
+    if (!vc) return NO;
+    NSString *name = NSStringFromClass([vc class]);
+    if ([name rangeOfString:@"Live"].location != NSNotFound) return YES;
+    // 兜底：顶层 VC 的子 VC 里找含 Live 的
+    for (UIViewController *child in vc.childViewControllers) {
+        if ([NSStringFromClass([child class]) rangeOfString:@"Live"].location != NSNotFound) return YES;
+    }
+    return NO;
+}
+
+#pragma mark (32) 自动点赞
+
+static BOOL GHLIsCurrentVideoLiked(void) {
+    __block BOOL liked = NO;
+    GHLRunOnMain(^{
+      UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+      if (!controller) return;
+      NSMutableArray *stack = [NSMutableArray arrayWithObject:controller.view];
+      while (stack.count > 0 && !liked) {
+          UIView *view = stack.lastObject;
+          [stack removeLastObject];
+          if ([view isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
+              [((AWEFeedVideoButton *)view).accessibilityLabel isEqualToString:@"点赞"]) {
+              liked = ((UIButton *)view).selected;
+              break;
+          }
+          [stack addObjectsFromArray:view.subviews];
+      }
+    });
+    return liked;
+}
+
+void GHLMaybeAutoLike(void) {
+    if (!GHLGetBool(GHL_KEY_AUTO_LIKE)) return;
+    NSInteger maxCount = [GHLGetString(GHL_KEY_AUTO_LIKE_MAX) integerValue];
+    if (maxCount <= 0) maxCount = 100;
+    if (ghlAutoLikeCount >= maxCount) {
+        GHLLog(@"自动点赞：已到本会话上限 %ld，不再自动点", (long)maxCount);
+        return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1500 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      @try {
+          if (GHLIsCurrentVideoLiked()) return; // 已点赞的不重复点（避免点一下变取消）
+          UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+          if ([controller respondsToSelector:@selector(performLikeAction)]) {
+              [(AWEPlayInteractionViewController *)controller performLikeAction];
+              ghlAutoLikeCount++;
+              GHLLog(@"自动点赞：已点第 %ld 个", (long)ghlAutoLikeCount);
+          }
+      } @catch (__unused NSException *exception) {
+      }
+    });
+}
+
+#pragma mark (33)(39) 直播间输入框发消息（尽力找输入框+发送按钮）
+
+void GHLTrySendLiveMessage(NSString *text) {
+    if (text.length == 0) return;
+    GHLRunOnMain(^{
+      @try {
+          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+          NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
+          UITextField *textField = nil;
+          UITextView *textView = nil;
+          UIButton *sendButton = nil;
+          while (stack.count > 0) {
+              UIView *view = stack.lastObject;
+              [stack removeLastObject];
+              if (!textField && [view isKindOfClass:[UITextField class]]) {
+                  NSString *placeholder = ((UITextField *)view).placeholder ?: @"";
+                  if ([placeholder containsString:@"说"] || [placeholder containsString:@"聊"] || [placeholder containsString:@"评论"] || placeholder.length == 0) {
+                      textField = (UITextField *)view;
+                  }
+              }
+              if (!textView && [view isKindOfClass:[UITextView class]]) textView = (UITextView *)view;
+              if (!sendButton && [view isKindOfClass:[UIButton class]]) {
+                  NSString *title = ((UIButton *)view).titleLabel.text ?: @"";
+                  if ([title isEqualToString:@"发送"]) sendButton = (UIButton *)view;
+              }
+              [stack addObjectsFromArray:view.subviews];
+          }
+          if (textField) {
+              textField.text = text;
+              [textField sendActionsForControlEvents:UIControlEventEditingChanged];
+          } else if (textView) {
+              textView.text = text;
+          } else {
+              GHLLog(@"直播间发消息：没找到输入框，消息没发出去");
+              return;
+          }
+          if (sendButton) {
+              [sendButton sendActionsForControlEvents:UIControlEventTouchUpInside];
+              GHLLog(@"直播间发消息：已发“%@”", text);
+          } else {
+              GHLLog(@"直播间发消息：已填文字但没找到发送按钮，请手动点发送");
+          }
+      } @catch (__unused NSException *exception) {
+      }
+    });
+}
+
+#pragma mark (33) 自动抢红包 / (34) 自动开直播抽奖
+
+static void GHLScanAndTapButtonContaining(NSString *keyword, NSTimeInterval *lastTap, NSTimeInterval minInterval, NSString *logName) {
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (now - *lastTap < minInterval) return;
+    __block UIButton *target = nil;
+    GHLRunOnMain(^{
+      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+      NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
+      while (stack.count > 0 && !target) {
+          UIView *view = stack.lastObject;
+          [stack removeLastObject];
+          if ([view isKindOfClass:[UIButton class]] && !view.hidden && view.alpha > 0.05 && view.window) {
+              UIButton *button = (UIButton *)view;
+              NSString *title = button.titleLabel.text ?: @"";
+              NSString *label = button.accessibilityLabel ?: @"";
+              if ([title containsString:keyword] || [label containsString:keyword]) target = button;
+          }
+          [stack addObjectsFromArray:view.subviews];
+      }
+    });
+    if (!target) return;
+    *lastTap = now;
+    NSString *delayText = GHLGetString(GHL_KEY_RED_PACKET_DELAY);
+    NSTimeInterval delay = delayText.length > 0 ? [delayText doubleValue] : 1.0;
+    if (delay < 0) delay = 0;
+    if (delay > 10) delay = 10;
+    GHLLog(@"%@：发现按钮，%.1f 秒后点", logName, delay);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      [target sendActionsForControlEvents:UIControlEventTouchUpInside];
+      GHLLog(@"%@：已点", logName);
+      if ([logName isEqualToString:@"自动抢红包"] && GHLGetBool(GHL_KEY_RED_PACKET_AUTO_REPLY)) {
+          NSString *reply = GHLGetString(GHL_KEY_RED_PACKET_REPLY_TEXT);
+          if (reply.length == 0) reply = @"谢谢老板";
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GHLTrySendLiveMessage(reply);
+          });
+      }
+    });
+}
+
+#pragma mark (38) 自定义底栏
+
+static void GHLApplyCustomTabBar(void) {
+    NSString *hiddenText = GHLGetString(GHL_KEY_HIDDEN_TABS);
+    if (hiddenText.length == 0) return;
+    NSMutableArray<NSString *> *hiddenTabs = [NSMutableArray array];
+    for (NSString *item in [hiddenText componentsSeparatedByString:@","]) {
+        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) [hiddenTabs addObject:trimmed];
+    }
+    if (hiddenTabs.count == 0) return;
+    GHLRunOnMain(^{
+      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+      NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
+      while (stack.count > 0) {
+          UIView *view = stack.lastObject;
+          [stack removeLastObject];
+          if ([view isKindOfClass:[UITabBar class]]) {
+              for (UIView *tabButton in view.subviews) {
+                  NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+                  GHLCollectLabelsInView(tabButton, labels);
+                  for (UILabel *label in labels) {
+                      if (label.text.length > 0 && [hiddenTabs containsObject:label.text]) {
+                          tabButton.hidden = YES;
+                          GHLLog(@"自定义底栏：已隐藏“%@”", label.text);
+                          break;
+                      }
+                  }
+              }
+              return;
+          }
+          [stack addObjectsFromArray:view.subviews];
+      }
+    });
+}
+
+#pragma mark (39) 直播时长 / 直播录制
+
+void GHLUpdateLiveDurationLabel(void) {
+    BOOL inLive = GHLIsInLiveRoom();
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (inLive && ghlLiveEnteredTime == 0) {
+        ghlLiveEnteredTime = now;
+        GHLLog(@"直播时长：进入直播间，开始计时");
+        // (39) 进直播间发消息：开关开了就发一次设置好的内容
+        if (GHLGetBool(GHL_KEY_LIVE_SEND_MESSAGE)) {
+            NSString *message = GHLGetString(GHL_KEY_LIVE_SEND_MESSAGE_TEXT);
+            if (message.length > 0) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                  if (GHLIsInLiveRoom()) GHLTrySendLiveMessage(message);
+                });
+            }
+        }
+    } else if (!inLive && ghlLiveEnteredTime != 0) {
+        ghlLiveEnteredTime = 0;
+        [ghlLiveDurationLabel removeFromSuperview];
+        ghlLiveDurationLabel = nil;
+        GHLLog(@"直播时长：离开直播间，计时清零");
+    }
+    if (inLive && GHLGetBool(GHL_KEY_LIVE_DURATION)) {
+        GHLRunOnMain(^{
+          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+          if (!ghlLiveDurationLabel) {
+              ghlLiveDurationLabel = [[UILabel alloc] initWithFrame:CGRectMake(12, 64, 130, 26)];
+              ghlLiveDurationLabel.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
+              ghlLiveDurationLabel.textColor = [UIColor colorWithRed:245 / 255.0 green:215 / 255.0 blue:110 / 255.0 alpha:1.0];
+              ghlLiveDurationLabel.font = [UIFont boldSystemFontOfSize:13];
+              ghlLiveDurationLabel.textAlignment = NSTextAlignmentCenter;
+              ghlLiveDurationLabel.layer.cornerRadius = 13;
+              ghlLiveDurationLabel.layer.masksToBounds = YES;
+              [window addSubview:ghlLiveDurationLabel];
+          }
+          NSInteger elapsed = (NSInteger)([[NSDate date] timeIntervalSince1970] - ghlLiveEnteredTime);
+          ghlLiveDurationLabel.text = [NSString stringWithFormat:@"直播 %02ld:%02ld", (long)(elapsed / 60), (long)(elapsed % 60)];
+        });
+    }
+    // 直播录制：进直播间开录，离开停录并弹保存预览
+    if (inLive && GHLGetBool(GHL_KEY_LIVE_RECORD) && !ghlLiveRecording) {
+        ghlLiveRecording = YES;
+        [[RPScreenRecorder sharedRecorder] startRecordingWithHandler:^(NSError *error) {
+          if (error) {
+              GHLLog(@"直播录制：开始失败 %@", error.localizedDescription);
+              ghlLiveRecording = NO;
+          } else {
+              GHLLog(@"直播录制：已开始");
+          }
+        }];
+    } else if (!inLive && ghlLiveRecording) {
+        ghlLiveRecording = NO;
+        [[RPScreenRecorder sharedRecorder] stopRecordingWithHandler:^(RPPreviewViewController *previewVC, NSError *error) {
+          if (error || !previewVC) {
+              GHLLog(@"直播录制：停止失败 %@", error.localizedDescription);
+              return;
+          }
+          previewVC.modalPresentationStyle = UIModalPresentationFullScreen;
+          [GHLTopViewController() presentViewController:previewVC animated:YES completion:nil];
+          GHLLog(@"直播录制：已停止，弹出保存预览");
+        }];
+    }
+}
+
+#pragma mark (42) 改数字显示
+
+static NSString *GHLFormatFakeCount(NSString *raw) {
+    if (raw.length == 0) return nil;
+    // 用户填纯数字就直接显示；填了带单位的也原样显示
+    return raw;
+}
+
+void GHLApplyFakeStatsInView(UIView *view) {
+    if (!GHLGetBool(GHL_KEY_FAKE_STATS)) return;
+    // 节流：最多 2 秒跑一次（viewDidLayoutSubviews 调用很频繁）
+    static NSTimeInterval lastRun = 0;
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (now - lastRun < 2.0) return;
+    lastRun = now;
+    NSString *fakeLike = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_LIKE_COUNT));
+    NSString *fakePlay = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_PLAY_COUNT));
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        // 点赞按钮里的数字标签 → 改成用户填的点赞数
+        if (fakeLike && [candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
+            [((AWEFeedVideoButton *)candidate).accessibilityLabel isEqualToString:@"点赞"]) {
+            NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+            GHLCollectLabelsInView(candidate, labels);
+            for (UILabel *label in labels) {
+                if (label.text.length > 0) {
+                    label.text = fakeLike;
+                    if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：点赞数已改成 %@", fakeLike);
+                }
+            }
+        }
+        // 含“播放”的标签 → 把前面的数字换成用户填的播放数
+        if (fakePlay) {
+            for (UIView *subview in candidate.subviews) {
+                if ([subview isKindOfClass:[UILabel class]]) {
+                    UILabel *label = (UILabel *)subview;
+                    if (label.text.length > 0 && [label.text containsString:@"播放"]) {
+                        NSCharacterSet *digits = [NSCharacterSet characterSetWithCharactersInString:@"0123456789.,万千"];
+                        NSRange range = [label.text rangeOfCharacterFromSet:digits];
+                        if (range.location != NSNotFound) {
+                            label.text = [label.text stringByReplacingCharactersInRange:NSMakeRange(0, range.location + range.length) withString:fakePlay];
+                            if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：播放数已改成 %@", fakePlay);
+                        }
+                    }
+                }
+            }
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+    // 直播间人数：只在直播间里找含“人”的标签改
+    if (GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT) && GHLIsInLiveRoom()) {
+        NSString *fakeCount = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_LIVE_USER_COUNT_VALUE));
+        if (fakeCount) {
+            UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+            NSMutableArray *liveStack = [NSMutableArray arrayWithObject:window];
+            while (liveStack.count > 0) {
+                UIView *candidate = liveStack.lastObject;
+                [liveStack removeLastObject];
+                if ([candidate isKindOfClass:[UILabel class]]) {
+                    UILabel *label = (UILabel *)candidate;
+                    if (label.text.length > 0 && [label.text containsString:@"人"] && label.text.length < 20) {
+                        NSCharacterSet *digits = [NSCharacterSet characterSetWithCharactersInString:@"0123456789.,万千"];
+                        NSRange range = [label.text rangeOfCharacterFromSet:digits];
+                        if (range.location != NSNotFound) {
+                            label.text = [label.text stringByReplacingCharactersInRange:NSMakeRange(0, range.location + range.length) withString:fakeCount];
+                            if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：直播间人数已改成 %@", fakeCount);
+                        }
+                    }
+                }
+                [liveStack addObjectsFromArray:candidate.subviews];
+            }
+        }
+    }
+    ghlFakeStatsLogged = YES;
+}
+
+#pragma mark (37) 双击下载（带进度）
+
+void GHLDownloadCurrentVideoWithProgress(void) {
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    if (!model || !model.video) {
+        [DYYYUtils showToast:@"没找到当前视频"];
+        return;
+    }
+    NSURL *videoURL = nil;
+    NSURL *audioURL = nil;
+    if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
+    } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
+    }
+    if (model.music && model.music.playURL && model.music.playURL.originURLList.count > 0) {
+        audioURL = [NSURL URLWithString:model.music.playURL.originURLList.firstObject];
+    }
+    if (!videoURL) {
+        [DYYYUtils showToast:@"拿不到视频地址"];
+        return;
+    }
+    __block NSInteger lastLoggedPercent = -1;
+    [DYYYUtils showToast:@"开始下载当前视频…"];
+    [DYYYManager downloadMediaWithProgress:videoURL
+                                 mediaType:MediaTypeVideo
+                                     audio:audioURL
+                                  progress:^(float progress) {
+                                    if (!GHLGetBool(GHL_KEY_DOWNLOAD_PROGRESS)) return;
+                                    NSInteger percent = (NSInteger)(progress * 100);
+                                    if (percent - lastLoggedPercent >= 25 || percent == 100) {
+                                        lastLoggedPercent = percent;
+                                        GHLLog(@"下载进度：%ld%%", (long)percent);
+                                    }
+                                  }
+                                completion:^(BOOL success, NSURL *fileURL) {
+                                  GHLLog(@"双击下载：%@", success ? @"成功" : @"失败");
+                                  GHLRunOnMain(^{
+                                    [DYYYUtils showToast:success ? @"视频已保存" : @"下载失败"];
+                                  });
+                                }];
+}
+
+#pragma mark (38) 界面缩放 / 深色键盘
+
+void GHLApplyInterfaceScaleInView(UIView *view) {
+    if (!GHLGetBool(GHL_KEY_INTERFACE_SCALE)) {
+        // 开关关了就恢复原大小（只处理已经缩放过的）
+        NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+        while (stack.count > 0) {
+            UIView *candidate = stack.lastObject;
+            [stack removeLastObject];
+            if ([candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] && !CGAffineTransformIsIdentity(candidate.transform)) {
+                candidate.transform = CGAffineTransformIdentity;
+            }
+            [stack addObjectsFromArray:candidate.subviews];
+        }
+        return;
+    }
+    CGFloat scale = [GHLGetString(GHL_KEY_INTERFACE_SCALE_VALUE) floatValue];
+    if (scale < 0.5f) scale = 0.5f;
+    if (scale > 2.0f) scale = 2.0f;
+    if (scale == 0) scale = 1.0f;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        if ([candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")]) {
+            candidate.transform = CGAffineTransformMakeScale(scale, scale);
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+}
+
+void GHLApplyDarkKeyboardInView(UIView *view) {
+    if (!GHLGetBool(GHL_KEY_DARK_KEYBOARD)) return;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        if ([candidate isKindOfClass:[UITextField class]]) {
+            ((UITextField *)candidate).keyboardAppearance = UIKeyboardAppearanceDark;
+        } else if ([candidate isKindOfClass:[UITextView class]]) {
+            ((UITextView *)candidate).keyboardAppearance = UIKeyboardAppearanceDark;
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+    GHLLog(@"深色键盘：已把输入框键盘改成深色");
+}
+
+#pragma mark (35)(36)(41) 探针（只记日志，不 hook、不猜实现）
+
+void GHLProbePrivacyFeatures(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *typing = [NSMutableArray array];
+    NSMutableArray<NSString *> *readReceipt = [NSMutableArray array];
+    NSMutableArray<NSString *> *burn = [NSMutableArray array];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        if ([name containsString:@"Typing"]) {
+            if (typing.count < 20) [typing addObject:name];
+        } else if ([name containsString:@"ReadReceipt"] || [name containsString:@"ReadStatus"]) {
+            if (readReceipt.count < 20) [readReceipt addObject:name];
+        } else if ([name containsString:@"Burn"] || [name containsString:@"Disappear"] || [name containsString:@"SecretChat"]) {
+            if (burn.count < 20) [burn addObject:name];
+        }
+    }
+    free(classes);
+    GHLLog(@"隐私探针：正在输入相关 %lu 个：%@", (unsigned long)typing.count, typing);
+    GHLLog(@"隐私探针：已读回执相关 %lu 个：%@", (unsigned long)readReceipt.count, readReceipt);
+    GHLLog(@"隐私探针：阅后即焚相关 %lu 个：%@", (unsigned long)burn.count, burn);
+    GHLLog(@"隐私探针：以上只做记录；隐藏正在输入/已读回执/防阅后即焚没有可验证的 hook 点，目前做不了，开关先留着等日志");
+}
+
+void GHLProbeCommentVoice(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *hits = [NSMutableArray array];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        if (([name containsString:@"Comment"] || [name containsString:@"Voice"]) && ([name containsString:@"Audio"] || [name containsString:@"Voice"])) {
+            if (hits.count < 30) [hits addObject:name];
+        }
+    }
+    free(classes);
+    GHLLog(@"评论语音探针：疑似评论语音相关类 %lu 个：%@", (unsigned long)hits.count, hits);
+    if (hits.count == 0) {
+        GHLLog(@"评论语音探针：没找到评论语音的类，播放/保存做不了，开关先留着等日志");
+    } else {
+        GHLLog(@"评论语音探针：只记录类存在，播放/保存流程待真机日志进一步验证");
+    }
+}
+
+void GHLProbeLiveRoom(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *hits = [NSMutableArray array];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        if ([name hasPrefix:@"AWELive"] || [name hasPrefix:@"IESLive"]) {
+            if (hits.count < 30) [hits addObject:name];
+        }
+    }
+    free(classes);
+    GHLLog(@"直播间探针：AWELive/IESLive 类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
+}
+
+#pragma mark 巡检定时器（2 秒一次）
+
+void GHLHousekeepingTick(void) {
+    @try {
+        if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD)) {
+            GHLUpdateLiveDurationLabel();
+        }
+        if (GHLGetBool(GHL_KEY_AUTO_RED_PACKET)) {
+            NSString *blacklist = GHLGetString(GHL_KEY_RED_PACKET_BLACKLIST);
+            if (blacklist.length > 0) {
+                GHLLog(@"自动抢红包：黑名单 %@ 已填，但直播间里拿不到作者抖音号，黑名单暂时匹配不上，仍会抢（等日志确认作者锚点）", blacklist);
+            }
+            GHLScanAndTapButtonContaining(@"红包", &ghlRedPacketLastTap, 5.0, @"自动抢红包");
+        }
+        if (GHLGetBool(GHL_KEY_AUTO_LIVE_LOTTERY)) {
+            GHLScanAndTapButtonContaining(@"抽奖", &ghlLotteryLastTap, 10.0, @"自动开直播抽奖");
+        }
+        if (GHLGetBool(GHL_KEY_CUSTOM_TAB_BAR)) {
+            GHLApplyCustomTabBar();
+        }
+        if (GHLGetBool(GHL_KEY_FAKE_STATS)) {
+            UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+            UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+            if (controller) GHLApplyFakeStatsInView(controller.view);
+            (void)window;
+        }
+        if (GHLGetBool(GHL_KEY_LIVE_AUDIO_MUTE)) {
+            AVPlayer *player = GHLFindPlayingAVPlayer();
+            if (GHLIsInLiveRoom() && player && player.volume > 0) {
+                player.volume = 0;
+                ghlLiveAudioMutedByUs = YES;
+                GHLLog(@"直播音频：已单独静音");
+            } else if (!GHLIsInLiveRoom() && ghlLiveAudioMutedByUs && player) {
+                player.volume = 1.0;
+                ghlLiveAudioMutedByUs = NO;
+                GHLLog(@"直播音频：离开直播间，已恢复音量");
+            }
+        }
+    } @catch (__unused NSException *exception) {
+    }
+}
+
+void GHLStartHousekeepingTimer(void) {
+    if (ghlHousekeepingTimer) return;
+    ghlHousekeepingTimer = [NSTimer scheduledTimerWithTimeInterval:2.0
+                                                           repeats:YES
+                                                             block:^(NSTimer *timer) {
+                                                               (void)timer;
+                                                               GHLHousekeepingTick();
+                                                             }];
+    GHLLog(@"巡检定时器：已启动（2 秒一次，管红包/抽奖/直播时长/底栏/数字改写/直播静音）");
+}

@@ -1,0 +1,210 @@
+// 顾海龙抖音 (GHL) — 新增功能
+// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。
+// 原 MIT 声明与 huami 版权行保留在 LICENSE 文件中，未做任何改动。
+#import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
+
+// 注意：GHLFeatures.xm 按 ObjC++ 编译，声明必须用 extern "C" 包住，
+// 否则函数名会被 C++ 修饰，.m 文件调用方链接不到。
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+@class AWEAwemeModel;
+
+// MARK: - 设置键 (GHL*，与上游 DYYY* 键区分开)
+// 睡眠定时 (1) — 值：@"关闭"/@"15分钟"/@"30分钟"/@"60分钟"
+#define GHL_KEY_SLEEP_TIMER @"GHLSleepTimer"
+// 画中画+后台播放 (2)
+#define GHL_KEY_BACKGROUND_AUDIO @"GHLBackgroundAudio"
+// 快进手势 (3)：长按倍速 + 双击左右快进 10 秒
+#define GHL_KEY_SEEK_GESTURES @"GHLSeekGestures"
+// 记忆倍速 (4)：按作者记住倍速
+#define GHL_KEY_REMEMBER_SPEED_PER_AUTHOR @"GHLRememberSpeedPerAuthor"
+// 关键词过滤总开关 (5)：关掉则标题/用户/话题/直播过滤全部暂停
+#define GHL_KEY_KEYWORD_FILTER @"GHLKeywordFilter"
+// 一键清爽模式 (6)
+#define GHL_KEY_CLEAN_MODE @"GHLCleanMode"
+// 评论区增强 (7)
+#define GHL_KEY_COMMENT_BLOCK_KEYWORDS @"GHLCommentBlockKeywords" // 逗号分隔
+#define GHL_KEY_COMMENT_AUTO_EXPAND @"GHLCommentAutoExpand"     // 长评论自动展开
+// 批量下载 (8)：点赞自动保存
+#define GHL_KEY_AUTO_SAVE_LIKED @"GHLAutoSaveLiked"
+// 夜间护眼 (9)
+#define GHL_KEY_NIGHT_MODE @"GHLNightMode"
+#define GHL_KEY_NIGHT_BRIGHTNESS @"GHLNightBrightness" // 0-1 小数，默认 0.3
+// 更多手势 (10)
+#define GHL_KEY_TRIPLE_TAP_CLEAR @"GHLTripleTapClear" // 三指双击清屏
+#define GHL_KEY_EDGE_SWIPE_NEXT @"GHLEdgeSwipeNext"   // 边缘滑动切下一个视频
+#define GHL_KEY_VOLUME_SEEK @"GHLVolumeSeek"         // 音量键调进度
+// 直播间净化 (12)
+#define GHL_KEY_LIVE_PURIFY @"GHLLivePurify"
+// BGM 一键保存 (15)
+#define GHL_KEY_BGM_SAVE @"GHLBGMSave"
+// 自动跳过开屏广告 (16)
+#define GHL_KEY_NO_SPLASH_AD @"GHLNoSplashAd"
+// 去水印分享直链 (18)
+#define GHL_KEY_NO_WATERMARK_SHARE_LINK @"GHLNoWatermarkShareLink"
+// 评论区图片一键存原图 (19)
+#define GHL_KEY_COMMENT_IMAGE_SAVE @"GHLCommentImageSave"
+// 弹幕浮层 (20)
+#define GHL_KEY_COMMENT_DANMAKU @"GHLCommentDanmaku"
+// 侧边栏自定义排序 (22)
+#define GHL_KEY_SIDEBAR_REORDER @"GHLSidebarReorder"
+#define GHL_KEY_SIDEBAR_ORDER @"GHLSidebarOrder" // 如：评论,点赞,分享,收藏（从上到下）
+// 私信防撤回 (24)：实验功能，目前只有启动探针日志，待真机日志验证
+#define GHL_KEY_ANTI_RECALL @"GHLAntiRecall"
+// 视频截图去水印 (25)
+#define GHL_KEY_SCREENSHOT_CLEAN @"GHLScreenshotClean"
+// 楼中楼一键展开 (29)
+#define GHL_KEY_EXPAND_REPLIES @"GHLExpandReplies"
+// 视频原声提取 (30)
+#define GHL_KEY_EXTRACT_AUDIO @"GHLExtractAudio"
+// 语音包 (31)：内置变调音色包（原声/女声/男声/萝莉/大叔/机器人）。
+// 做法是本机 TTS + 录音后变调（AVAudioEngine 变调/变速），不是真人声音克隆：
+// 真要像“语音包里对方那个人”需要对方音色的声音模型（类似 RVC），插件里实时跑不现实，
+// 也没有现成的对方音色样本。等皇上发语音包样本后，再按样本的音调/共振峰调映射参数。
+// 直播里发语音目前只做运行期探针（GHLProbeLiveVoiceSender），不注入、不发包。
+#define GHL_KEY_VOICE_PACKAGE @"GHLVoicePackage"       // 总开关
+#define GHL_KEY_VOICE_PACKAGE_ID @"GHLVoicePackageID"  // 选中的音色 id，默认 @"original"
+
+// MARK: - 语音包 (31)
+typedef struct {
+    const char *voiceId;     // 如 "original"
+    const char *displayName; // 如 "原声"
+    float pitch;             // 变调（半音），如女声 +6、萝莉 +12、大叔 -6、机器人 0
+    float rate;              // 语速倍率
+    const char *systemVoice; // 系统 TTS 语音标识（zh-CN），空则用默认
+} GHLVoicePackage;
+// 内置音色包列表（按固定顺序）
+NSArray<NSString *> *GHLVoicePackageIDs(void);
+NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId);
+const GHLVoicePackage *GHLVoicePackageForID(NSString *voiceId);
+// 用选中音色把一段文字念出来（本机 TTS + 系统语音，试听用）
+void GHLPreviewVoicePackage(NSString *voiceId);
+// 用选中音色把一段文字合成语音文件（.m4a），完成回调给文件 URL
+void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL));
+// 录一段音并用选中音色变调后播放（AVAudioEngine 变调，不改原文件）
+void GHLRecordAndPlayWithVoicePackage(NSString *voiceId);
+// 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包）
+void GHLProbeLiveVoiceSender(void);
+
+// MARK: - 32-43（xuu 抖音助手行为参考，代码全部自己写；只学功能清单，不抄它的代码）
+// (32) 自动点赞
+#define GHL_KEY_AUTO_LIKE @"GHLAutoLike"
+#define GHL_KEY_AUTO_LIKE_MAX @"GHLAutoLikeMaxCount" // 每会话上限，默认 100
+// (33) 自动抢红包
+#define GHL_KEY_AUTO_RED_PACKET @"GHLAutoRedPacket"
+#define GHL_KEY_RED_PACKET_BLACKLIST @"GHLRedPacketBlacklist" // 逗号分隔的作者抖音号
+#define GHL_KEY_RED_PACKET_DELAY @"GHLRedPacketDelay"         // 秒，默认 1
+#define GHL_KEY_RED_PACKET_AUTO_REPLY @"GHLRedPacketAutoReply"
+#define GHL_KEY_RED_PACKET_REPLY_TEXT @"GHLRedPacketReplyText" // 默认 谢谢老板
+// (34) 自动开直播抽奖
+#define GHL_KEY_AUTO_LIVE_LOTTERY @"GHLAutoLiveLottery"
+// (35) 防撤回全套
+#define GHL_KEY_HIDE_TYPING @"GHLHideTyping"             // 隐藏“正在输入”（探针，未验证）
+#define GHL_KEY_HIDE_READ_RECEIPT @"GHLHideReadReceipt" // 隐藏已读回执（探针，未验证）
+#define GHL_KEY_DISABLE_VISIT_REPORT @"GHLDisableVisitReport" // 不上报访客记录（接上游隐私拦截）
+// (36) 评论语音播放/保存
+#define GHL_KEY_COMMENT_VOICE @"GHLCommentVoice"
+#define GHL_KEY_COMMENT_VOICE_SAVE @"GHLCommentVoiceSave"
+// (37) 下载增强
+#define GHL_KEY_DOUBLE_TAP_DOWNLOAD @"GHLDoubleTapDownload" // 双击下载（开后双击不再快进）
+#define GHL_KEY_LONG_PRESS_DOWNLOAD @"GHLLongPressDownload" // 长按下载（接上游）
+#define GHL_KEY_DOWNLOAD_PROGRESS @"GHLDownloadProgress"   // 下载进度日志+提示
+#define GHL_KEY_SAVE_AVATAR @"GHLSaveAvatar"               // 保存头像（长按面板）
+#define GHL_KEY_COPY_PROFILE @"GHLCOPYProfile"             // 复制个人资料（长按面板）
+// (38) 左滑返回、界面缩放、深色键盘、自定义底栏
+#define GHL_KEY_LEFT_SWIPE_BACK @"GHLLeftSwipeBack"
+#define GHL_KEY_INTERFACE_SCALE @"GHLInterfaceScale"
+#define GHL_KEY_INTERFACE_SCALE_VALUE @"GHLInterfaceScaleValue" // 默认 1.0
+#define GHL_KEY_DARK_KEYBOARD @"GHLDarkKeyboard"
+#define GHL_KEY_CUSTOM_TAB_BAR @"GHLCUSTOMTabBar"
+#define GHL_KEY_HIDDEN_TABS @"GHLHiddenTabs" // 逗号分隔，如 商城,消息
+// (39) 直播工具
+#define GHL_KEY_LIVE_DURATION @"GHLLiveDuration"
+#define GHL_KEY_LIVE_RECORD @"GHLLiveRecord"
+#define GHL_KEY_SKIP_LIVE @"GHLSkipLive" // 跳过直播（接上游）
+#define GHL_KEY_LIVE_SEND_MESSAGE @"GHLLiveSendMessage"
+#define GHL_KEY_LIVE_SEND_MESSAGE_TEXT @"GHLLiveSendMessageText"
+// (40) 弹幕颜色、评论区模糊、顶栏透明、隐藏状态栏（均接上游已有实现）
+#define GHL_KEY_DANMAKU_COLOR @"GHLDanmakuColor"
+#define GHL_KEY_DANMAKU_COLOR_VALUE @"GHLDanmakuColorValue" // 十六进制或 random
+#define GHL_KEY_COMMENT_BLUR @"GHLCommentBlur"
+#define GHL_KEY_TOP_BAR_TRANSPARENT @"GHLTopBarTransparent"
+#define GHL_KEY_TOP_BAR_TRANSPARENCY @"GHLTopBarTransparency" // 0-1，默认 0.5
+#define GHL_KEY_HIDE_STATUS_BAR @"GHLHideStatusBar"
+// (41) 防阅后即焚（探针，未验证）
+#define GHL_KEY_ANTI_BURN @"GHLAntiBurn"
+// (42) 改数字显示
+#define GHL_KEY_FAKE_STATS @"GHLFakeStats" // 改视频点赞/播放数显示
+#define GHL_KEY_FAKE_LIKE_COUNT @"GHLFakeLikeCount"
+#define GHL_KEY_FAKE_PLAY_COUNT @"GHLFakePlayCount"
+#define GHL_KEY_FAKE_LIVE_USER_COUNT @"GHLFakeLiveUserCount" // 改直播间人数显示
+#define GHL_KEY_FAKE_LIVE_USER_COUNT_VALUE @"GHLFakeLiveUserCountValue"
+// (43) 音频管理
+#define GHL_KEY_AUDIO_SHARE @"GHLAudioShare" // 音频分享（长按面板）
+#define GHL_KEY_LIVE_AUDIO_MUTE @"GHLLiveAudioMute" // 直播音频单独静音
+#define GHL_KEY_COMMENT_AUDIO_MUTE @"GHLCommentAudioMute" // 评论音频单独静音（探针，未验证）
+
+// MARK: - 32-43 功能入口
+void GHLMaybeAutoLike(void); // (32) 切视频后自动点赞（带每会话上限，已点赞的不重复点）
+void GHLStartHousekeepingTimer(void); // (33)(34)(38)(39)(42) 每 2 秒跑一次的巡检
+void GHLHousekeepingTick(void);
+BOOL GHLIsInLiveRoom(void); // (39)(42) 是否在直播间（按顶层 VC 类名含 Live 判断）
+void GHLUpdateLiveDurationLabel(void); // (39) 直播时长悬浮显示
+void GHLTrySendLiveMessage(NSString *text); // (33)(39) 尽力往直播间输入框发一条消息（遍历找输入框+发送按钮）
+void GHLDownloadCurrentVideoWithProgress(void); // (37) 双击下载当前视频（带进度日志）
+void GHLApplyInterfaceScaleInView(UIView *view); // (38) 侧边按钮缩放
+void GHLApplyDarkKeyboardInView(UIView *view); // (38) 评论输入框深色键盘
+void GHLApplyFakeStatsInView(UIView *view); // (42) 点赞数/播放数显示改写
+void GHLProbePrivacyFeatures(void); // (35)(41) 探针：正在输入/已读回执/阅后即焚相关类
+void GHLProbeCommentVoice(void); // (36) 探针：评论语音相关类
+void GHLProbeLiveRoom(void); // (39)(42) 探针：直播间相关类
+
+// MARK: - 通用工具
+BOOL GHLGetBool(NSString *key);
+NSString *GHLGetString(NSString *key);
+// 在主线程跑 block（已在主线程就直接跑）
+void GHLRunOnMain(dispatch_block_t block);
+// 关键词过滤总开关：键不存在时默认开（保持上游已有过滤行为不变）
+BOOL GHLKeywordFilterEnabled(void);
+// 写诊断日志到 /var/mobile/Library/Logs/GuHaiLongDouyin.log
+void GHLLog(NSString *format, ...);
+
+// MARK: - 播放器
+// 找到当前正在播放的 AVPlayer（遍历 keyWindow 的 AVPlayerLayer）
+AVPlayer *GHLFindPlayingAVPlayer(void);
+// 找到当前播放视频的 AVPlayerLayer
+AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void);
+// 当前播放进度（秒），找不到返回 -1
+double GHLCurrentPlayerTime(void);
+// 快进/快退 N 秒（可正可负）
+void GHLSeekCurrentPlayerBySeconds(double seconds);
+// 暂停当前播放
+void GHLPauseCurrentPlayer(void);
+// 当前视频的 AwemeModel（通过悬浮按钮协调器拿当前 interaction controller）
+AWEAwemeModel *GHLCurrentAwemeModel(void);
+
+// MARK: - 各功能入口（供设置页开关回调调用）
+void GHLRestartSleepTimer(void);        // (1) 按 GHLSleepTimer 的值重建/取消定时
+void GHLApplyNightMode(BOOL on);       // (9)
+void GHLApplyLivePurification(BOOL on); // (12) 开：记下现有值并全开隐藏项；关：恢复
+void GHLApplyCleanMode(BOOL on);       // (6) 开：首页净化+清屏按钮；关：只关首页净化
+void GHLStartPiP(void);                // (2) 画中画
+void GHLProbeAntiRecall(void);         // (24) 启动时探针：记下疑似撤回相关类名
+
+// MARK: - 长按面板动作
+// (18) 解析分享链接，复制无水印视频直链到剪贴板
+void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model);
+// (25) 用解析接口拿无水印视频，在指定时间点截一帧存相册
+void GHLSaveCleanScreenshotForAwemeModel(AWEAwemeModel *model, double seconds);
+// (30) 下载当前视频并只导出音轨（.m4a），用分享面板交出去
+void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
+
+// MARK: - Logo
+UIImage *GHLLogoImage(void);
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,0 +1,11 @@
+Package: com.guhailong.douyin
+Name: 顾海龙抖音
+Version: 1.0.0
+Description: 顾海龙抖音 1.0.0 — 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布；原作者版权声明保留在 LICENSE 中。
+Homepage: https://github.com/guhailon/guhailong-douyin
+Section: Tweaks
+Depends: firmware (>= 5.0), mobilesubstrate
+Priority: optional
+Maintainer: 顾海龙
+Author: 顾海龙 (based on huami/DYYY)
+Architecture: iphoneos-arm
