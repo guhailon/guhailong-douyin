@@ -63,13 +63,15 @@ extern "C" {
 // 语音包 (31)：xuu 式管理器——语音包列表（文件夹/分类、按名字或 voiceId 搜索）、
 // 试听、选中后输入文字合成语音、发到私信/直播。音色分两档：
 //   a. 内置档：iOS 自带 AVSpeechSynthesisVoice（本机中文音色），不联网、不用 key；
-//   b. 在线档：Fish Audio（api.fish.audio/v1/tts），需皇上自己填 key（设置页“Fish Audio API Key”）。
+//   b. 在线档：Fish Audio（api.fish.audio/v1/tts，列表 GET /model），key 已填好
+//      （设置页“Fish Audio API Key”显示的就是默认 key，皇上想换随时改）。
 // 没有 key 只用内置档；绝不用 xuu 的 token、不调它那个要验证的远程服务、不复制它的代码。
 // 诚实说明：这不是真人声音克隆——在线音色是 Fish Audio 的 TTS 模型音色。
 // 直播里发语音目前只做运行期探针（GHLProbeLiveVoiceSender），不注入、不发包。
 #define GHL_KEY_VOICE_PACKAGE @"GHLVoicePackage"       // 总开关
 #define GHL_KEY_VOICE_PACKAGE_ID @"GHLVoicePackageID"  // 选中的语音包 id，如 @"sys:<系统语音 identifier>" 或 @"fish:<Fish Audio 模型 id>"
-#define GHL_KEY_FISH_AUDIO_API_KEY @"GHLFishAudioAPIKey" // 皇上自己的 Fish Audio key（在线音色用），空则只用内置档
+#define GHL_KEY_FISH_AUDIO_API_KEY @"GHLFishAudioAPIKey" // 皇上自己的 Fish Audio key（在线音色用）；设置页改了就用改后的
+#define GHL_DEFAULT_FISH_AUDIO_API_KEY @"sk-fish-7Ncx6vznkdiz1H0xD5ua8G8oSuovY5IaLRDBx7-WTKU" // 皇上自己的 Fish Audio key，已填好（免费账号，永不过期）；只放皇上自己的私有仓库和包里
 #define GHL_KEY_FISH_AUDIO_VOICES_CACHE @"GHLFishAudioVoicesCache" // 在线语音包列表缓存（NSArray<NSDictionary：id/title>）
 #define GHL_KEY_VOICE_PACKAGE_MANAGER @"GHLVoicePackageManager" // 打开语音包管理器（Picker 入口，值无意义）
 

@@ -1300,9 +1300,16 @@ static AVSpeechUtterance *GHLUtteranceForText(NSString *text, GHLVoicePackageInf
 
 static AVAudioPlayer *ghlFishPreviewPlayer = nil;
 
+// Fish Audio API Key：优先读设置页填的值，没填就用皇上自己的默认 key（已填好）
+static NSString *GHLFishAudioAPIKey(void) {
+    NSString *stored = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    if (stored.length > 0) return stored;
+    return GHL_DEFAULT_FISH_AUDIO_API_KEY;
+}
+
 // 在线档：用 Fish Audio 合成一段文字，返回音频文件 URL（.mp3）；失败回调 nil
 static void GHLSynthesizeWithFishAudio(NSString *text, NSString *modelId, void (^completion)(NSURL *fileURL)) {
-    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) {
         GHLLog(@"语音包合成（在线）：没有填 Fish Audio API Key，先去设置页填写");
         GHLRunOnMain(^{
@@ -1316,6 +1323,8 @@ static void GHLSynthesizeWithFishAudio(NSString *text, NSString *modelId, void (
     request.HTTPMethod = @"POST";
     [request setValue:[NSString stringWithFormat:@"Bearer %@", apiKey] forHTTPHeaderField:@"Authorization"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    // 免费账号用 s2.1-pro-free（$0）；不带 model 头会默认走付费 s2.1-pro，$0 余额会失败
+    [request setValue:@"s2.1-pro-free" forHTTPHeaderField:@"model"];
     NSDictionary *body = @{
         @"text" : text,
         @"reference_id" : modelId,
@@ -1458,7 +1467,7 @@ void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^com
 
 // 在线档：从 Fish Audio 拉语音包列表（需 key；成功后缓存并回调）
 void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoicePackageInfo *> *voices, NSError *error)) {
-    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) {
         NSError *error = [NSError errorWithDomain:@"GHLVoicePackage"
                                              code:401
@@ -1467,8 +1476,8 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
         if (completion) completion(@[], error);
         return;
     }
-    // 先试 /v1/models（Fish Audio 官方列表接口），不行再试 /v1/voices
-    NSArray<NSString *> *endpoints = @[ @"https://api.fish.audio/v1/models?page_size=100", @"https://api.fish.audio/v1/voices?page_size=100" ];
+    // 官方列表接口是 GET /model（/v1/models 和 /v1/voices 都 404）；先拉公开库，再试自己的库
+    NSArray<NSString *> *endpoints = @[ @"https://api.fish.audio/model?page_size=100", @"https://api.fish.audio/model?self=true&page_size=100" ];
     __block void (^tryFetch)(NSUInteger) = nil;
     tryFetch = ^(NSUInteger index) {
       if (index >= endpoints.count) {
@@ -1500,7 +1509,8 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
                                                                      NSMutableArray<NSDictionary *> *cached = [NSMutableArray array];
                                                                      for (id item in items) {
                                                                          if (![item isKindOfClass:[NSDictionary class]]) continue;
-                                                                         NSString *modelId = item[@"id"];
+                                                                         NSString *modelId = item[@"_id"];
+                                                                         if (![modelId isKindOfClass:[NSString class]]) modelId = item[@"id"];
                                                                          NSString *title = item[@"title"];
                                                                          if (![modelId isKindOfClass:[NSString class]] || modelId.length == 0) continue;
                                                                          if (![title isKindOfClass:[NSString class]] || title.length == 0) title = modelId;
@@ -1541,7 +1551,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 }
 
 - (void)ghlRefreshOnline {
-    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) {
         [DYYYUtils showToast:@"在线音色要先在设置页填 Fish Audio API Key"];
         return;
@@ -1602,7 +1612,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     NSArray *categories = [self ghlVisibleCategories];
     if (categories.count == 0) return nil;
     if (![categories[section] isEqualToString:@"在线"]) return nil;
-    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
     return nil;
 }

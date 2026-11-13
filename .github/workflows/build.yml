@@ -6,6 +6,9 @@
 # com.guhailong.douyin_1.0.0_iphoneos-arm64.deb。
 # 不需要任何密钥（Secret），不需要 Mac。
 # 注意：不要用 fork 自带的 huami1314/theos-action（原作者仓库已 404）。
+# 注意：源码在 source/ 目录，Makefile 也在 source/；workflow 必须放在
+# 仓库根目录 .github/workflows/（放 source/ 里 GitHub 看不到、不触发），
+# 编译时 cd 进 source/，产物在 source/packages/。
 name: Build
 
 on:
@@ -44,17 +47,18 @@ jobs:
 
       - name: Build
         run: |
-          export THEOS=theos
+          export THEOS=$PWD/theos
+          cd source
           gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless STRIP=0
 
       - name: Verify .deb
         run: |
-          ls -la packages/
-          dpkg-deb -I packages/*.deb
-          dpkg-deb -c packages/*.deb | head -40
+          ls -la source/packages/
+          dpkg-deb -I source/packages/*.deb
+          dpkg-deb -c source/packages/*.deb | head -40
 
       - name: Upload artifact
         uses: actions/upload-artifact@main
         with:
           name: com.guhailong.douyin_1.0.0_iphoneos-arm64
-          path: packages/*.deb
+          path: source/packages/*.deb
