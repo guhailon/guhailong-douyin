@@ -1156,58 +1156,203 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     }
 }
 
-#pragma mark - (31) 语音包
-// 行为参考（只学流程，不碰对方代码）：选语音包/音色 → 试听 → 发出去。
-// 我们的实现：本机 TTS（AVSpeechSynthesizer）+ 录音后变调（AVAudioEngine）。
-// 诚实说明：这不是真人声音克隆——真要像“语音包里对方那个人”需要对方音色的声音模型
-// （类似 RVC），插件里实时跑不现实；也没有对方音色样本。内置 6 个音色只是变调预设，
-// 等皇上发语音包样本后，再按样本的音调/共振峰调映射参数。直播里发语音目前只做探针，
-// 不 hook、不注入、不发包；对方的远程语音服务（要联网拉音色/可能要 UDID 验证）我们没有，
-// 也不绕过——我们的音色全部是本机生成的，不联网、不验证。
+#pragma mark - (31) 语音包（xuu 式管理器，代码全部自己写）
+// 行为参考（只学流程，不碰对方代码）：语音包列表（按文件夹/分类、按名字搜）→ 选一个
+// 音色 → 试听 → 输入文字合成语音 → 发到私信/直播。
+// 音色分两档：
+//   a. 内置档：iOS 自带的 AVSpeechSynthesisVoice（本机就有，多个中文音色），不联网、不用 key；
+//   b. 在线档：Fish Audio（api.fish.audio/v1/tts），皇上自己在设置页填 key 才能用；
+//      没有 key 就只用内置档。绝不用 xuu 的 token、不调它那个要验证的远程服务。
+// 诚实说明：这不是真人声音克隆——在线音色是 Fish Audio 的 TTS 模型音色，
+// 不是“语音包里对方那个人”的克隆；直播里发语音目前只做运行期探针，不 hook、不发包。
 
-static const GHLVoicePackage kGHLVoicePackages[] = {
-    {"original", "原声", 0, 1.0f, ""},
-    {"female", "女声", 6, 1.0f, ""},
-    {"male", "男声", -4, 0.95f, ""},
-    {"loli", "萝莉", 12, 1.15f, ""},
-    {"uncle", "大叔", -7, 0.9f, ""},
-    {"robot", "机器人", 0, 0.75f, ""},
-};
-static const NSUInteger kGHLVoicePackageCount = sizeof(kGHLVoicePackages) / sizeof(kGHLVoicePackages[0]);
+@implementation GHLVoicePackageInfo
+
++ (instancetype)packageWithVoiceId:(NSString *)voiceId
+                       displayName:(NSString *)displayName
+                          category:(NSString *)category
+                            source:(GHLVoicePackageSource)source
+             systemVoiceIdentifier:(NSString *)systemVoiceIdentifier
+                       fishModelId:(NSString *)fishModelId {
+    GHLVoicePackageInfo *info = [[self alloc] init];
+    info.voiceId = voiceId ?: @"";
+    info.displayName = displayName ?: voiceId ?: @"";
+    info.category = category ?: @"内置";
+    info.source = source;
+    info.systemVoiceIdentifier = systemVoiceIdentifier;
+    info.fishModelId = fishModelId;
+    return info;
+}
+
+@end
+
+// 内置档：枚举本机中文 TTS 语音（只列 zh，够用；没有就留一个默认中文入口）
+static NSArray<GHLVoicePackageInfo *> *GHLBuiltInVoicePackages(void) {
+    static NSArray<GHLVoicePackageInfo *> *cached = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      NSMutableArray<GHLVoicePackageInfo *> *list = [NSMutableArray array];
+      for (AVSpeechSynthesisVoice *voice in [AVSpeechSynthesisVoice speechVoices]) {
+          if (![voice.language hasPrefix:@"zh"]) continue;
+          NSString *voiceId = [@"sys:" stringByAppendingString:voice.identifier];
+          NSString *name = [NSString stringWithFormat:@"%@（%@）", voice.name, voice.language];
+          [list addObject:[GHLVoicePackageInfo packageWithVoiceId:voiceId
+                                                       displayName:name
+                                                          category:@"内置"
+                                                            source:GHLVoicePackageSourceBuiltIn
+                                             systemVoiceIdentifier:voice.identifier
+                                                       fishModelId:nil]];
+      }
+      if (list.count == 0) {
+          [list addObject:[GHLVoicePackageInfo packageWithVoiceId:@"sys:default-zh-CN"
+                                                       displayName:@"系统默认中文（内置）"
+                                                          category:@"内置"
+                                                            source:GHLVoicePackageSourceBuiltIn
+                                             systemVoiceIdentifier:nil
+                                                       fishModelId:nil]];
+      }
+      cached = [list copy];
+    });
+    return cached;
+}
+
+// 在线档：读缓存的 Fish Audio 语音包列表（id/title）
+static NSArray<GHLVoicePackageInfo *> *GHLFishAudioVoicePackages(void) {
+    NSArray *cached = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_FISH_AUDIO_VOICES_CACHE];
+    if (![cached isKindOfClass:[NSArray class]]) return @[];
+    NSMutableArray<GHLVoicePackageInfo *> *list = [NSMutableArray array];
+    for (id item in cached) {
+        if (![item isKindOfClass:[NSDictionary class]]) continue;
+        NSString *modelId = item[@"id"];
+        NSString *title = item[@"title"];
+        if (![modelId isKindOfClass:[NSString class]] || modelId.length == 0) continue;
+        if (![title isKindOfClass:[NSString class]] || title.length == 0) title = modelId;
+        NSString *voiceId = [@"fish:" stringByAppendingString:modelId];
+        [list addObject:[GHLVoicePackageInfo packageWithVoiceId:voiceId
+                                                     displayName:title
+                                                        category:@"在线"
+                                                          source:GHLVoicePackageSourceFishAudio
+                                           systemVoiceIdentifier:nil
+                                                     fishModelId:modelId]];
+    }
+    return list;
+}
+
+NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void) {
+    NSMutableArray<GHLVoicePackageInfo *> *all = [NSMutableArray arrayWithArray:GHLBuiltInVoicePackages()];
+    [all addObjectsFromArray:GHLFishAudioVoicePackages()];
+    return all;
+}
+
+NSArray<GHLVoicePackageInfo *> *GHLVoicePackagesInCategory(NSString *category) {
+    NSMutableArray<GHLVoicePackageInfo *> *result = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
+        if ([info.category isEqualToString:category]) [result addObject:info];
+    }
+    return result;
+}
+
+NSArray<GHLVoicePackageInfo *> *GHLSearchVoicePackages(NSString *query) {
+    if (!query || query.length == 0) return GHLVoicePackageList();
+    NSString *lowerQuery = query.lowercaseString;
+    NSMutableArray<GHLVoicePackageInfo *> *result = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
+        if ([info.displayName.lowercaseString containsString:lowerQuery] ||
+            [info.voiceId.lowercaseString containsString:lowerQuery]) {
+            [result addObject:info];
+        }
+    }
+    return result;
+}
 
 NSArray<NSString *> *GHLVoicePackageIDs(void) {
-    NSMutableArray<NSString *> *ids = [NSMutableArray arrayWithCapacity:kGHLVoicePackageCount];
-    for (NSUInteger i = 0; i < kGHLVoicePackageCount; i++) {
-        [ids addObject:[NSString stringWithUTF8String:kGHLVoicePackages[i].voiceId]];
-    }
+    NSMutableArray<NSString *> *ids = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) [ids addObject:info.voiceId];
     return ids;
 }
 
-const GHLVoicePackage *GHLVoicePackageForID(NSString *voiceId) {
-    for (NSUInteger i = 0; i < kGHLVoicePackageCount; i++) {
-        if (voiceId && [voiceId isEqualToString:[NSString stringWithUTF8String:kGHLVoicePackages[i].voiceId]]) {
-            return &kGHLVoicePackages[i];
-        }
+GHLVoicePackageInfo *GHLVoicePackageForID(NSString *voiceId) {
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
+        if (voiceId && [info.voiceId isEqualToString:voiceId]) return info;
     }
-    return &kGHLVoicePackages[0];
+    return GHLVoicePackageList().firstObject;
 }
 
 NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId) {
-    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
-    return [NSString stringWithUTF8String:pkg->displayName];
+    GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
+    return info ? info.displayName : @"未选择";
 }
 
 static AVSpeechSynthesizer *ghlSpeechSynthesizer = nil;
 
-static AVSpeechUtterance *GHLUtteranceForText(NSString *text, const GHLVoicePackage *pkg) {
+static AVSpeechUtterance *GHLUtteranceForText(NSString *text, GHLVoicePackageInfo *info) {
     AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:text];
-    utterance.voice = [AVSpeechSynthesisVoice voiceWithLanguage:@"zh-CN"];
-    // 半音 → pitchMultiplier（2^(半音/12)），限制在 0.5–2.0
-    float pitchMultiplier = powf(2.0f, pkg->pitch / 12.0f);
-    utterance.pitchMultiplier = fmaxf(0.5f, fminf(2.0f, pitchMultiplier));
-    utterance.rate = AVSpeechUtteranceDefaultSpeechRate * pkg->rate;
+    AVSpeechSynthesisVoice *voice = nil;
+    if (info.systemVoiceIdentifier.length > 0) {
+        voice = [AVSpeechSynthesisVoice voiceWithIdentifier:info.systemVoiceIdentifier];
+    }
+    if (!voice) voice = [AVSpeechSynthesisVoice voiceWithLanguage:@"zh-CN"];
+    utterance.voice = voice;
+    utterance.rate = AVSpeechUtteranceDefaultSpeechRate;
     utterance.volume = 1.0f;
     return utterance;
+}
+
+static AVAudioPlayer *ghlFishPreviewPlayer = nil;
+
+// 在线档：用 Fish Audio 合成一段文字，返回音频文件 URL（.mp3）；失败回调 nil
+static void GHLSynthesizeWithFishAudio(NSString *text, NSString *modelId, void (^completion)(NSURL *fileURL)) {
+    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    if (apiKey.length == 0) {
+        GHLLog(@"语音包合成（在线）：没有填 Fish Audio API Key，先去设置页填写");
+        GHLRunOnMain(^{
+          [DYYYUtils showToast:@"在线音色要先在设置页填 Fish Audio API Key"];
+        });
+        if (completion) completion(nil);
+        return;
+    }
+    NSURL *url = [NSURL URLWithString:@"https://api.fish.audio/v1/tts"];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    [request setValue:[NSString stringWithFormat:@"Bearer %@", apiKey] forHTTPHeaderField:@"Authorization"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    NSDictionary *body = @{
+        @"text" : text,
+        @"reference_id" : modelId,
+        @"format" : @"mp3",
+        @"mp3_bitrate" : @128,
+        @"normalize" : @YES,
+        @"latency" : @"normal"
+    };
+    NSError *jsonError = nil;
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:&jsonError];
+    if (jsonError) {
+        GHLLog(@"语音包合成（在线）：组请求失败 %@", jsonError.localizedDescription);
+        if (completion) completion(nil);
+        return;
+    }
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request
+                                                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                                                   NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+                                                                   if (error || !data || data.length == 0 || httpResponse.statusCode < 200 || httpResponse.statusCode >= 300) {
+                                                                       GHLLog(@"语音包合成（在线）：请求失败 HTTP %ld %@", (long)httpResponse.statusCode, error.localizedDescription);
+                                                                       GHLRunOnMain(^{
+                                                                         [DYYYUtils showToast:@"在线合成失败，检查 key 和网络"];
+                                                                       });
+                                                                       if (completion) completion(nil);
+                                                                       return;
+                                                                   }
+                                                                   NSString *fileName = [NSString stringWithFormat:@"ghl_voice_%@.mp3", [[NSUUID UUID] UUIDString]];
+                                                                   NSURL *fileURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
+                                                                   if ([data writeToURL:fileURL atomically:YES]) {
+                                                                       GHLLog(@"语音包合成（在线）：完成 %@", fileURL.lastPathComponent);
+                                                                       if (completion) completion(fileURL);
+                                                                   } else {
+                                                                       GHLLog(@"语音包合成（在线）：写文件失败");
+                                                                       if (completion) completion(nil);
+                                                                   }
+                                                                 }];
+    [task resume];
 }
 
 void GHLPreviewVoicePackage(NSString *voiceId) {
@@ -1215,13 +1360,31 @@ void GHLPreviewVoicePackage(NSString *voiceId) {
         [DYYYUtils showToast:@"请先打开语音包开关"];
         return;
     }
-    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
-    NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", [NSString stringWithUTF8String:pkg->displayName]];
+    GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
+    if (!info) return;
+    NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", info.displayName];
+    if (info.source == GHLVoicePackageSourceFishAudio) {
+        [DYYYUtils showToast:@"正在联网合成试听…"];
+        GHLSynthesizeWithFishAudio(sample, info.fishModelId, ^(NSURL *fileURL) {
+          if (!fileURL) return;
+          GHLRunOnMain(^{
+            NSError *playerError = nil;
+            ghlFishPreviewPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:fileURL error:&playerError];
+            if (!ghlFishPreviewPlayer) {
+                GHLLog(@"语音包试听（在线）：播放器建失败 %@", playerError.localizedDescription);
+                return;
+            }
+            [ghlFishPreviewPlayer play];
+            GHLLog(@"语音包试听（在线）：%@", info.displayName);
+          });
+        });
+        return;
+    }
     GHLRunOnMain(^{
       if (!ghlSpeechSynthesizer) ghlSpeechSynthesizer = [[AVSpeechSynthesizer alloc] init];
       if (ghlSpeechSynthesizer.speaking) [ghlSpeechSynthesizer stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
-      [ghlSpeechSynthesizer speakUtterance:GHLUtteranceForText(sample, pkg)];
-      GHLLog(@"语音包试听：%@（变调 %+.0f 半音，语速 %.2f）", [NSString stringWithUTF8String:pkg->displayName], pkg->pitch, pkg->rate);
+      [ghlSpeechSynthesizer speakUtterance:GHLUtteranceForText(sample, info)];
+      GHLLog(@"语音包试听（内置）：%@", info.displayName);
     });
 }
 
@@ -1230,14 +1393,19 @@ void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^com
         if (completion) completion(nil);
         return;
     }
-    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
-    AVSpeechUtterance *utterance = GHLUtteranceForText(text, pkg);
+    GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
+    if (!info) {
+        if (completion) completion(nil);
+        return;
+    }
+    if (info.source == GHLVoicePackageSourceFishAudio) {
+        GHLSynthesizeWithFishAudio(text, info.fishModelId, completion);
+        return;
+    }
+    AVSpeechUtterance *utterance = GHLUtteranceForText(text, info);
     AVSpeechSynthesizer *synthesizer = [[AVSpeechSynthesizer alloc] init];
     NSString *fileName = [NSString stringWithFormat:@"ghl_voice_%@.caf", [[NSUUID UUID] UUIDString]];
     NSURL *outputURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
-    AVAudioFile *audioFile = nil;
-    NSError *fileError = nil;
-    // 先用默认格式建文件，writeUtterance 回调里按实际格式重建
     NSDictionary *settings = @{
         AVFormatIDKey : @(kAudioFormatLinearPCM),
         AVSampleRateKey : @(22050),
@@ -1247,7 +1415,8 @@ void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^com
         AVLinearPCMIsFloatKey : @(NO),
         AVLinearPCMIsBigEndianKey : @(NO)
     };
-    audioFile = [[AVAudioFile alloc] initForWriting:outputURL settings:settings error:&fileError];
+    NSError *fileError = nil;
+    AVAudioFile *audioFile = [[AVAudioFile alloc] initForWriting:outputURL settings:settings error:&fileError];
     if (!audioFile) {
         GHLLog(@"语音包合成：建文件失败 %@", fileError.localizedDescription);
         if (completion) completion(nil);
@@ -1287,92 +1456,200 @@ void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^com
     });
 }
 
-#pragma mark 录音后变调：录 10 秒 → 用选中音色变调播放
-
-static AVAudioRecorder *ghlVoiceRecorder = nil;
-static AVAudioEngine *ghlVoiceEngine = nil;
-static AVAudioPlayerNode *ghlVoicePlayerNode = nil;
-static NSTimer *ghlVoiceRecordTimer = nil;
-
-static void GHLPlayRecordedFileWithVoicePackage(NSURL *fileURL, const GHLVoicePackage *pkg) {
-    NSError *error = nil;
-    AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:fileURL error:&error];
-    if (!audioFile) {
-        GHLLog(@"语音包录音：读文件失败 %@", error.localizedDescription);
+// 在线档：从 Fish Audio 拉语音包列表（需 key；成功后缓存并回调）
+void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoicePackageInfo *> *voices, NSError *error)) {
+    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    if (apiKey.length == 0) {
+        NSError *error = [NSError errorWithDomain:@"GHLVoicePackage"
+                                             code:401
+                                         userInfo:@{NSLocalizedDescriptionKey : @"没有填写 Fish Audio API Key"}];
+        GHLLog(@"语音包拉取（在线）：没有填 Fish Audio API Key");
+        if (completion) completion(@[], error);
         return;
     }
-    AVAudioSession *session = [AVAudioSession sharedInstance];
-    [session setCategory:AVAudioSessionCategoryPlayback error:nil];
-    [session setActive:YES error:nil];
-    [ghlVoiceEngine stop];
-    ghlVoiceEngine = [[AVAudioEngine alloc] init];
-    ghlVoicePlayerNode = [[AVAudioPlayerNode alloc] init];
-    AVAudioUnitTimePitch *pitchUnit = [[AVAudioUnitTimePitch alloc] init];
-    pitchUnit.pitch = pkg->pitch * 100.0f; // 半音 → 音分
-    pitchUnit.rate = pkg->rate;
-    [ghlVoiceEngine attachNode:ghlVoicePlayerNode];
-    [ghlVoiceEngine attachNode:pitchUnit];
-    [ghlVoiceEngine connect:ghlVoicePlayerNode to:pitchUnit format:audioFile.processingFormat];
-    [ghlVoiceEngine connect:pitchUnit to:ghlVoiceEngine.outputNode format:audioFile.processingFormat];
-    [ghlVoicePlayerNode scheduleFile:audioFile atTime:nil completionHandler:^{
-      GHLLog(@"语音包录音：变调播放完成");
-    }];
-    if (![ghlVoiceEngine startAndReturnError:&error]) {
-        GHLLog(@"语音包录音：引擎启动失败 %@", error.localizedDescription);
-        return;
-    }
-    [ghlVoicePlayerNode play];
-    GHLLog(@"语音包录音：正在用%@音色播放（变调 %+.0f 半音）", [NSString stringWithUTF8String:pkg->displayName], pkg->pitch);
-}
-
-void GHLRecordAndPlayWithVoicePackage(NSString *voiceId) {
-    if (!GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
-        [DYYYUtils showToast:@"请先打开语音包开关"];
-        return;
-    }
-    const GHLVoicePackage *pkg = GHLVoicePackageForID(voiceId);
-    AVAudioSession *session = [AVAudioSession sharedInstance];
-    [session requestRecordPermission:^(BOOL granted) {
-      if (!granted) {
-          GHLRunOnMain(^{
-            [DYYYUtils showToast:@"没有麦克风权限，录不了音"];
-          });
-          GHLLog(@"语音包录音：麦克风权限被拒");
+    // 先试 /v1/models（Fish Audio 官方列表接口），不行再试 /v1/voices
+    NSArray<NSString *> *endpoints = @[ @"https://api.fish.audio/v1/models?page_size=100", @"https://api.fish.audio/v1/voices?page_size=100" ];
+    __block void (^tryFetch)(NSUInteger) = nil;
+    tryFetch = ^(NSUInteger index) {
+      if (index >= endpoints.count) {
+          NSError *error = [NSError errorWithDomain:@"GHLVoicePackage"
+                                               code:404
+                                           userInfo:@{NSLocalizedDescriptionKey : @"拉取在线语音包列表失败"}];
+          GHLLog(@"语音包拉取（在线）：两个列表接口都失败");
+          if (completion) completion(@[], error);
           return;
       }
+      NSURL *url = [NSURL URLWithString:endpoints[index]];
+      NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+      [request setValue:[NSString stringWithFormat:@"Bearer %@", apiKey] forHTTPHeaderField:@"Authorization"];
+      NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request
+                                                                   completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                                                     NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+                                                                     NSArray *items = nil;
+                                                                     if (!error && data && httpResponse.statusCode >= 200 && httpResponse.statusCode < 300) {
+                                                                         NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                                                                         if ([json isKindOfClass:[NSDictionary class]]) {
+                                                                             items = json[@"items"];
+                                                                             if (![items isKindOfClass:[NSArray class]]) items = json[@"voices"];
+                                                                         }
+                                                                     }
+                                                                     if (![items isKindOfClass:[NSArray class]]) {
+                                                                         tryFetch(index + 1);
+                                                                         return;
+                                                                     }
+                                                                     NSMutableArray<NSDictionary *> *cached = [NSMutableArray array];
+                                                                     for (id item in items) {
+                                                                         if (![item isKindOfClass:[NSDictionary class]]) continue;
+                                                                         NSString *modelId = item[@"id"];
+                                                                         NSString *title = item[@"title"];
+                                                                         if (![modelId isKindOfClass:[NSString class]] || modelId.length == 0) continue;
+                                                                         if (![title isKindOfClass:[NSString class]] || title.length == 0) title = modelId;
+                                                                         [cached addObject:@{@"id" : modelId, @"title" : title}];
+                                                                     }
+                                                                     [[NSUserDefaults standardUserDefaults] setObject:cached forKey:GHL_KEY_FISH_AUDIO_VOICES_CACHE];
+                                                                     GHLLog(@"语音包拉取（在线）：拉到 %lu 个音色", (unsigned long)cached.count);
+                                                                     if (completion) completion(GHLFishAudioVoicePackages(), nil);
+                                                                   }];
+      [task resume];
+    };
+    tryFetch(0);
+}
+
+#pragma mark 语音包管理器（列表/分类/搜索/试听/选中）
+
+@interface GHLVoicePackageManagerViewController : UITableViewController <UISearchBarDelegate>
+@property(nonatomic, strong) UISearchBar *searchBar;
+@property(nonatomic, copy) NSString *searchText;
+@end
+
+@implementation GHLVoicePackageManagerViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"语音包管理";
+    self.searchText = @"";
+    self.searchBar = [[UISearchBar alloc] init];
+    self.searchBar.placeholder = @"搜名字或 voiceId";
+    self.searchBar.delegate = self;
+    self.tableView.tableHeaderView = self.searchBar;
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"完成" style:UIBarButtonItemStyleDone target:self action:@selector(ghlDismiss)];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+}
+
+- (void)ghlDismiss {
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)ghlRefreshOnline {
+    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    if (apiKey.length == 0) {
+        [DYYYUtils showToast:@"在线音色要先在设置页填 Fish Audio API Key"];
+        return;
+    }
+    [DYYYUtils showToast:@"正在拉取在线语音包…"];
+    GHLFetchFishAudioVoiceListWithCompletion(^(NSArray<GHLVoicePackageInfo *> *voices, NSError *error) {
       GHLRunOnMain(^{
-        NSError *error = nil;
-        [session setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionMixWithOthers | AVAudioSessionCategoryOptionDefaultToSpeaker error:&error];
-        [session setActive:YES error:&error];
-        NSString *fileName = [NSString stringWithFormat:@"ghl_voice_record_%@.m4a", [[NSUUID UUID] UUIDString]];
-        NSURL *recordURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
-        NSDictionary *settings = @{
-            AVFormatIDKey : @(kAudioFormatMPEG4AAC),
-            AVSampleRateKey : @(44100),
-            AVNumberOfChannelsKey : @(1),
-            AVEncoderAudioQualityKey : @(AVAudioQualityHigh)
-        };
-        ghlVoiceRecorder = [[AVAudioRecorder alloc] initWithURL:recordURL settings:settings error:&error];
-        if (!ghlVoiceRecorder) {
-            GHLLog(@"语音包录音：建录音器失败 %@", error.localizedDescription);
-            return;
+        if (error) {
+            [DYYYUtils showToast:@"拉取失败，检查 key 和网络"];
+        } else {
+            [DYYYUtils showToast:[NSString stringWithFormat:@"拉到 %lu 个在线音色", (unsigned long)voices.count]];
         }
-        [ghlVoiceRecorder prepareToRecord];
-        [ghlVoiceRecorder record];
-        [DYYYUtils showToast:@"正在录音，说话吧，10 秒后自动用选中的音色播放"];
-        GHLLog(@"语音包录音：开始录（10 秒）");
-        [ghlVoiceRecordTimer invalidate];
-        __block NSURL *recordURLCopy = recordURL;
-        __block const GHLVoicePackage *pkgCopy = pkg;
-        ghlVoiceRecordTimer = [NSTimer scheduledTimerWithTimeInterval:10.0
-                                                              repeats:NO
-                                                                block:^(NSTimer *timer) {
-                                                                  [ghlVoiceRecorder stop];
-                                                                  ghlVoiceRecorder = nil;
-                                                                  GHLPlayRecordedFileWithVoicePackage(recordURLCopy, pkgCopy);
-                                                                }];
+        [self.tableView reloadData];
       });
-    }];
+    });
+}
+
+// 当前要显示的列表（有搜索词就按搜索结果，否则全量）
+- (NSArray<GHLVoicePackageInfo *> *)ghlVisiblePackages {
+    return GHLSearchVoicePackages(self.searchText);
+}
+
+- (NSArray<NSString *> *)ghlVisibleCategories {
+    NSMutableArray<NSString *> *categories = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
+        if (![categories containsObject:info.category]) [categories addObject:info.category];
+    }
+    return categories;
+}
+
+- (NSArray<GHLVoicePackageInfo *> *)ghlPackagesInCategory:(NSString *)category {
+    NSMutableArray<GHLVoicePackageInfo *> *result = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
+        if ([info.category isEqualToString:category]) [result addObject:info];
+    }
+    return result;
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return MAX(1, [self ghlVisibleCategories].count);
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    NSArray *categories = [self ghlVisibleCategories];
+    if (categories.count == 0) return 0;
+    return [self ghlPackagesInCategory:categories[section]].count;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    NSArray *categories = [self ghlVisibleCategories];
+    if (categories.count == 0) return nil;
+    NSString *category = categories[section];
+    if ([category isEqualToString:@"在线"]) return @"在线（Fish Audio，需 key）";
+    return category;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    NSArray *categories = [self ghlVisibleCategories];
+    if (categories.count == 0) return nil;
+    if (![categories[section] isEqualToString:@"在线"]) return nil;
+    NSString *apiKey = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FISH_AUDIO_API_KEY];
+    if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
+    return nil;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *cellId = @"GHLVoicePackageCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
+    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
+    NSArray *categories = [self ghlVisibleCategories];
+    GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
+    cell.textLabel.text = info.displayName;
+    cell.detailTextLabel.text = info.voiceId;
+    NSString *selectedId = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_VOICE_PACKAGE_ID];
+    cell.accessoryType = [info.voiceId isEqualToString:selectedId] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    NSArray *categories = [self ghlVisibleCategories];
+    GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
+    [[NSUserDefaults standardUserDefaults] setObject:info.voiceId forKey:GHL_KEY_VOICE_PACKAGE_ID];
+    [tableView reloadData];
+    GHLPreviewVoicePackage(info.voiceId);
+}
+
+#pragma mark UISearchBarDelegate
+
+- (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+    self.searchText = searchText ?: @"";
+    [self.tableView reloadData];
+}
+
+- (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+    [searchBar resignFirstResponder];
+}
+
+@end
+
+void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController) {
+    if (!viewController) return;
+    GHLRunOnMain(^{
+      GHLVoicePackageManagerViewController *managerVC = [[GHLVoicePackageManagerViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
+      UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:managerVC];
+      [viewController presentViewController:nav animated:YES completion:nil];
+      GHLLog(@"语音包管理：已打开管理器");
+    });
 }
 
 void GHLProbeLiveVoiceSender(void) {
@@ -1935,3 +2212,4 @@ void GHLStartHousekeepingTimer(void) {
                                                              }];
     GHLLog(@"巡检定时器：已启动（2 秒一次，管红包/抽奖/直播时长/底栏/数字改写/直播静音）");
 }
+

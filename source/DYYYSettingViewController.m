@@ -134,7 +134,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 - (void)setupSettingItems {
     self.settingSections = @[
         @[
-            // 顾海龙抖音新增功能（22 个，(31) 语音包等皇上发样本后再做）
+            // 顾海龙抖音新增功能（22 个，(31) 语音包：xuu 式管理器，内置本机音色 + Fish Audio 在线音色）
             [DYYYSettingItem itemWithTitle:@"睡眠定时" key:GHL_KEY_SLEEP_TIMER type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"画中画 + 后台播放" key:GHL_KEY_BACKGROUND_AUDIO type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"快进手势（长按倍速/双击左右快进10秒）" key:GHL_KEY_SEEK_GESTURES type:DYYYSettingItemTypeSwitch],
@@ -166,7 +166,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"楼中楼一键展开" key:GHL_KEY_EXPAND_REPLIES type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"视频原声提取" key:GHL_KEY_EXTRACT_AUDIO type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"语音包（选音色发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"语音包管理（列表/搜索/试听）" key:GHL_KEY_VOICE_PACKAGE_MANAGER type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"]
         ],
         @[
             // 顾海龙抖音（二）：32-43（xuu 行为参考，代码自己写）
@@ -545,8 +547,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         // 睡眠定时选项
         return @[ @"关闭", @"15分钟", @"30分钟", @"60分钟" ];
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
-        // 语音包音色选项（内置变调音色包，见 GHLFeatures.h）
+        // 语音包音色选项（动态：内置本机音色 + 已缓存的在线音色，见 GHLFeatures.h）
         return GHLVoicePackageIDs();
+    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
+        // 语音包管理器入口（点开进列表页，值本身无意义）
+        return @[ @"打开语音包管理器" ];
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         // 直播清晰度选项
         return @[ @"蓝光帧彩", @"蓝光", @"超清", @"高清", @"标清", @"自动" ];
@@ -564,7 +569,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
         return value ?: @"关闭";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
-        return GHLVoicePackageDisplayNameForID(value) ?: @"原声";
+        return GHLVoicePackageDisplayNameForID(value) ?: @"未选择";
+    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
+        return @"打开语音包管理器";
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return value ?: @"关闭";
@@ -578,7 +585,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
         return @"关闭";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
-        return @"original";
+        return GHLVoicePackageIDs().firstObject ?: @"sys:default-zh-CN";
+    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
+        return @"打开语音包管理器";
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         return @"自动";
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
@@ -827,8 +836,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                        handler:^(UIAlertAction *_Nonnull action) {
                                                          // 保存到对应的key
                                                          [[NSUserDefaults standardUserDefaults] setObject:option forKey:item.key];
-                                                         // 顾海龙抖音：选完睡眠定时立即重启动时；选完语音包音色立即试听
-                                                         if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
+                                                         // 顾海龙抖音：选完睡眠定时立即重启动时；选完语音包音色立即试听；选管理器打开列表页
+                                                         if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
+                                                             GHLPresentVoicePackageManagerFromViewController(self);
+                                                         } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
                                                              GHLPreviewVoicePackage((NSString *)option);

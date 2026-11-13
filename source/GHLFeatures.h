@@ -60,32 +60,58 @@ extern "C" {
 #define GHL_KEY_EXPAND_REPLIES @"GHLExpandReplies"
 // 视频原声提取 (30)
 #define GHL_KEY_EXTRACT_AUDIO @"GHLExtractAudio"
-// 语音包 (31)：内置变调音色包（原声/女声/男声/萝莉/大叔/机器人）。
-// 做法是本机 TTS + 录音后变调（AVAudioEngine 变调/变速），不是真人声音克隆：
-// 真要像“语音包里对方那个人”需要对方音色的声音模型（类似 RVC），插件里实时跑不现实，
-// 也没有现成的对方音色样本。等皇上发语音包样本后，再按样本的音调/共振峰调映射参数。
+// 语音包 (31)：xuu 式管理器——语音包列表（文件夹/分类、按名字或 voiceId 搜索）、
+// 试听、选中后输入文字合成语音、发到私信/直播。音色分两档：
+//   a. 内置档：iOS 自带 AVSpeechSynthesisVoice（本机中文音色），不联网、不用 key；
+//   b. 在线档：Fish Audio（api.fish.audio/v1/tts），需皇上自己填 key（设置页“Fish Audio API Key”）。
+// 没有 key 只用内置档；绝不用 xuu 的 token、不调它那个要验证的远程服务、不复制它的代码。
+// 诚实说明：这不是真人声音克隆——在线音色是 Fish Audio 的 TTS 模型音色。
 // 直播里发语音目前只做运行期探针（GHLProbeLiveVoiceSender），不注入、不发包。
 #define GHL_KEY_VOICE_PACKAGE @"GHLVoicePackage"       // 总开关
-#define GHL_KEY_VOICE_PACKAGE_ID @"GHLVoicePackageID"  // 选中的音色 id，默认 @"original"
+#define GHL_KEY_VOICE_PACKAGE_ID @"GHLVoicePackageID"  // 选中的语音包 id，如 @"sys:<系统语音 identifier>" 或 @"fish:<Fish Audio 模型 id>"
+#define GHL_KEY_FISH_AUDIO_API_KEY @"GHLFishAudioAPIKey" // 皇上自己的 Fish Audio key（在线音色用），空则只用内置档
+#define GHL_KEY_FISH_AUDIO_VOICES_CACHE @"GHLFishAudioVoicesCache" // 在线语音包列表缓存（NSArray<NSDictionary：id/title>）
+#define GHL_KEY_VOICE_PACKAGE_MANAGER @"GHLVoicePackageManager" // 打开语音包管理器（Picker 入口，值无意义）
 
 // MARK: - 语音包 (31)
-typedef struct {
-    const char *voiceId;     // 如 "original"
-    const char *displayName; // 如 "原声"
-    float pitch;             // 变调（半音），如女声 +6、萝莉 +12、大叔 -6、机器人 0
-    float rate;              // 语速倍率
-    const char *systemVoice; // 系统 TTS 语音标识（zh-CN），空则用默认
-} GHLVoicePackage;
-// 内置音色包列表（按固定顺序）
+typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
+    GHLVoicePackageSourceBuiltIn = 0,   // 内置：iOS 自带 TTS 语音
+    GHLVoicePackageSourceFishAudio = 1, // 在线：Fish Audio 模型音色
+};
+// 一个语音包（管理器列表里的一项）。内置档 voiceId 形如 @"sys:<系统语音 identifier>"，
+// 在线档 voiceId 形如 @"fish:<Fish Audio 模型 id>"。
+@interface GHLVoicePackageInfo : NSObject
+@property(nonatomic, copy) NSString *voiceId;
+@property(nonatomic, copy) NSString *displayName;
+@property(nonatomic, copy) NSString *category; // 文件夹/分类：@"内置" / @"在线"
+@property(nonatomic, assign) GHLVoicePackageSource source;
+@property(nonatomic, copy, nullable) NSString *systemVoiceIdentifier; // 内置档
+@property(nonatomic, copy, nullable) NSString *fishModelId;           // 在线档
++ (instancetype)packageWithVoiceId:(NSString *)voiceId
+                       displayName:(NSString *)displayName
+                          category:(NSString *)category
+                            source:(GHLVoicePackageSource)source
+             systemVoiceIdentifier:(nullable NSString *)systemVoiceIdentifier
+                       fishModelId:(nullable NSString *)fishModelId;
+@end
+// 全部语音包（内置在前、在线在后；在线档只在有缓存列表时出现）
+NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void);
+// 按分类取（@"内置" / @"在线"）
+NSArray<GHLVoicePackageInfo *> *GHLVoicePackagesInCategory(NSString *category);
+// 按名字或 voiceId 搜索（大小写不敏感）
+NSArray<GHLVoicePackageInfo *> *GHLSearchVoicePackages(NSString *query);
+// 语音包 id 列表（设置页 Picker 用）
 NSArray<NSString *> *GHLVoicePackageIDs(void);
 NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId);
-const GHLVoicePackage *GHLVoicePackageForID(NSString *voiceId);
-// 用选中音色把一段文字念出来（本机 TTS + 系统语音，试听用）
+GHLVoicePackageInfo *GHLVoicePackageForID(NSString *voiceId);
+// 用选中语音包把一段文字念出来（试听用；在线档需 key，没有 key 会 Toast 提示）
 void GHLPreviewVoicePackage(NSString *voiceId);
-// 用选中音色把一段文字合成语音文件（.m4a），完成回调给文件 URL
+// 用选中语音包把一段文字合成语音文件（内置 .caf / 在线 .mp3），完成回调给文件 URL
 void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL));
-// 录一段音并用选中音色变调后播放（AVAudioEngine 变调，不改原文件）
-void GHLRecordAndPlayWithVoicePackage(NSString *voiceId);
+// 从 Fish Audio 拉在线语音包列表（需 key；成功后缓存并回调，失败回调 error）
+void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoicePackageInfo *> *voices, NSError *error));
+// 打开语音包管理器（列表/分类/搜索/试听/选中）
+void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController);
 // 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包）
 void GHLProbeLiveVoiceSender(void);
 
