@@ -131,6 +131,10 @@
  */
 + (void)openSettingsWithViewController:(UIViewController *)vc;
 
+// 1.0.2 直接入口：点一次就进顾海龙抖音设置主页（白色卡片），不再经过白色 DYYY 面板中转。
+// 有导航栈就 push，没有就包一层导航栏模态弹出（左上角有关闭按钮）。
++ (void)presentGHLSettingsHomeWithViewController:(UIViewController *)vc;
+
 /**
  * 从视图打开设置页
  */

@@ -30,6 +30,7 @@
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYSettingViewController.h"
+#import "DYYYSettingsHelper.h"
 #import "DYYYToast.h"
 #import "DYYYUtils.h"
 #import "DYYYFullscreenCoordinator.h"
@@ -3240,49 +3241,9 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
     if (gesture.state == UIGestureRecognizerStateBegan) {
         UIViewController *rootViewController = self.rootViewController;
         if (rootViewController) {
-            UIViewController *settingVC = [[DYYYSettingViewController alloc] init];
-
-            if (settingVC) {
-                BOOL isIPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
-                if (@available(iOS 15.0, *)) {
-                    if (!isIPad) {
-                        settingVC.modalPresentationStyle = UIModalPresentationPageSheet;
-                    } else {
-                        settingVC.modalPresentationStyle = UIModalPresentationFullScreen;
-                    }
-                } else {
-                    settingVC.modalPresentationStyle = UIModalPresentationFullScreen;
-                }
-
-                if (settingVC.modalPresentationStyle == UIModalPresentationFullScreen) {
-                    UIButton *closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
-                    [closeButton setTitle:@"关闭" forState:UIControlStateNormal];
-                    closeButton.translatesAutoresizingMaskIntoConstraints = NO;
-
-                    [settingVC.view addSubview:closeButton];
-
-                    [NSLayoutConstraint activateConstraints:@[
-                        [closeButton.trailingAnchor constraintEqualToAnchor:settingVC.view.trailingAnchor constant:-10],
-                        [closeButton.topAnchor constraintEqualToAnchor:settingVC.view.topAnchor constant:40], [closeButton.widthAnchor constraintEqualToConstant:80],
-                        [closeButton.heightAnchor constraintEqualToConstant:40]
-                    ]];
-
-                    [closeButton addTarget:self action:@selector(closeSettings:) forControlEvents:UIControlEventTouchUpInside];
-                }
-
-                UIView *handleBar = [[UIView alloc] init];
-                handleBar.backgroundColor = [UIColor whiteColor];
-                handleBar.layer.cornerRadius = 2.5;
-                handleBar.translatesAutoresizingMaskIntoConstraints = NO;
-                [settingVC.view addSubview:handleBar];
-
-                [NSLayoutConstraint activateConstraints:@[
-                    [handleBar.centerXAnchor constraintEqualToAnchor:settingVC.view.centerXAnchor], [handleBar.topAnchor constraintEqualToAnchor:settingVC.view.topAnchor constant:8],
-                    [handleBar.widthAnchor constraintEqualToConstant:40], [handleBar.heightAnchor constraintEqualToConstant:5]
-                ]];
-
-                [rootViewController presentViewController:settingVC animated:YES completion:nil];
-            }
+            // 1.0.2：直接进顾海龙抖音设置主页（白色卡片）。presentGHLSettingsHome 在无导航栈时
+            // 会包一层导航栏模态弹出（带关闭按钮），主页点分类才能 push 进子页。
+            [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:rootViewController];
         }
     }
 }

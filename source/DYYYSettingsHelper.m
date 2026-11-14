@@ -12,6 +12,7 @@
 #import "DYYYAboutDialogView.h"
 #import "DYYYCustomInputView.h"
 #import "DYYYIconOptionsDialogView.h"
+#import "DYYYSettingViewController.h"
 
 @implementation DYYYSettingsHelper
 
@@ -740,8 +741,24 @@ static void showIconOptionsDialog(NSString *title, UIImage *previewImage, NSStri
 }
 
 + (void)openSettingsWithViewController:(UIViewController *)vc {
-    BOOL hasAgreed = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYUserAgreementAccepted"];
-    showDYYYSettingsVC(vc, hasAgreed);
+    // 1.0.2：直接进顾海龙抖音设置主页，不再中转白色 DYYY 面板。
+    [self presentGHLSettingsHomeWithViewController:vc];
+}
+
+// 1.0.2 直接入口：点一次就进顾海龙抖音设置主页，不再经过白色 DYYY 面板中转。
+// 有导航栈就 push，没有就包一层导航栏模态弹出（左上角有关闭按钮）。
++ (void)presentGHLSettingsHomeWithViewController:(UIViewController *)vc {
+    if (!vc) return;
+    DYYYSettingViewController *homeVC = [[DYYYSettingViewController alloc] init];
+    if (vc.navigationController) {
+        [vc.navigationController pushViewController:homeVC animated:YES];
+    } else {
+        homeVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:homeVC action:@selector(ghlDismissSettings)];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:homeVC];
+        BOOL isIPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+        nav.modalPresentationStyle = isIPad ? UIModalPresentationFullScreen : UIModalPresentationPageSheet;
+        [vc presentViewController:nav animated:YES completion:nil];
+    }
 }
 
 + (void)openSettingsFromView:(UIView *)view {

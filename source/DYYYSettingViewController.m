@@ -4,6 +4,7 @@
 #import "DYYYConstants.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
+#import "DYYYSettingsHelper.h"
 #import "GHLFeatures.h"
 
 typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYYYSettingItemTypeTextField, DYYYSettingItemTypePicker };
@@ -37,36 +38,73 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 @end
 
-@interface DYYYSettingViewController () <UITableViewDelegate, UITableViewDataSource>
+@interface DYYYSettingViewController () <UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate>
 
 @property(nonatomic, strong) UITableView *tableView;
 @property(nonatomic, strong) NSArray<NSArray<DYYYSettingItem *> *> *settingSections;
-@property(nonatomic, strong) UILabel *footerLabel;
 @property(nonatomic, strong) NSMutableArray<NSString *> *sectionTitles;
-@property(nonatomic, strong) NSMutableSet *expandedSections;
-@property(nonatomic, strong) UIVisualEffectView *blurEffectView;
-@property(nonatomic, strong) UIVisualEffectView *vibrancyEffectView;
 @property(nonatomic, assign) BOOL isAgreementShown;
+
+// 1.0.2 白色卡片主页：NSNotFound = 主页；>=0 = 某个分类的子页（只显示该分区）。
+@property(nonatomic, assign) NSInteger displaySectionIndex;
+// 主页搜索：搜索中的过滤结果，每项 @{@"item": DYYYSettingItem, @"section": @(分区), @"row": @(行)}
+@property(nonatomic, strong, nullable) NSArray<NSDictionary *> *searchResults;
+@property(nonatomic, strong, nullable) UISearchBar *searchBar;
+@property(nonatomic, strong, nullable) UILabel *statsLabel;
 
 @end
 
 @implementation DYYYSettingViewController
 
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _displaySectionIndex = NSNotFound;
+    }
+    return self;
+}
+
+- (instancetype)initWithSectionIndex:(NSInteger)sectionIndex {
+    self = [super init];
+    if (self) {
+        _displaySectionIndex = sectionIndex;
+    }
+    return self;
+}
+
+- (void)ghlDismissSettings {
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (BOOL)isHomeMode {
+    return self.displaySectionIndex == NSNotFound;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.title = DYYY_SETTINGS_NAME;
-    self.expandedSections = [NSMutableSet set];
     self.isAgreementShown = NO;
 
-    [self setupAppearance];
-    [self setupBlurEffect];
-    [self setupTableView];
     [self setupDefaultValues];
     [self setupSettingItems];
     [self setupSectionTitles];
-    [self setupFooterLabel];
-    [self addTitleGradientAnimation];
+    self.title = [self isHomeMode] ? DYYY_SETTINGS_NAME : self.sectionTitles[self.displaySectionIndex];
+
+    [self setupAppearance];
+    [self setupTableView];
+    if ([self isHomeMode]) {
+        [self setupHeaderCardAndSearch];
+        [self setupFooterButtons];
+        [self refreshHeaderStats];
+    }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    // 从子页返回时刷新头卡统计（已开启数可能变了）。
+    if ([self isHomeMode]) {
+        [self refreshHeaderStats];
+    }
 }
 
 - (void)setupDefaultValues {
@@ -94,40 +132,18 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 - (void)setupAppearance {
-    self.navigationController.navigationBar.barTintColor = [UIColor clearColor];
-    self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
-    self.navigationController.navigationBar.largeTitleTextAttributes = @{NSForegroundColorAttributeName : [UIColor whiteColor]};
-    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
+    // 1.0.2 白色卡片样式：系统默认白底导航栏 + 黑字大标题（旧的深色毛玻璃 + 金色渐变标题已去掉）。
     self.navigationController.navigationBar.prefersLargeTitles = YES;
-}
-
-- (void)setupBlurEffect {
-    UIBlurEffect *blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
-    self.blurEffectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
-    self.blurEffectView.frame = self.view.bounds;
-    self.blurEffectView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:self.blurEffectView];
-
-    UIVibrancyEffect *vibrancyEffect = [UIVibrancyEffect effectForBlurEffect:blurEffect];
-    self.vibrancyEffectView = [[UIVisualEffectView alloc] initWithEffect:vibrancyEffect];
-    self.vibrancyEffectView.frame = self.blurEffectView.bounds;
-    self.vibrancyEffectView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.blurEffectView.contentView addSubview:self.vibrancyEffectView];
-
-    UIView *overlayView = [[UIView alloc] initWithFrame:self.view.bounds];
-    overlayView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
-    overlayView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:overlayView];
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
+    self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
 }
 
 - (void)setupTableView {
-    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStyleInsetGrouped];
+    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStyleGrouped];
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
-    self.tableView.backgroundColor = [UIColor clearColor];
-    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.contentInset = UIEdgeInsetsMake(20, 0, 0, 0);
-    self.tableView.sectionHeaderTopPadding = 0;
+    self.tableView.backgroundColor = [UIColor systemGroupedBackgroundColor];
+    self.tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:self.tableView];
 }
 
@@ -168,6 +184,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"语音包（选音色发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"语音包管理（列表/搜索/试听）" key:GHL_KEY_VOICE_PACKAGE_MANAGER type:DYYYSettingItemTypePicker],
+            // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：探针，未验证——
+            // 语音转发/语音秒数/替换语音评论没有可验证的 hook 点；保存语音评论的
+            // AWECommentAudioModel 只确认有 content 字段，未确认音频 URL 字段。
+            // 开关打开只记运行期探针日志（GHLProbeVoiceFeatures），不注入、不发包。
+            [DYYYSettingItem itemWithTitle:@"语音消息转发（实验，需真机日志验证）" key:GHL_KEY_VOICE_FORWARD type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"设置语音秒数（实验，需真机日志验证）" key:GHL_KEY_VOICE_DURATION type:DYYYSettingItemTypeTextField placeholder:@"默认60"],
+            [DYYYSettingItem itemWithTitle:@"替换语音评论（实验，需真机日志验证）" key:GHL_KEY_VOICE_REPLACE_COMMENT type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"]
         ],
         @[
@@ -485,56 +509,147 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     self.sectionTitles = [@[ @"顾海龙抖音", @"顾海龙抖音（二）", @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
 }
 
-- (void)setupFooterLabel {
-    self.footerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 50)];
-    self.footerLabel.text = [NSString stringWithFormat:@"顾海龙抖音 Version: %@\n基于 DYYY (MIT, Copyright (c) 2024 huami)，仅自用", DYYY_VERSION];
-    self.footerLabel.textAlignment = NSTextAlignmentCenter;
-    self.footerLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
-    self.footerLabel.textColor = [UIColor colorWithRed:173 / 255.0 green:216 / 255.0 blue:230 / 255.0 alpha:1.0];
-    self.footerLabel.numberOfLines = 2;
-    self.footerLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    self.tableView.tableFooterView = self.footerLabel;
+// 1.0.2 白色卡片主页头：龙头 logo 招牌 + 名字 + 版本 + 统计，
+// 下面是搜索框（样式照 xuu 卡片的搜索框）。
+- (void)setupHeaderCardAndSearch {
+    CGFloat width = self.view.bounds.size.width;
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 172)];
+    header.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+
+    // 头卡：白底圆角卡片
+    UIView *card = [[UIView alloc] initWithFrame:CGRectMake(16, 12, width - 32, 96)];
+    card.backgroundColor = [UIColor whiteColor];
+    card.layer.cornerRadius = 16;
+    card.layer.borderWidth = 0.5;
+    card.layer.borderColor = [UIColor colorWithWhite:0 alpha:0.08].CGColor;
+    card.layer.shadowColor = [UIColor blackColor].CGColor;
+    card.layer.shadowOpacity = 0.08;
+    card.layer.shadowOffset = CGSizeMake(0, 2);
+    card.layer.shadowRadius = 8;
+    card.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [header addSubview:card];
+
+    // 招牌：我们自己的龙头 logo，64pt 圆形 + 金边（一眼认出是顾海龙抖音）
+    UIImageView *logoView = [[UIImageView alloc] initWithFrame:CGRectMake(16, 16, 64, 64)];
+    logoView.image = GHLLogoImage();
+    logoView.layer.cornerRadius = 32;
+    logoView.layer.masksToBounds = YES;
+    logoView.layer.borderWidth = 1.5;
+    logoView.layer.borderColor = [UIColor colorWithRed:212 / 255.0 green:175 / 255.0 blue:55 / 255.0 alpha:1.0].CGColor;
+    logoView.contentMode = UIViewContentModeScaleAspectFill;
+    [card addSubview:logoView];
+
+    CGFloat textX = 92;
+    CGFloat textW = card.bounds.size.width - textX - 16;
+    UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 14, textW, 24)];
+    nameLabel.text = @"顾海龙抖音";
+    nameLabel.font = [UIFont boldSystemFontOfSize:20];
+    nameLabel.textColor = [UIColor blackColor];
+    nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [card addSubview:nameLabel];
+
+    UILabel *versionLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 40, textW, 18)];
+    versionLabel.text = [NSString stringWithFormat:@"Version: %@", DYYY_VERSION];
+    versionLabel.font = [UIFont systemFontOfSize:13];
+    versionLabel.textColor = [UIColor grayColor];
+    versionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [card addSubview:versionLabel];
+
+    self.statsLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 60, textW, 18)];
+    self.statsLabel.font = [UIFont systemFontOfSize:13];
+    self.statsLabel.textColor = [UIColor grayColor];
+    self.statsLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [card addSubview:self.statsLabel];
+
+    // 搜索框
+    UISearchBar *searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(16, 116, width - 32, 44)];
+    searchBar.placeholder = @"搜索设置项";
+    searchBar.searchBarStyle = UISearchBarStyleMinimal;
+    searchBar.delegate = self;
+    searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [header addSubview:searchBar];
+    self.searchBar = searchBar;
+
+    self.tableView.tableHeaderView = header;
 }
 
-- (void)addTitleGradientAnimation {
-    // 金色主题：龙头 logo + 金色渐变标题
-    CAGradientLayer *gradient = [CAGradientLayer layer];
-    gradient.colors = @[ (__bridge id)[UIColor colorWithRed:212 / 255.0 green:175 / 255.0 blue:55 / 255.0 alpha:1.0].CGColor,
-                         (__bridge id)[UIColor colorWithRed:245 / 255.0 green:215 / 255.0 blue:110 / 255.0 alpha:1.0].CGColor ];
-    gradient.startPoint = CGPointMake(0, 0);
-    gradient.endPoint = CGPointMake(1, 0);
-    gradient.frame = CGRectMake(0, 0, 170, 30);
+- (void)refreshHeaderStats {
+    if (!self.statsLabel) return;
+    NSInteger total = 0;
+    NSInteger enabled = 0;
+    for (NSArray<DYYYSettingItem *> *section in self.settingSections) {
+        total += (NSInteger)section.count;
+        for (DYYYSettingItem *item in section) {
+            if (item.type == DYYYSettingItemTypeSwitch && [[NSUserDefaults standardUserDefaults] boolForKey:item.key]) {
+                enabled++;
+            }
+        }
+    }
+    self.statsLabel.text = [NSString stringWithFormat:@"%ld 项设置 · %ld 项已开启", (long)total, (long)enabled];
+}
 
-    UIView *titleView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 210, 30)];
+// 底部一排按钮：关于 / 基于DYYY / MIT 声明（照 xuu 卡片底部三个按钮的样子）。
+- (void)setupFooterButtons {
+    CGFloat width = self.view.bounds.size.width;
+    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 116)];
+    footer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
-    UIImageView *logoView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 1, 28, 28)];
-    logoView.image = GHLLogoImage();
-    logoView.layer.cornerRadius = 6;
-    logoView.layer.masksToBounds = YES;
-    [titleView addSubview:logoView];
+    NSArray<NSString *> *titles = @[ @"关于", @"基于DYYY", @"MIT 声明" ];
+    CGFloat buttonWidth = (width - 32 - 16) / 3.0;
+    for (NSInteger i = 0; i < 3; i++) {
+        UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+        button.frame = CGRectMake(16 + i * (buttonWidth + 8), 12, buttonWidth, 44);
+        [button setTitle:titles[i] forState:UIControlStateNormal];
+        button.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
+        [button setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+        button.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1.0];
+        button.layer.cornerRadius = 12;
+        button.tag = i;
+        [button addTarget:self action:@selector(footerButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
+        button.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        [footer addSubview:button];
+    }
 
-    UIView *gradientContainer = [[UIView alloc] initWithFrame:CGRectMake(34, 0, 170, 30)];
-    [gradientContainer.layer addSublayer:gradient];
-    [titleView addSubview:gradientContainer];
+    UILabel *attributionLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 68, width - 32, 16)];
+    attributionLabel.text = @"基于 DYYY (MIT, Copyright (c) 2024 huami)，仅自用";
+    attributionLabel.font = [UIFont systemFontOfSize:12];
+    attributionLabel.textColor = [UIColor grayColor];
+    attributionLabel.textAlignment = NSTextAlignmentCenter;
+    attributionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [footer addSubview:attributionLabel];
 
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:gradientContainer.bounds];
-    titleLabel.text = self.title;
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.font = [UIFont boldSystemFontOfSize:20];
-    titleLabel.textColor = [UIColor clearColor];
+    self.tableView.tableFooterView = footer;
+}
 
-    gradient.mask = titleLabel.layer;
-    [gradientContainer addSubview:titleLabel];
-    self.navigationItem.titleView = titleView;
-
-    CABasicAnimation *colorChange = [CABasicAnimation animationWithKeyPath:@"colors"];
-    colorChange.toValue = @[ (__bridge id)[UIColor colorWithRed:245 / 255.0 green:215 / 255.0 blue:110 / 255.0 alpha:1.0].CGColor,
-                             (__bridge id)[UIColor colorWithRed:212 / 255.0 green:175 / 255.0 blue:55 / 255.0 alpha:1.0].CGColor ];
-    colorChange.duration = 2.0;
-    colorChange.autoreverses = YES;
-    colorChange.repeatCount = HUGE_VALF;
-
-    [gradient addAnimation:colorChange forKey:@"colorChangeAnimation"];
+- (void)footerButtonTapped:(UIButton *)sender {
+    if (sender.tag == 0) {
+        [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
+                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。", DYYY_VERSION]
+                                  onConfirm:nil];
+    } else if (sender.tag == 1) {
+        [DYYYSettingsHelper showAboutDialog:@"基于 DYYY"
+                                    message:@"本插件基于 DYYY (MIT, Copyright (c) 2024 huami) 二次开发，原作者 huami，源码仓库 Wtrwx/DYYY。\n\n顾海龙抖音只做个人二创，不对外发布；原作者版权声明保留在 LICENSE 中。"
+                                  onConfirm:nil];
+    } else {
+        [DYYYSettingsHelper showAboutDialog:@"MIT License"
+                                    message:@"Copyright (c) 2024 huami.\n\n"
+                                            @"Permission is hereby granted, free of charge, to any person obtaining a copy "
+                                            @"of this software and associated documentation files (the \"Software\"), to deal "
+                                            @"in the Software without restriction, including without limitation the rights "
+                                            @"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
+                                            @"copies of the Software, and to permit persons to whom the Software is "
+                                            @"furnished to do so, subject to the following conditions:\n\n"
+                                            @"The above copyright notice and this permission notice shall be included in all "
+                                            @"copies or substantial portions of the Software.\n\n"
+                                            @"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR "
+                                            @"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
+                                            @"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE "
+                                            @"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER "
+                                            @"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, "
+                                            @"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
+                                            @"SOFTWARE."
+                                  onConfirm:nil];
+    }
 }
 
 #pragma mark - Helper Methods
@@ -657,83 +772,85 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 #pragma mark - UITableViewDataSource
 
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return self.settingSections.count;
-}
-
-- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    // 分区标题以 setupSectionTitles 的 10 个为准。顾海龙抖音在前面加了两个分区
-    // （顾海龙抖音、顾海龙抖音（二）），旧的 8 分区 switch 全错位：前面 8 个标题
-    // 串位，最后两个分区（功能设置、悬浮按钮）落到 default，标题是空字符串，
-    // 真机上就是照片里悬浮按钮下面的两行空白。
-    if (section >= 0 && section < (NSInteger)self.sectionTitles.count) {
-        return self.sectionTitles[section];
+// 当前行对应的设置项（主页分类行返回 nil；子页/搜索返回真实项）。
+- (nullable DYYYSettingItem *)itemForIndexPath:(NSIndexPath *)indexPath {
+    if ([self isHomeMode] && ![self isSearching]) return nil;
+    if ([self isSearching]) {
+        return self.searchResults[indexPath.row][@"item"];
     }
-    return @"";
+    return self.settingSections[self.displaySectionIndex][indexPath.row];
 }
 
-- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
-    UIView *headerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, tableView.bounds.size.width, 44)];
-
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 0, headerView.bounds.size.width - 50, 44)];
-    titleLabel.text = [self tableView:tableView titleForHeaderInSection:section];
-    titleLabel.textColor = [UIColor whiteColor];
-    titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-    [headerView addSubview:titleLabel];
-
-    UIImageView *arrowImageView = [[UIImageView alloc] initWithFrame:CGRectMake(titleLabel.frame.origin.x + titleLabel.frame.size.width - 30, 15, 14, 14)];
-    arrowImageView.image = [UIImage systemImageNamed:[self.expandedSections containsObject:@(section)] ? @"chevron.down" : @"chevron.right"];
-    arrowImageView.tintColor = [UIColor lightGrayColor];
-    arrowImageView.tag = 100;
-    arrowImageView.contentMode = UIViewContentModeScaleAspectFit;
-    [headerView addSubview:arrowImageView];
-
-    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-    button.frame = headerView.bounds;
-    button.tag = section;
-    [button addTarget:self action:@selector(headerTapped:) forControlEvents:UIControlEventTouchUpInside];
-    [headerView addSubview:button];
-
-    return headerView;
+// 当前行对应项的真实分区/行号（开关、输入框的 tag 用真实号编码，事件处理才能找到原项）。
+- (NSInteger)realSectionForIndexPath:(NSIndexPath *)indexPath {
+    if ([self isSearching]) return [self.searchResults[indexPath.row][@"section"] integerValue];
+    return self.displaySectionIndex;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
-    return 44;
+- (NSInteger)realRowForIndexPath:(NSIndexPath *)indexPath {
+    if ([self isSearching]) return [self.searchResults[indexPath.row][@"row"] integerValue];
+    return indexPath.row;
+}
+
+- (BOOL)isSearching {
+    return self.searchResults != nil;
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return 1;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return [self.expandedSections containsObject:@(section)] ? self.settingSections[section].count : 0;
-}
-
-- (void)toggleSection:(UIButton *)sender {
-    NSNumber *section = @(sender.tag);
-    if ([self.expandedSections containsObject:section]) {
-        [self.expandedSections removeObject:section];
-    } else {
-        [self.expandedSections addObject:section];
+    if ([self isHomeMode]) {
+        if ([self isSearching]) return (NSInteger)self.searchResults.count;
+        return (NSInteger)self.sectionTitles.count;
     }
-
-    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:sender.tag] withRowAnimation:UITableViewRowAnimationFade];
+    return (NSInteger)self.settingSections[self.displaySectionIndex].count;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    DYYYSettingItem *item = [self itemForIndexPath:indexPath];
+    if (!item) return 56;  // 主页分类行
     // 带括号标注的行用两行显示（主标题 + 第二行小字标注），行高要够放两行
-    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
     NSRange noteRange = [item.title rangeOfString:@"（"];
     return (noteRange.location != NSNotFound && noteRange.location > 0) ? 60 : 44;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
+    // 主页分类行：标题 + 右端数量 + 箭头（照 xuu 卡片各行右端带数字的样子）
+    if ([self isHomeMode] && ![self isSearching]) {
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"GHLCategoryCell"];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:@"GHLCategoryCell"];
+            cell.textLabel.font = [UIFont systemFontOfSize:17];
+            cell.detailTextLabel.font = [UIFont systemFontOfSize:15];
+            cell.detailTextLabel.textColor = [UIColor grayColor];
+            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        }
+        cell.textLabel.text = self.sectionTitles[indexPath.row];
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld", (long)self.settingSections[indexPath.row].count];
+        return cell;
+    }
+    return [self itemCellForIndexPath:indexPath tableView:tableView];
+}
+
+// 子页/搜索里某一项的白底行（开关/输入框/选择器），与 1.0.1 同一套交互。
+- (UITableViewCell *)itemCellForIndexPath:(NSIndexPath *)indexPath tableView:(UITableView *)tableView {
+    DYYYSettingItem *item = [self itemForIndexPath:indexPath];
+    NSInteger realSection = [self realSectionForIndexPath:indexPath];
+    NSInteger realRow = [self realRowForIndexPath:indexPath];
+    NSInteger tag = realSection * 1000 + realRow;
 
     // 括号里的标注太长会被截断：把“（...）”拆出来放第二行 12pt 小字显示，
-    // 主标题只留名称。没标注的行保持原来单行样式。
+    // 主标题只留名称。没标注的行保持原来单行样式。搜索时无标注的行第二行显示所属分类。
     NSString *mainTitle = item.title;
     NSString *noteTitle = nil;
     NSRange noteRange = [item.title rangeOfString:@"（"];
     if (noteRange.location != NSNotFound && noteRange.location > 0) {
         mainTitle = [item.title substringToIndex:noteRange.location];
         noteTitle = [item.title substringFromIndex:noteRange.location];
+    } else if ([self isSearching]) {
+        noteTitle = self.sectionTitles[realSection];
     }
 
     UITableViewCell *cell = nil;
@@ -743,11 +860,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"SettingCellNote"];
             cell.textLabel.font = [UIFont systemFontOfSize:17];
             cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
-            cell.detailTextLabel.textColor = [UIColor lightGrayColor];
+            cell.detailTextLabel.textColor = [UIColor grayColor];
             cell.detailTextLabel.numberOfLines = 2;
 
             UIView *selectedBackgroundView = [[UIView alloc] init];
-            selectedBackgroundView.backgroundColor = [UIColor colorWithRed:84 / 255.0 green:84 / 255.0 blue:84 / 255.0 alpha:1.0];
+            selectedBackgroundView.backgroundColor = [UIColor colorWithWhite:0.9 alpha:1.0];
             cell.selectedBackgroundView = selectedBackgroundView;
         }
         cell.textLabel.text = mainTitle;
@@ -761,45 +878,34 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [cell.textLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor].active = YES;
 
             UIView *selectedBackgroundView = [[UIView alloc] init];
-            selectedBackgroundView.backgroundColor = [UIColor colorWithRed:84 / 255.0 green:84 / 255.0 blue:84 / 255.0 alpha:1.0];
+            selectedBackgroundView.backgroundColor = [UIColor colorWithWhite:0.9 alpha:1.0];
             cell.selectedBackgroundView = selectedBackgroundView;
         }
         cell.textLabel.text = item.title;
     }
 
-    cell.textLabel.textColor = [UIColor whiteColor];
-    cell.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];
-
-    cell.backgroundView = nil;
-
-    if (indexPath.row == [self.settingSections[indexPath.section] count] - 1) {
-        cell.layer.cornerRadius = 10;
-        cell.layer.maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-        cell.layer.masksToBounds = YES;
-    } else {
-        cell.layer.cornerRadius = 0;
-        cell.layer.maskedCorners = 0;
-    }
+    cell.textLabel.textColor = [UIColor blackColor];
+    cell.backgroundColor = [UIColor whiteColor];
 
     if (item.type == DYYYSettingItemTypeSwitch) {
         UISwitch *switchView = [[UISwitch alloc] init];
         [switchView setOn:[[NSUserDefaults standardUserDefaults] boolForKey:item.key]];
         [switchView addTarget:self action:@selector(switchToggled:) forControlEvents:UIControlEventValueChanged];
-        switchView.tag = indexPath.section * 1000 + indexPath.row;
+        switchView.tag = tag;
         cell.accessoryView = switchView;
     } else if (item.type == DYYYSettingItemTypeTextField) {
         UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 120, 30)];
         textField.borderStyle = UITextBorderStyleRoundedRect;
         textField.font = [UIFont systemFontOfSize:14];
         textField.placeholder = item.placeholder;
-        textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:item.placeholder attributes:@{NSForegroundColorAttributeName : [UIColor lightGrayColor]}];
+        textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:item.placeholder attributes:@{NSForegroundColorAttributeName : [UIColor grayColor]}];
         textField.text = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
         textField.textAlignment = NSTextAlignmentRight;
-        textField.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];
-        textField.textColor = [UIColor whiteColor];
+        textField.backgroundColor = [UIColor colorWithWhite:0.94 alpha:1.0];
+        textField.textColor = [UIColor blackColor];
 
         [textField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingDidEnd];
-        textField.tag = indexPath.section * 1000 + indexPath.row;
+        textField.tag = tag;
         cell.accessoryView = textField;
     } else if (item.type == DYYYSettingItemTypePicker) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -813,9 +919,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
         pickerLabel.text = [self displayValueForKey:item.key value:currentValue];
         pickerLabel.font = [UIFont systemFontOfSize:13];
-        pickerLabel.textColor = [UIColor whiteColor];
+        pickerLabel.textColor = [UIColor blackColor];
         pickerLabel.textAlignment = NSTextAlignmentRight;
-        pickerLabel.tag = indexPath.section * 1000 + indexPath.row;
+        pickerLabel.tag = tag;
         // 值太长（例如音色名“李牧 (z…)”）时自动缩小字号显示，不截断
         pickerLabel.adjustsFontSizeToFitWidth = YES;
         pickerLabel.minimumScaleFactor = 0.7;
@@ -836,15 +942,57 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     return cell;
 }
 
-- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat sectionInset = 16;
-    cell.contentView.frame = UIEdgeInsetsInsetRect(cell.contentView.frame, UIEdgeInsetsMake(0, sectionInset, 0, sectionInset));
+#pragma mark - UISearchBarDelegate
+
+- (void)searchBarTextDidBeginEditing:(UISearchBar *)searchBar {
+    searchBar.showsCancelButton = YES;
+}
+
+- (void)searchBarTextDidEndEditing:(UISearchBar *)searchBar {
+    searchBar.showsCancelButton = NO;
+}
+
+- (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+    if (searchText.length == 0) {
+        self.searchResults = nil;
+    } else {
+        NSMutableArray<NSDictionary *> *results = [NSMutableArray array];
+        for (NSInteger s = 0; s < (NSInteger)self.settingSections.count; s++) {
+            NSArray<DYYYSettingItem *> *items = self.settingSections[s];
+            for (NSInteger r = 0; r < (NSInteger)items.count; r++) {
+                DYYYSettingItem *item = items[r];
+                if ([item.title rangeOfString:searchText options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                    [results addObject:@{@"item": item, @"section": @(s), @"row": @(r)}];
+                }
+            }
+        }
+        self.searchResults = results;
+    }
+    [self.tableView reloadData];
+}
+
+- (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+    [searchBar resignFirstResponder];
+}
+
+- (void)searchBarCancelButtonClicked:(UISearchBar *)searchBar {
+    searchBar.text = @"";
+    self.searchResults = nil;
+    [searchBar resignFirstResponder];
+    [self.tableView reloadData];
 }
 
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
+    // 主页分类行：直接进该分类的子页，不再中转旧深色页。
+    if ([self isHomeMode] && ![self isSearching]) {
+        DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:indexPath.row];
+        [self.navigationController pushViewController:subVC animated:YES];
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        return;
+    }
+    DYYYSettingItem *item = [self itemForIndexPath:indexPath];
     if (item.type == DYYYSettingItemTypePicker) {
         [self showUniversalPickerForIndexPath:indexPath];
     }
@@ -852,7 +1000,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 - (void)showUniversalPickerForIndexPath:(NSIndexPath *)indexPath {
-    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
+    DYYYSettingItem *item = [self itemForIndexPath:indexPath];
 
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"选择%@", item.title] message:nil preferredStyle:UIAlertControllerStyleActionSheet];
 
@@ -991,25 +1139,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     if ([item.key isEqualToString:@"DYYYEnableFloatClearButtonSize"]) {
         reloadClearButtonConfiguration();
     }
-}
-
-- (void)headerTapped:(UIButton *)sender {
-    NSNumber *section = @(sender.tag);
-    if ([self.expandedSections containsObject:section]) {
-        [self.expandedSections removeObject:section];
-    } else {
-        [self.expandedSections addObject:section];
-    }
-
-    UIView *headerView = [self.tableView headerViewForSection:sender.tag];
-    UIImageView *arrowImageView = [headerView viewWithTag:100];
-
-    [UIView animateWithDuration:0.3
-                     animations:^{
-                       arrowImageView.image = [UIImage systemImageNamed:[self.expandedSections containsObject:section] ? @"chevron.down" : @"chevron.right"];
-                     }];
-
-    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:sender.tag] withRowAnimation:UITableViewRowAnimationFade];
 }
 
 @end

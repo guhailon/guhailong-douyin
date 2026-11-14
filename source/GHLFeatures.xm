@@ -1122,7 +1122,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.1 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.2 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
@@ -1150,6 +1150,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
           if (GHLGetBool(GHL_KEY_ANTI_RECALL)) GHLProbeAntiRecall();
           if (GHLGetBool(GHL_KEY_HIDE_TYPING) || GHLGetBool(GHL_KEY_HIDE_READ_RECEIPT) || GHLGetBool(GHL_KEY_ANTI_BURN)) GHLProbePrivacyFeatures();
           if (GHLGetBool(GHL_KEY_COMMENT_VOICE)) GHLProbeCommentVoice();
+          if (GHLGetBool(GHL_KEY_VOICE_FORWARD) || GHLGetBool(GHL_KEY_VOICE_DURATION) || GHLGetBool(GHL_KEY_VOICE_REPLACE_COMMENT) || GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) GHLProbeVoiceFeatures();
           if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD) || GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT)) GHLProbeLiveRoom();
           GHLRestartSleepTimer();
         });
@@ -2168,6 +2169,63 @@ void GHLProbeLiveRoom(void) {
     }
     free(classes);
     GHLLog(@"直播间探针：AWELive/IESLive 类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
+}
+
+// 1.0.2 语音四项探针：语音消息转发 / 设置语音秒数 / 替换语音评论 / 保存语音评论。
+// 只做运行期类/方法/属性 introspection 并记日志，不注入、不改行为、不发包。
+// 已知：AWECommentAudioModel 只有 content（NSString）一个属性，未确认音频 URL 字段；
+// AWEIMVoiceMessageCell 类存在但转发/发送方法未知；语音录制时长接口、评论发语音接口未知。
+void GHLProbeVoiceFeatures(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *hits = [NSMutableArray array];
+    NSArray<NSString *> *keywords = @[ @"VoiceMessage", @"AudioMessage", @"IMAudio", @"VoiceRecorder", @"AudioRecorder", @"CommentAudio" ];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        for (NSString *kw in keywords) {
+            if ([name containsString:kw]) {
+                if (hits.count < 30) [hits addObject:name];
+                break;
+            }
+        }
+    }
+    free(classes);
+    GHLLog(@"语音四项探针：疑似语音相关类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
+
+    // AWECommentAudioModel 的属性清单（评论语音有没有音频地址，看这里）
+    Class audioModelClass = NSClassFromString(@"AWECommentAudioModel");
+    if (audioModelClass) {
+        unsigned int propCount = 0;
+        objc_property_t *props = class_copyPropertyList(audioModelClass, &propCount);
+        NSMutableArray<NSString *> *propNames = [NSMutableArray array];
+        for (unsigned int i = 0; i < propCount; i++) {
+            [propNames addObject:[NSString stringWithUTF8String:property_getName(props[i])]];
+        }
+        free(props);
+        GHLLog(@"语音四项探针：AWECommentAudioModel 属性 %lu 个：%@", (unsigned long)propNames.count, propNames);
+    } else {
+        GHLLog(@"语音四项探针：AWECommentAudioModel 类不存在，评论语音保存/替换做不了");
+    }
+
+    // AWEIMVoiceMessageCell 的方法清单（私信语音转发有没有现成入口，看这里）
+    Class voiceCellClass = NSClassFromString(@"AWEIMVoiceMessageCell");
+    if (voiceCellClass) {
+        unsigned int methodCount = 0;
+        Method *methods = class_copyMethodList(voiceCellClass, &methodCount);
+        NSMutableArray<NSString *> *methodNames = [NSMutableArray array];
+        for (unsigned int i = 0; i < methodCount; i++) {
+            NSString *selName = NSStringFromSelector(method_getName(methods[i]));
+            if ([selName containsString:@"forward"] || [selName containsString:@"Forward"] || [selName containsString:@"send"] || [selName containsString:@"Send"] || [selName containsString:@"share"] || [selName containsString:@"Share"]) {
+                if (methodNames.count < 20) [methodNames addObject:selName];
+            }
+        }
+        free(methods);
+        GHLLog(@"语音四项探针：AWEIMVoiceMessageCell 转发/发送相关方法 %lu 个：%@", (unsigned long)methodNames.count, methodNames);
+    } else {
+        GHLLog(@"语音四项探针：AWEIMVoiceMessageCell 类不存在，语音消息转发做不了");
+    }
+
+    GHLLog(@"语音四项探针：只记录类/方法存在，转发/秒数/替换/保存流程待真机日志进一步验证");
 }
 
 #pragma mark 巡检定时器（2 秒一次）

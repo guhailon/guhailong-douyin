@@ -690,8 +690,7 @@ static void DYYYBuildSettingsSearchIndexIfNeeded(NSArray<AWESettingItemModel *> 
             targetVC = targetVC.presentedViewController;
         }
     }
-    BOOL hasAgreed = [DYYYSettingsHelper getUserDefaults:@"DYYYUserAgreementAccepted"];
-    showDYYYSettingsVC(targetVC, hasAgreed);
+    [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:targetVC];
 }
 %end
 
@@ -741,8 +740,7 @@ static void DYYYBuildSettingsSearchIndexIfNeeded(NSArray<AWESettingItemModel *> 
             targetVC = targetVC.presentedViewController;
         }
     }
-    BOOL hasAgreed = [DYYYSettingsHelper getUserDefaults:@"DYYYUserAgreementAccepted"];
-    showDYYYSettingsVC(targetVC, hasAgreed);
+    [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:targetVC];
 }
 %end
 
@@ -4457,8 +4455,7 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
         dyyyItem.isEnable = YES;
         dyyyItem.cellTappedBlock = ^{
           UIViewController *rootVC = self.controllerDelegate;
-          BOOL hasAgreed = [DYYYSettingsHelper getUserDefaults:@"DYYYUserAgreementAccepted"];
-          showDYYYSettingsVC(rootVC, hasAgreed);
+          [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:rootVC];
         };
 
         AWESettingSectionModel *newSection = [[%c(AWESettingSectionModel) alloc] init];

@@ -74,6 +74,11 @@ extern "C" {
 #define GHL_DEFAULT_FISH_AUDIO_API_KEY @"sk-fish-7Ncx6vznkdiz1H0xD5ua8G8oSuovY5IaLRDBx7-WTKU" // 皇上自己的 Fish Audio key，已填好（免费账号，永不过期）；只放皇上自己的私有仓库和包里
 #define GHL_KEY_FISH_AUDIO_VOICES_CACHE @"GHLFishAudioVoicesCache" // 在线语音包列表缓存（NSArray<NSDictionary：id/title>）
 #define GHL_KEY_VOICE_PACKAGE_MANAGER @"GHLVoicePackageManager" // 打开语音包管理器（Picker 入口，值无意义）
+// 1.0.2 新增语音四项（照 xuu 卡片的语音功能；接口未验证，先做探针，见 GHLProbeVoiceFeatures）：
+// 语音消息转发 / 设置语音秒数 / 替换语音评论 / 保存语音评论（保存复用 (36) 的 GHL_KEY_COMMENT_VOICE_SAVE）。
+#define GHL_KEY_VOICE_FORWARD @"GHLVoiceForward"                 // 语音消息转发（实验，需真机日志验证）
+#define GHL_KEY_VOICE_DURATION @"GHLVoiceDuration"               // 设置语音秒数（实验，需真机日志验证）
+#define GHL_KEY_VOICE_REPLACE_COMMENT @"GHLVoiceReplaceComment" // 替换语音评论（实验，需真机日志验证）
 
 // MARK: - 语音包 (31)
 typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
@@ -116,6 +121,8 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController);
 // 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包）
 void GHLProbeLiveVoiceSender(void);
+// 运行期探针：语音消息转发/语音秒数/替换语音评论/保存语音评论相关类（只记日志，不 hook、不发包）
+void GHLProbeVoiceFeatures(void);
 
 // MARK: - 32-43（xuu 抖音助手行为参考，代码全部自己写；只学功能清单，不抄它的代码）
 // (32) 自动点赞
