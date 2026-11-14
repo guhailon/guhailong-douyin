@@ -1,8 +1,9 @@
-// GHLFloatPanelHomeViewController — 卡片首页（1.0.21）
+// GHLFloatPanelHomeViewController — 卡片首页（1.0.22）
 // 影片的做法：标题＋搜索框＋两列按键；照片里文件夹的浅色毛玻璃：卡片本身是
-// UIVisualEffectView（Light），本页 view 透明、按键半透明白底＋金色图标＋深色字，
+// UIVisualEffectView（ExtraLight，1.0.22 起更透），本页 view 透明、按键半透明白底＋金色图标＋深色字，
 // 玻璃感从卡片底透出来。设置列表／关于页／日志页点按键在卡片内导航栈上推，
-// 不是全屏（皇上：任何出来就是卡片界面）。
+// 不是全屏（皇上：任何出来就是卡片界面）。推上去的页面背景是不透明的（1.0.22），
+// 只有首页和卡片 10pt 边框露玻璃——不然上一页从下面透出来。
 #import "GHLFloatPanelHomeViewController.h"
 
 #import "DYYYSettingViewController.h"
@@ -205,7 +206,9 @@ typedef NS_ENUM(NSInteger, GHLFloatPanelHomeAction) {
             break;
         }
         case GHLFloatPanelHomeActionDiagnose: {
-            [self.navigationController pushViewController:[[GHLLogViewerViewController alloc] init] animated:YES];
+            GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
+            logVC.ghlInFloatPanel = YES;
+            [self.navigationController pushViewController:logVC animated:YES];
             break;
         }
         case GHLFloatPanelHomeActionAbout: {
@@ -231,33 +234,74 @@ typedef NS_ENUM(NSInteger, GHLFloatPanelHomeAction) {
     }
 }
 
-// 底栏切换（探针）：按标题匹配底栏，找不到就如实记一行，不硬切。
+// 底栏切换（探针）：递归全树找底栏控制器再按标题匹配，找不到就如实记一行，不硬切。
 // 切成功就关卡片，让皇上直接看到那一页。
-- (void)ghl_switchToTabNamed:(NSString *)tabTitle {
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    UITabBarController *tabBarController = nil;
-    UIViewController *rootVC = window.rootViewController;
-    while (rootVC.presentedViewController) rootVC = rootVC.presentedViewController;
-    if ([rootVC isKindOfClass:[UITabBarController class]]) {
-        tabBarController = (UITabBarController *)rootVC;
-    } else {
-        for (UIViewController *child in rootVC.childViewControllers) {
-            if ([child isKindOfClass:[UITabBarController class]]) {
-                tabBarController = (UITabBarController *)child;
-                break;
+// 1.0.22：旧探针只查 rootVC 沿 presented 链走到头＋其直接子级，-9.log 里 17 次点按全死在
+// 「没找到底栏控制器」；但画中画 B 路递归枚举已证实 AWENormalModeTabBarController 确实在
+// 窗口层级里，只是嵌得深（根很可能是 AWEBaseRootNavigationController）。所以改成像 B 路
+// 那样遍历全部窗口的控制器树：是 UITabBarController 子类、或嵌在底栏里（tabBarController
+// 属性非空）的都算找到；visited 防 presented/child 成环时死循环。
+- (nullable UITabBarController *)ghl_findTabBarController {
+    NSArray<UIWindow *> *windows = nil;
+    if (@available(iOS 13.0, *)) {
+        // 和 B 路的 GHLAllAppWindows 同一套思路：所有已连接 scene 的窗口都找一遍。
+        NSMutableArray<UIWindow *> *all = [NSMutableArray array];
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                [all addObjectsFromArray:((UIWindowScene *)scene).windows];
             }
         }
+        if (all.count > 0) windows = all;
     }
+    if (!windows) windows = [UIApplication sharedApplication].windows;
+    NSMutableSet<UIViewController *> *visited = [NSMutableSet set];
+    for (UIWindow *window in windows) {
+        UITabBarController *found = [self ghl_findTabBarControllerInVC:window.rootViewController visited:visited];
+        if (found) return found;
+    }
+    return nil;
+}
+
+- (nullable UITabBarController *)ghl_findTabBarControllerInVC:(nullable UIViewController *)vc visited:(NSMutableSet<UIViewController *> *)visited {
+    if (!vc || [visited containsObject:vc]) return nil;
+    [visited addObject:vc];
+    if ([vc isKindOfClass:[UITabBarController class]]) return (UITabBarController *)vc;
+    // 嵌在底栏里的子页：tabBarController 属性直接指回底栏，不用再往下翻。
+    if (vc.tabBarController) return vc.tabBarController;
+    for (UIViewController *child in vc.childViewControllers) {
+        UITabBarController *found = [self ghl_findTabBarControllerInVC:child visited:visited];
+        if (found) return found;
+    }
+    if (vc.presentedViewController) {
+        UITabBarController *found = [self ghl_findTabBarControllerInVC:vc.presentedViewController visited:visited];
+        if (found) return found;
+    }
+    return nil;
+}
+
+- (void)ghl_switchToTabNamed:(NSString *)tabTitle {
+    UITabBarController *tabBarController = [self ghl_findTabBarController];
     if (!tabBarController) {
-        GHLLog(@"快捷面板：底栏「%@」没找到底栏控制器（探针）", tabTitle);
+        GHLLog(@"快捷面板：底栏「%@」没找到底栏控制器（探针，全树已找过）", tabTitle);
         return;
     }
     NSArray<UIViewController *> *tabs = tabBarController.viewControllers ?: @[];
+    // 标题列表原样记下来：空标题记「（空）」，下次日志能定标题是不是空的。
     NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    NSInteger emptyCount = 0;
+    for (UIViewController *vc in tabs) {
+        NSString *title = vc.tabBarItem.title.length > 0 ? vc.tabBarItem.title : (vc.title.length > 0 ? vc.title : @"");
+        if (title.length == 0) {
+            emptyCount++;
+            [titles addObject:@"（空）"];
+        } else {
+            [titles addObject:title];
+        }
+    }
+    GHLLog(@"快捷面板：底栏控制器是 %@，共 %lu 个 tab（空标题 %ld 个），标题：%@", NSStringFromClass([tabBarController class]), (unsigned long)tabs.count, (long)emptyCount, titles.count > 0 ? [titles componentsJoinedByString:@"、"] : @"（无）");
     for (NSInteger i = 0; i < (NSInteger)tabs.count; i++) {
         UIViewController *vc = tabs[i];
         NSString *title = vc.tabBarItem.title.length > 0 ? vc.tabBarItem.title : (vc.title.length > 0 ? vc.title : @"");
-        if (title.length > 0) [titles addObject:title];
         if ([title isEqualToString:tabTitle]) {
             tabBarController.selectedIndex = i;
             GHLLog(@"快捷面板：已切到底栏「%@」（探针，第 %ld 个）", tabTitle, (long)i);
@@ -265,7 +309,7 @@ typedef NS_ENUM(NSInteger, GHLFloatPanelHomeAction) {
             return;
         }
     }
-    GHLLog(@"快捷面板：底栏「%@」没找到（探针，底栏共 %lu 个：%@）", tabTitle, (unsigned long)tabs.count, [titles componentsJoinedByString:@"、"]);
+    GHLLog(@"快捷面板：底栏「%@」没找到（探针，标题里没有这一项）", tabTitle);
 }
 
 @end

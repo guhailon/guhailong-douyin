@@ -5,4 +5,9 @@
 #import <UIKit/UIKit.h>
 
 @interface GHLLogViewerViewController : UIViewController
+
+// 1.0.22：卡片内打开时为 YES——页底/日志底改不透明（不铺自定义背景图、不透视频），
+// 和设置列表/关于页同款（卡片里的页面内容要盖实）。
+@property(nonatomic, assign) BOOL ghlInFloatPanel;
+
 @end

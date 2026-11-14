@@ -6,6 +6,8 @@
 // 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）和
 // 「恢复默认横幅」（删自选图回内置展翅龙；自选图时标题按横幅中心对齐）。
 // 1.0.21：深色改浅色——页底/卡底改半透明白、字改深色、显式浅色不跟随系统；
+// 1.0.22：页底/卡底改不透明——半透明让首页按键从下面透上来（录屏实锤），玻璃感只留给
+// 卡片外壳和首页；导航栏也不透明了（GHLFeatures.xm 里改），顶部内容不再被导航栏盖住；
 // 对齐：行图标/文字/箭头/转圈共用同一套常量（转圈中心＝箭头中心，长标题太长时自动缩字不截断，
 // 分隔线左端＝文字左端、右端＝卡片右内边）；横幅标题/版本行仍按龙头中心对齐（1.0.14/1.0.15 实测值不动）。
 // 顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
@@ -90,12 +92,14 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 #pragma mark - 浅色玻璃色（1.0.21：深色改浅色；本页显式浅色，不跟随系统；金色走统一的 dYYYGoldAccentColor）
 
 - (UIColor *)ghlPageBackgroundColor {
-    // 页底透明——卡片里的毛玻璃从下面透上来；万一哪天又全屏打开，背后是导航栈的底色，不会黑。
-    return [UIColor clearColor];
+    // 1.0.22：页底改不透明（1.0.21 是透明，首页的按键从下面透上来，录屏实锤；
+    // 玻璃感只留给卡片外壳和首页，推上来的页面要盖实）。
+    return [UIColor systemGroupedBackgroundColor];
 }
 
 - (UIColor *)ghlCardBackgroundColor {
-    return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
+    // 1.0.22：卡底改不透明白（1.0.21 的半透明白让上一页透出来，字难读）。
+    return [UIColor whiteColor];
 }
 
 - (UIColor *)ghlSecondaryTextColor {
@@ -230,8 +234,14 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 
 // 横幅里的标题/版本行按横幅实际高度摆（viewDidLayoutSubviews 时横幅已有最终尺寸；
 // 渐隐层也跟上横幅尺寸——建横幅时它的 bounds 还是 0，autoresizing 管不到 CALayer）。
+// 1.0.22：内容宽也在这里跟 view 走——viewDidLoad 时 view 还是屏幕宽，contentSize 按
+// 屏幕宽算，排到卡片宽之后右边会多出一段横向滚动；高度不动（只改宽）。
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    CGFloat viewWidth = self.view.bounds.size.width;
+    if (viewWidth > 0 && fabs(self.scrollView.contentSize.width - viewWidth) > 0.5) {
+        self.scrollView.contentSize = CGSizeMake(viewWidth, self.scrollView.contentSize.height);
+    }
     UIView *banner = [self.scrollView viewWithTag:1000];
     if (!banner) return;
     UILabel *titleLabel = (UILabel *)[banner viewWithTag:1001];
@@ -429,7 +439,12 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         case GHLAboutRowLogViewer:
             // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，
             // 进出外观是否跳变要真机看一眼）。
-            [self.navigationController pushViewController:[[GHLLogViewerViewController alloc] init] animated:YES];
+            // 1.0.22：卡片内打开，页底改不透明（和设置列表/关于页同款）。
+            {
+                GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
+                logVC.ghlInFloatPanel = YES;
+                [self.navigationController pushViewController:logVC animated:YES];
+            }
             break;
         case GHLAboutRowDisclaimer:
             // 声明在最下面，点开看 1.0.12 的声明全文（措辞不动）。

@@ -257,7 +257,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.18：视频页左上角加龙头浮动钮，点开快捷面板（深色毛玻璃卡：标题＋搜索框＋两列按钮＋完成；通用设置／首页／朋友／消息／我／播放互动／诊断反馈／关于；搜索只过滤面板按钮；播放互动里直接列画中画＋后台播放／记忆倍速／快进手势三个开关；设置页「悬浮按钮」分区可关）；直播探针下探一层（上次只探到 IESLiveRoomService 服务外壳，这次再探它里面的 roomModel 等容器键一层），探针改后台线程跑（画中画查找那路 5 秒超时，超时按拿不到地址处理）；另加计时日志（只记日志不改行为，用来定位画面冻住的原因：巡检每跳耗时＋上跳间隔、视频页布局钩子每秒次数＋耗时）；后台听视频日志降噪（status 真变了才记一行）。\n"
            @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。\n"
            @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。\n"
-           @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。";
+           @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。\n"
+           @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -2594,7 +2595,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.21 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.22 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -3950,10 +3951,13 @@ static void GHLRefreshFloatPanelButton(void) {
     ghlFloatPanelButton.hidden = !show;
 }
 
-// 卡片几何：占屏幕大部分，居中；宽最多 430。
+// 卡片几何：1.0.22 收小——不要近全屏（1.0.21 是 390×800 级，读起来像实心灰板）。
+// 宽留 48pt 边距（最多 400），高留 240pt（最少 300）：像文件夹那样一眼看出是张卡片，
+// 后面的视频露出来，玻璃才有东西可透。首页 8 个按键高约 500pt，导航栏＋完成条约 110pt，
+// iPhone 11 上卡高 656pt 刚好装下；小屏上首页纵向滚动，不截断。
 static CGRect GHLFloatPanelCardFrameForBounds(CGRect bounds) {
-    CGFloat cardWidth = MIN(bounds.size.width - 24, 430);
-    CGFloat cardHeight = MAX(bounds.size.height - 96, 240);
+    CGFloat cardWidth = MIN(bounds.size.width - 48, 400);
+    CGFloat cardHeight = MAX(bounds.size.height - 240, 300);
     return CGRectMake((bounds.size.width - cardWidth) / 2, (bounds.size.height - cardHeight) / 2, cardWidth, cardHeight);
 }
 
@@ -3969,6 +3973,10 @@ static void GHLLayoutFloatPanel(void) {
         ghlFloatPanelNav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                                  cardBounds.size.width - kGHLFloatPanelNavInset * 2,
                                                  cardBounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
+        // 1.0.22：立即强制排一次——导航栈里的子页 view 是在 viewDidLoad 时按屏幕尺寸建的
+        // （表/滚动视图按 414 宽建），不强制排，子页可能一直按屏幕宽排、右边被卡片裁掉。
+        [ghlFloatPanelNav.view setNeedsLayout];
+        [ghlFloatPanelNav.view layoutIfNeeded];
     }
     if (ghlFloatPanelDoneButton) {
         ghlFloatPanelDoneButton.frame = CGRectMake(16, cardBounds.size.height - kGHLFloatPanelDoneBarHeight + 8,
@@ -3991,9 +3999,12 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     panelWindow.hidden = YES; // 建好先藏着，打开时再显示
 
     // 宿主 VC 是空壳，view 就是全屏遮罩（点外面关闭）；导航栈挂在它下面。
+    // 1.0.22：遮罩大幅减淡（黑 0.5 → 0.12）——1.0.21 的黑遮罩把后面的视频压暗一半，
+    // 毛玻璃糊的是压暗后的画面，所以整张卡片读起来像实心灰板；减淡后玻璃糊的是亮的视频，
+    // 才像文件夹照片里那种透亮的玻璃。
     UIViewController *hostVC = [[UIViewController alloc] init];
     UIView *container = [[UIView alloc] initWithFrame:bounds];
-    container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
+    container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.12];
     container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     // 1.0.20：dimTap 只认卡片外的触摸（delegate 见下面 GHLFeatures 分类）；
     // cancelsTouchesInView=NO 是第二道保险——手势认出来也不取消别的 view 的触摸。
@@ -4006,25 +4017,28 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     hostVC.view = container;
     panelWindow.rootViewController = hostVC;
 
-// 卡片：1.0.21 改成浅色毛玻璃（照片里文件夹那种：背景透出来、浅色半透明、细亮边）＋
-// 金色 pill「完成」；导航栈缩进 10pt 露出毛玻璃边框。根页是卡片首页（按键页），
-// 设置列表是按键推进去的，不再是根页。
+// 卡片：1.0.22 玻璃重做（1.0.21 渲染出来是平灰块，根本不是玻璃；录屏实锤）。
+// 参照是文件夹照片（亮、壁纸透出来糊掉）＋快手影片里的卡片面板：遮罩减到黑 0.12、
+// 糊换成更透的 ExtraLight（Light 太实）、淡白 tint 从 0.18 降到 0.06、卡片收小
+// （宽留 48、高留 240，不近全屏），让玻璃对着看得见的视频透出来。
+// 和第 3 项的张力：外壳做玻璃，卡片里面的页面内容要盖实、字要看得清——
+// 所以推上去的页面（设置列表／关于／日志）背景改不透明，只留首页和这 10pt 边框露玻璃。
     UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
     card.backgroundColor = [UIColor clearColor];
     card.layer.cornerRadius = 24;
     card.layer.masksToBounds = YES;
     card.layer.borderWidth = 1.0;
     card.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.6].CGColor;
-    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleLight]];
+    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleExtraLight]];
     blurView.frame = card.bounds;
     blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     blurView.layer.cornerRadius = 24;
     blurView.layer.masksToBounds = YES;
     blurView.userInteractionEnabled = NO;
     [card addSubview:blurView];
-    // 淡白 tint：浅色玻璃更透亮（照片里文件夹就是透亮的白，不是灰）。
+    // 淡白 tint：只留 0.06 提亮（1.0.21 的 0.18 太实，把糊盖住了）。
     UIView *tintView = [[UIView alloc] initWithFrame:card.bounds];
-    tintView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.18];
+    tintView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
     tintView.layer.cornerRadius = 24;
     tintView.layer.masksToBounds = YES;
     tintView.userInteractionEnabled = NO;
@@ -4041,6 +4055,20 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     GHLFloatPanelHomeViewController *homeVC = [[GHLFloatPanelHomeViewController alloc] init];
     homeVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:homeVC];
+    // 1.0.22：导航栏改不透明（录屏实锤两处：关于页里 QQ 群号透过导航栏看得见；关于页滚到顶时
+    // 内容顶到半透明导航栏下面被白条盖住）。不透明导航栏下，子页 view 自动排在导航栏下面，
+    // 内容再也不会从导航栏下透出来、也不会被导航栏盖住。导航栈底色也盖实，免得页面之间透。
+    nav.navigationBar.translucent = NO;
+    if (@available(iOS 13.0, *)) {
+        UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+        [appearance configureWithOpaqueBackground];
+        appearance.backgroundColor = [UIColor whiteColor];
+        nav.navigationBar.standardAppearance = appearance;
+        nav.navigationBar.scrollEdgeAppearance = appearance;
+    } else {
+        nav.navigationBar.barTintColor = [UIColor whiteColor];
+    }
+    nav.view.backgroundColor = [UIColor whiteColor];
     nav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                 card.bounds.size.width - kGHLFloatPanelNavInset * 2,
                                 card.bounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
@@ -4145,6 +4173,7 @@ static void GHLRestoreFloatPanelLastPage(void) {
             GHLLog(@"卡片记页：恢复到关于页");
         } else if ([page isEqualToString:@"log"]) {
             GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
+            logVC.ghlInFloatPanel = YES;
             [ghlFloatPanelNav pushViewController:logVC animated:NO];
             GHLLog(@"卡片记页：恢复到日志页");
         } else {

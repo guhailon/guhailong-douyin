@@ -1129,9 +1129,10 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return [self dYYYSettingsCardColorDarkMode:darkMode];
 }
 
-// 1.0.21：卡片内设置行底色——半透明白（和卡片首页/关于页/长按面板同款浅色玻璃）。
+// 1.0.22：卡片内设置行底色——不透明白（1.0.21 的半透明白让背后的视频整张透过每一行，
+// 字难读，录屏实锤；玻璃感只留给卡片外壳和首页，行要盖实）。
 + (UIColor *)dYYYSettingsCellBackgroundColorForFloatPanel {
-    return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
+    return [UIColor whiteColor];
 }
 
 + (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode {

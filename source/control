@@ -1,7 +1,7 @@
 Package: com.guhailong.douyin
 Name: 顾海龙抖音
-Version: 1.0.21
-Description: 顾海龙抖音 1.0.21 — 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，免费使用，仅限学习交流；原作者版权声明保留在 LICENSE 中。
+Version: 1.0.22
+Description: 顾海龙抖音 1.0.22 — 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，免费使用，仅限学习交流；原作者版权声明保留在 LICENSE 中。
 Homepage: https://github.com/guhailon/guhailong-douyin
 Section: Tweaks
 Depends: firmware (>= 5.0), mobilesubstrate

@@ -94,7 +94,7 @@
 1. 所有弹窗、输入框、选择视图均继承自 `UIView` 或自定义控件，负责自己的布局和动画，控制器或 Hook 仅负责组装。
 2. 新的设置项请沿用 AWESetting 模型（`AWESettingSectionModel`、`AWESettingItemModel`）的构造方式，保持 icon/identifier/type 配置完整。
 3. Toast、提示统一调用 `DYYYToast` / `DYYYBottomAlertView`，不要直接 `UIAlertController`。
-4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.21：卡片里的设置页强制浅色玻璃（`DYYYSettingViewController.ghlInFloatPanel`，table 透明、cell 半透明白、深色字，不铺自定义背景图），和卡片首页／关于页／长按面板同款。
+4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.22：卡片外壳做玻璃（遮罩黑 0.12、ExtraLight 糊＋淡白 tint 0.06、卡片收小不近全屏），卡片里的页面（设置列表／关于／日志）强制不透明浅色（`DYYYSettingViewController.ghlInFloatPanel`／`GHLLogViewerViewController.ghlInFloatPanel`：页底和行底都不透明、深色字，不铺自定义背景图），只有首页和卡片 10pt 边框露玻璃；导航栏不透明——不然上一页/视频从下面透出来、顶部内容被导航栏盖住。
 
 ### 7. 资源与缓存
 1. `DYYYCustomAssetsDirectory`、`NSCache` 等资源缓存均用 `dispatch_once` 初始化。新增缓存时务必限制容量或提供清理策略。

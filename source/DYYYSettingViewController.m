@@ -63,6 +63,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 // 1.0.4：头卡龙头（点一下换图、长按恢复默认）、相册/文件选择器的 delegate（要强引用留着，等回调）。
 @property(nonatomic, strong, nullable) UIImageView *logoImageView;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
+// 1.0.22：上次排过的表宽——viewDidLayoutSubviews 里表宽变了才 reload（子页 view 在 viewDidLoad
+// 时还是屏幕宽，表按屏幕宽建；排到卡片宽之后行要重建，不然开关/输入框按屏幕宽排、右边被裁）。
+@property(nonatomic, assign) CGFloat ghlLastTableWidth;
 @property(nonatomic, strong, nullable) DYYYImagePickerDelegate *imagePickerDelegate;
 @property(nonatomic, strong, nullable) DYYYBackupPickerDelegate *backupPickerDelegate;
 @property(nonatomic, assign) NSInteger pendingImagePickerKind; // 0 = 换龙头，1 = 换背景图
@@ -135,6 +138,29 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [self ghlApplySettingsBackground];
 }
 
+// 1.0.22：表按 view 的最终尺寸排（viewDidLoad 时 view 还是屏幕宽，表按屏幕宽建；
+// 排到卡片宽之后行要重建一次，不然开关/输入框/附属值按屏幕宽排、右边被卡片裁掉，录屏实锤）。
+// 宽度没变时不 reload，免得每次排版都重建行；高度只跟 view 走，不改 contentSize。
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    if (!self.tableView) return;
+    self.tableView.frame = self.view.bounds;
+    CGFloat width = self.view.bounds.size.width;
+    if (width > 0 && fabs(width - self.ghlLastTableWidth) > 0.5) {
+        self.ghlLastTableWidth = width;
+        [self.tableView reloadData];
+    }
+    // 第 8 项：卡片内列表底部留 16pt——最底下一行滚到底时不贴着「完成」按钮，
+    // 也不被导航栈底边裁掉一半（录屏里常用功能最底下一行就是这么被盖住的）。
+    if (self.ghlInFloatPanel) {
+        UIEdgeInsets bottomInset = UIEdgeInsetsMake(0, 0, 16, 0);
+        if (!UIEdgeInsetsEqualToEdgeInsets(self.tableView.contentInset, bottomInset)) {
+            self.tableView.contentInset = bottomInset;
+            self.tableView.scrollIndicatorInsets = bottomInset;
+        }
+    }
+}
+
 // 系统深浅变了（跟随系统深色开着时），重刷颜色和背景遮罩。
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
@@ -153,10 +179,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 // 1.0.4：统一视觉——深色跟随（关了就强制浅色：overrideUserInterfaceStyle 让系统颜色也跟着浅）。
 - (void)ghlApplySettingsAppearance {
-    // 1.0.21：卡片内强制浅色玻璃——页底透明（卡片的毛玻璃透上来），不跟系统深浅。
+    // 1.0.22：卡片内页底改不透明（1.0.21 是透明，上一页的按键/文字从下面透上来，录屏实锤；
+    // 玻璃感只留给卡片外壳和首页，推上来的页面内容要盖实、字要看得清）。
     if (self.ghlInFloatPanel) {
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
-        self.view.backgroundColor = [UIColor clearColor];
+        self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
         return;
     }
     self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
@@ -166,11 +193,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 // 1.0.4：自定义背景铺底（有自选图就铺图 + 遮罩，没有就回默认分组底色）。
 - (void)ghlApplySettingsBackground {
-    // 1.0.21：卡片内不铺自定义背景图——铺了就把卡片的毛玻璃盖住了；
-    // table 背景透明、背景视图清掉，让玻璃感透出来（cell 底色见 cellForRowAtIndexPath）。
+    // 1.0.22：卡片内不铺自定义背景图、表底改不透明（1.0.21 表底透明，背后的视频直接透过
+    // 每一行显示，字难读，录屏实锤；玻璃感只留给卡片外壳）。
     if (self.ghlInFloatPanel) {
         self.tableView.backgroundView = nil;
-        self.tableView.backgroundColor = [UIColor clearColor];
+        self.tableView.backgroundColor = [UIColor systemGroupedBackgroundColor];
         [self.tableView reloadData];
         return;
     }

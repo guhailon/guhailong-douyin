@@ -115,8 +115,9 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     self.backgroundColor = [UIColor clearColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-    // 浅色毛玻璃底板（1.0.21：和卡片首页／关于页同款浅色玻璃，不跟随系统深浅）。
-    _blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialLight]];
+    // 浅色毛玻璃底板（1.0.22：SystemMaterialLight 太实、渲染出来像平灰块，换更透的 ExtraLight，
+    // 和卡片壳同款；格子底还是半透明白，字要看得清）。
+    _blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleExtraLight]];
     _blurView.userInteractionEnabled = NO;
     _blurView.layer.cornerRadius = 24;
     _blurView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;

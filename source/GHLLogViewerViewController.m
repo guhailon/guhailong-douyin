@@ -80,11 +80,25 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
 }
 
 // 统一视觉：跟设置主页同一套（金色点缀、圆角卡片、深色跟随、自定义背景铺底）。
+// 1.0.22：卡片内不铺自定义背景图、页底和日志底都改不透明（1.0.21 是半透明，
+// 背后的视频透过日志文字显示，行尾还被裁到卡片外面；玻璃感只留给卡片外壳）。
 - (BOOL)ghlDarkModeActive {
+    if (self.ghlInFloatPanel) return NO; // 卡片内永远按浅色算，深色字才看得清
     return GHLFollowSystemDarkEnabled() && [DYYYUtils isDarkMode];
 }
 
 - (void)ghlApplyAppearance {
+    if (self.ghlInFloatPanel) {
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+        self.backgroundImage = nil;
+        [self.backgroundView removeFromSuperview];
+        self.backgroundView = nil;
+        self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        self.textView.backgroundColor = [UIColor whiteColor];
+        self.textView.textColor = [UIColor colorWithWhite:0.15 alpha:1.0];
+        self.searchBar.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        return;
+    }
     BOOL dark = [self ghlDarkModeActive];
     self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
     self.backgroundImage = GHLCustomBackgroundImage();
@@ -114,6 +128,8 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
             return;
         }
         self.fullLogText = content;
+        // 1.0.22：重读记一行（每次打开都重新读文件，见 viewWillAppear；这行能从下次日志里验重读到底跑没跑）。
+        GHLLog(@"日志页：已重新读文件（%lu 字节）", (unsigned long)content.length);
         [self ghlApplyLogFilter];
       });
     });
@@ -140,7 +156,15 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     }
     if (query.length == 0) {
         self.textView.text = self.fullLogText;
-        [self.textView scrollRangeToVisible:NSMakeRange(self.textView.text.length, 0)];
+        // 1.0.22：滚到底必须等排版完再滚——以前同步调 scrollRangeToVisible 时文本框还没算好
+        // contentSize，滚不动，页面一直停在最上面（录屏里看到的就是最上面那段旧日志：
+        // 开头的「只显示最后约 200KB」＋17:18 的行，最新内容其实在下面，要手动滑到底才看得到）。
+        // 先强制排版，再下一轮主线程里按 contentSize 滚到底；没搜的时候才滚到底。
+        [self.textView layoutIfNeeded];
+        dispatch_async(dispatch_get_main_queue(), ^{
+          CGFloat bottom = MAX(0, self.textView.contentSize.height - self.textView.bounds.size.height + self.textView.contentInset.bottom);
+          [self.textView setContentOffset:CGPointMake(0, bottom) animated:NO];
+        });
         return;
     }
     NSString *lowerQuery = query.lowercaseString;
