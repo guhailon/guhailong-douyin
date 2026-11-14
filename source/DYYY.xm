@@ -13299,7 +13299,10 @@ static void findTargetViewInView(UIView *view) {
         @"GHLLongPressGridPanel" : @YES, // 1.0.9：长按面板网格风格默认开
         // 1.0.11：长按项开关默认全开——之前只注册了网格开关本身，长按项开关一个都没注册，
         // 没动过就是 NO，所以网格只有开着的那 6 项（2 行），过滤/定时三项从来没出现过。
-        // registerDefaults 只填没存过值的 key，皇上亲手关掉的开关不会被覆盖。
+        // 只默认 12 个 DYYY 开关；7 个顾海龙长按开关（提取原声/无水印链接/画中画/语音包/
+        // 保存头像/复制个人资料/分享音频）不默认开——全开会变成 6 行 18 格，而且 BACKGROUND_AUDIO
+        // 默认开会在切后台时自动弹画中画。registerDefaults 只填没存过值的 key，皇上亲手关掉的
+        // 开关不会被覆盖。
         @"DYYYLongPressSaveVideo" : @YES,
         @"DYYYLongPressSaveCover" : @YES,
         @"DYYYLongPressSaveAudio" : @YES,
@@ -13311,14 +13314,7 @@ static void findTargetViewInView(UIView *view) {
         @"DYYYLongPressFilterUser" : @YES,
         @"DYYYLongPressFilterTitle" : @YES,
         @"DYYYLongPressTimerClose" : @YES,
-        @"DYYYLongPressCreateVideo" : @YES,
-        GHL_KEY_EXTRACT_AUDIO : @YES,
-        GHL_KEY_NO_WATERMARK_SHARE_LINK : @YES,
-        GHL_KEY_BACKGROUND_AUDIO : @YES,
-        GHL_KEY_VOICE_PACKAGE : @YES,
-        GHL_KEY_SAVE_AVATAR : @YES,
-        GHL_KEY_COPY_PROFILE : @YES,
-        GHL_KEY_AUDIO_SHARE : @YES
+        @"DYYYLongPressCreateVideo" : @YES
     }];
 
     DYYYMigrateCombinedHDRModeIfNeeded();
