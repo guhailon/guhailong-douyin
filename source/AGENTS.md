@@ -38,7 +38,7 @@
 - **浮窗与快捷操作**
   - 显示协调：`DYYYFloatingButtonCoordinator.(h/m)`，根据实际选中页面、评论、纯净模式与前后台状态统一管理两个悬浮按钮。
   - 漂浮按钮：`DYYYFloatSpeedButton.(h/m)`、`DYYYFloatClearButton.(h/xm)`。
-  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃，和卡片首页／关于页同款）、`DYYYBottomAlertView.(h/m)`（复用提示）。
+  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃；1.0.23 新增获取作品数据 694／图片预览 695 两项）、`GHLImagePreviewViewController.(h/m)`（1.0.23 图集全屏翻页预览）、`DYYYBottomAlertView.(h/m)`（复用提示）。
 - **辅助代理**
   - `DYYYImagePickerDelegate.(h/m)`、`DYYYBackupPickerDelegate.(h/m)`：统一封装系统 Picker 逻辑。
   - `DYYYCustomInputView.(h/m)`：文本输入。
@@ -94,7 +94,7 @@
 1. 所有弹窗、输入框、选择视图均继承自 `UIView` 或自定义控件，负责自己的布局和动画，控制器或 Hook 仅负责组装。
 2. 新的设置项请沿用 AWESetting 模型（`AWESettingSectionModel`、`AWESettingItemModel`）的构造方式，保持 icon/identifier/type 配置完整。
 3. Toast、提示统一调用 `DYYYToast` / `DYYYBottomAlertView`，不要直接 `UIAlertController`。
-4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.22：卡片外壳做玻璃（遮罩黑 0.12、ExtraLight 糊＋淡白 tint 0.06、卡片收小不近全屏），卡片里的页面（设置列表／关于／日志）强制不透明浅色（`DYYYSettingViewController.ghlInFloatPanel`／`GHLLogViewerViewController.ghlInFloatPanel`：页底和行底都不透明、深色字，不铺自定义背景图），只有首页和卡片 10pt 边框露玻璃；导航栏不透明——不然上一页/视频从下面透出来、顶部内容被导航栏盖住。
+4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.22：卡片外壳做玻璃（遮罩黑 0.12、ExtraLight 糊＋淡白 tint 0.06、卡片收小不近全屏），卡片里的页面（设置列表／关于／日志）强制不透明浅色（`DYYYSettingViewController.ghlInFloatPanel`／`GHLLogViewerViewController.ghlInFloatPanel`：页底和行底都不透明、深色字，不铺自定义背景图），只有首页和卡片 10pt 边框露玻璃；导航栏不透明——不然上一页/视频从下面透出来、顶部内容被导航栏盖住。1.0.23：卡片改回照片那款 A——8 按键首页拿掉，根就是设置页本身，浅色实心卡（实心浅灰底、遮罩黑 0.5），不再追毛玻璃；金底「完成」按钮保留，记页保留。
 
 ### 7. 资源与缓存
 1. `DYYYCustomAssetsDirectory`、`NSCache` 等资源缓存均用 `dispatch_once` 初始化。新增缓存时务必限制容量或提供清理策略。

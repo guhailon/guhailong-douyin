@@ -38,7 +38,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 // 按 actionType 找 SF Symbol（金色线条图标，和效果图一致）；找不到就按标题关键字兜底
 // （1.0.15 起原生项也进网格，原生项没有约定的 actionType，按标题认图标）；
 // 最后兜底下载图标。
-// actionType 见 DYYYLongPressPanel.xm：666-679 是 DYYY 长按项，686-693 是顾海龙长按项。
+// actionType 见 DYYYLongPressPanel.xm：666-679 是 DYYY 长按项，686-695 是顾海龙长按项。
 + (nullable UIImage *)ghl_iconForActionType:(NSInteger)actionType title:(nullable NSString *)title {
     NSArray<NSString *> *names = nil;
     switch (actionType) {
@@ -63,6 +63,8 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         case 691: names = @[ @"person.crop.circle", @"person" ]; break; // 保存头像
         case 692: names = @[ @"person.text.rectangle", @"person.crop.rectangle", @"person" ]; break; // 复制个人资料
         case 693: names = @[ @"square.and.arrow.up", @"music.note" ]; break; // 分享音频
+        case 694: names = @[ @"chart.bar.doc.horizontal", @"doc.text" ]; break; // 获取作品数据
+        case 695: names = @[ @"photo", @"eye" ]; break; // 图片预览
         default:
             // 未知 actionType（多半是抖音原生项）：按标题关键字认图标，认不出再兜底下载图标。
             // 1.0.16：原生标题补映射（之前 10/12 个原生标题全掉进下载箭头兜底，皇上不要统一箭头）——

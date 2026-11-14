@@ -287,6 +287,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"一键清爽模式" key:GHL_KEY_CLEAN_MODE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"评论关键词屏蔽（逗号分隔）" key:GHL_KEY_COMMENT_BLOCK_KEYWORDS type:DYYYSettingItemTypeTextField placeholder:@"如：喷子,引战"],
             [DYYYSettingItem itemWithTitle:@"长评论自动展开" key:GHL_KEY_COMMENT_AUTO_EXPAND type:DYYYSettingItemTypeSwitch],
+            // 1.0.23：跳过 AD 章节（清单 2 号，探测）——广告章节没有可确认的识别点，
+            // 开关开后只在日志里 dump 章节模型字段，不跳过；等真机日志定下识别字段再接。
+            [DYYYSettingItem itemWithTitle:@"跳过 AD 章节（探测，需真机日志验证）" key:GHL_KEY_SKIP_AD_CHAPTER type:DYYYSettingItemTypeSwitch],
+            // 1.0.23：评论文字变蓝（清单 5 号）——只改评论正文颜色，用户名/时间不动；
+            // 正文标签是启发式定位的，需真机验证。
+            [DYYYSettingItem itemWithTitle:@"评论文字变蓝" key:GHL_KEY_BLUE_COMMENT_TEXT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"点赞自动保存视频" key:GHL_KEY_AUTO_SAVE_LIKED type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"夜间护眼" key:GHL_KEY_NIGHT_MODE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"夜间亮度（0-1小数）" key:GHL_KEY_NIGHT_BRIGHTNESS type:DYYYSettingItemTypeTextField placeholder:@"默认0.3"],
@@ -346,6 +352,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"下载进度日志+提示" key:GHL_KEY_DOWNLOAD_PROGRESS type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存头像（长按面板）" key:GHL_KEY_SAVE_AVATAR type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"复制个人资料（长按面板）" key:GHL_KEY_COPY_PROFILE type:DYYYSettingItemTypeSwitch],
+            // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）
+            [DYYYSettingItem itemWithTitle:@"获取作品数据（长按面板）" key:GHL_KEY_AWEME_DATA type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"图片预览（长按面板）" key:GHL_KEY_IMAGE_PREVIEW type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"左滑返回" key:GHL_KEY_LEFT_SWIPE_BACK type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"界面元素缩放" key:GHL_KEY_INTERFACE_SCALE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"缩放比例（0.5-2.0）" key:GHL_KEY_INTERFACE_SCALE_VALUE type:DYYYSettingItemTypeTextField placeholder:@"默认1.0"],

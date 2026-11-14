@@ -61,6 +61,11 @@ extern "C" {
 #define GHL_KEY_ANTI_RECALL @"GHLAntiRecall"
 // 视频截图去水印 (25)
 #define GHL_KEY_SCREENSHOT_CLEAN @"GHLScreenshotClean"
+// 1.0.23：跳过 AD 章节（清单 2 号）——探测：广告章节没有可确认的识别点，
+// 开关开后只在日志里 dump 章节模型字段，不谎称做成；等真机日志定下识别字段再接跳过。
+#define GHL_KEY_SKIP_AD_CHAPTER @"GHLSkipAdChapter"
+// 1.0.23：评论文字变蓝（清单 5 号）——启发式定位评论正文标签，需真机验证
+#define GHL_KEY_BLUE_COMMENT_TEXT @"GHLBlueCommentText"
 // 楼中楼一键展开 (29)
 #define GHL_KEY_EXPAND_REPLIES @"GHLExpandReplies"
 // 视频原声提取 (30)
@@ -199,6 +204,9 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_DOWNLOAD_PROGRESS @"GHLDownloadProgress"   // 下载进度日志+提示
 #define GHL_KEY_SAVE_AVATAR @"GHLSaveAvatar"               // 保存头像（长按面板）
 #define GHL_KEY_COPY_PROFILE @"GHLCOPYProfile"             // 复制个人资料（长按面板）
+// 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）——获取作品数据、图片预览
+#define GHL_KEY_AWEME_DATA @"GHLAwemeData"                 // 获取作品数据（长按面板）
+#define GHL_KEY_IMAGE_PREVIEW @"GHLImagePreview"           // 图片预览（长按面板，图集才有）
 // (38) 左滑返回、界面缩放、深色键盘、自定义底栏
 #define GHL_KEY_LEFT_SWIPE_BACK @"GHLLeftSwipeBack"
 #define GHL_KEY_INTERFACE_SCALE @"GHLInterfaceScale"
@@ -301,8 +309,8 @@ void GHLApplyCleanMode(BOOL on);       // (6) 开：首页净化+清屏按钮；
 // 1.0.20：统一卡片——所有入口都开卡片（浮动钮、抖音设置行、双指长按、其他调用方），
 // 不再全屏推设置页。实现在 GHLFeatures.xm（卡片自己的 UIWindow 里嵌设置页导航栈）。
 void GHLShowFloatPanel(void);
-// 1.0.21：卡片首页（GHLFloatPanelHomeViewController）用的两个入口：关卡片、
-// 取卡片共用的设置页实例（通用设置推它、关于页拿它当配置三行的帮手）。
+// 1.0.23：卡片首页（8 按键）已拿掉，卡片根就是设置页本身；关卡片、取卡片共用的
+// 设置页实例（关于页拿它当配置三行的帮手）这两个入口还在。
 void GHLCloseFloatPanel(void);
 @class DYYYSettingViewController;
 DYYYSettingViewController *GHLFloatPanelSharedSettingsViewController(void);
@@ -321,6 +329,10 @@ void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model);
 void GHLSaveCleanScreenshotForAwemeModel(AWEAwemeModel *model, double seconds);
 // (30) 下载当前视频并只导出音轨（.m4a），用分享面板交出去
 void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
+// 1.0.23：长按面板新增两项（清单 9 号）——弹窗显示作品数据并复制到剪贴板；
+// 图集的图片全屏翻页预览（不是图集就提示没有图片）。
+void GHLShowAwemeDataForAwemeModel(AWEAwemeModel *model);
+void GHLPreviewAwemeImagesForAwemeModel(AWEAwemeModel *model);
 
 // MARK: - Logo
 UIImage *GHLLogoImage(void);

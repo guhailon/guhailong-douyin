@@ -13,10 +13,11 @@
 #import "DYYYUtils.h"
 #import "DYYYFloatingButtonCoordinator.h"
 #import "DYYYFloatClearButton.h"
+#import "DYYYBottomAlertView.h"
 #import "DYYYSettingsHelper.h"
 #import "DYYYSettingViewController.h"
 #import "GHLAboutViewController.h"
-#import "GHLFloatPanelHomeViewController.h"
+#import "GHLImagePreviewViewController.h"
 #import "GHLLogViewerViewController.h"
 #import "DYYYToast.h"
 #import <AVKit/AVKit.h>
@@ -258,7 +259,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。\n"
            @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。\n"
            @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。\n"
-           @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。";
+           @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。\n"
+           @"1.0.23：卡片改回照片那款 A——8 按键首页拿掉，点开卡片直接就是设置列表，浅色实心卡不再追毛玻璃，金底「完成」保留，记页保留；跳过 AD 章节是探测（广告章节识别字段没确认，开关开后只在日志里 dump 章节模型字段，不跳过，等真机日志定下字段再接）；评论文字变蓝（开关，只改正文颜色，用户名/时间不动，正文标签是启发式定位，需真机验证）；长按面板新增获取作品数据（弹窗显示＋复制到剪贴板）和图片预览（图集全屏翻页看，点一下关闭）；复制下载链接和解析保存不用加——咱们已经有了（687 复制无水印链接、673 接口保存＋666 保存视频／668 保存音频）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -1677,6 +1679,89 @@ void GHLSaveCleanScreenshotForAwemeModel(AWEAwemeModel *model, double seconds) {
     });
 }
 
+#pragma mark - 1.0.23：长按面板新增（清单 9 号，按抖音图层的做法）
+
+// statistics 上只有 diggCount 有声明，其余计数（评论/分享/播放/收藏）运行时对象上
+// 一般都有，用 KVC 探一下，拿不到就显示“—”，不崩、不瞎编。
+static NSString *GHLNumberStringFromProbe(id object, NSString *key) {
+    if (!object || key.length == 0) return @"—";
+    @try {
+        id value = [object valueForKey:key];
+        if ([value isKindOfClass:[NSNumber class]]) return [NSString stringWithFormat:@"%@", value];
+        if ([value isKindOfClass:[NSString class]] && [(NSString *)value length] > 0) return value;
+    } @catch (__unused NSException *exception) {
+    }
+    return @"—";
+}
+
+// 获取作品数据：弹窗显示作者/文案/各数，并复制一份到剪贴板。
+void GHLShowAwemeDataForAwemeModel(AWEAwemeModel *model) {
+    if (!model) {
+        [DYYYUtils showToast:@"拿不到作品信息"];
+        return;
+    }
+    NSString *desc = model.descriptionString ?: @"";
+    if (desc.length > 100) desc = [[desc substringToIndex:100] stringByAppendingString:@"…"];
+    NSString *createTimeText = @"—";
+    if (model.createTime) {
+        NSDate *date = [NSDate dateWithTimeIntervalSince1970:[model.createTime doubleValue]];
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateFormat:@"yyyy-MM-dd HH:mm"];
+        createTimeText = [formatter stringFromDate:date];
+    }
+    id stats = model.statistics;
+    NSString *text = [NSString stringWithFormat:
+        @"作者：%@（%@）\n视频 ID：%@\n发布时间：%@\n时长：%.1f 秒\n点赞：%@　评论：%@\n分享：%@　播放：%@\n收藏：%@　是否广告：%@\n图集：%@ 张\n文案：%@",
+        model.author.nickname ?: @"—", model.author.shortID ?: @"—",
+        model.itemID ?: @"—", createTimeText, model.videoDuration,
+        GHLNumberStringFromProbe(stats, @"diggCount"),
+        GHLNumberStringFromProbe(stats, @"commentCount"),
+        GHLNumberStringFromProbe(stats, @"shareCount"),
+        GHLNumberStringFromProbe(stats, @"playCount"),
+        GHLNumberStringFromProbe(stats, @"collectCount"),
+        model.isAds ? @"是" : @"否",
+        @(model.albumImages.count),
+        desc.length > 0 ? desc : @"（无文案）"];
+    [[UIPasteboard generalPasteboard] setString:text];
+    [DYYYUtils showToast:@"作品数据已复制"];
+    [DYYYBottomAlertView showAlertWithTitle:@"作品数据"
+                                    message:text
+                                  avatarURL:nil
+                           cancelButtonText:@"关闭"
+                          confirmButtonText:@"知道了"
+                               cancelAction:nil
+                                closeAction:nil
+                              confirmAction:nil];
+    GHLLog(@"获取作品数据：已显示（%@）", model.itemID ?: @"?");
+}
+
+// 图片预览：图集才有；把每张图的原图地址翻出来，全屏左右翻页看，点一下关闭。
+void GHLPreviewAwemeImagesForAwemeModel(AWEAwemeModel *model) {
+    if (!model || model.albumImages.count == 0) {
+        [DYYYUtils showToast:@"这条不是图集，没有图片可预览"];
+        GHLLog(@"图片预览：不是图集（albumImages 为空）");
+        return;
+    }
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (AWEImageAlbumImageModel *imageModel in model.albumImages) {
+        NSArray *urlList = imageModel.urlList;
+        if ([urlList isKindOfClass:[NSArray class]] && urlList.count > 0 &&
+            [urlList.firstObject isKindOfClass:[NSString class]]) {
+            NSURL *url = [NSURL URLWithString:urlList.firstObject];
+            if (url) [urls addObject:url];
+        }
+    }
+    if (urls.count == 0) {
+        [DYYYUtils showToast:@"拿不到图片地址"];
+        GHLLog(@"图片预览：图集有 %lu 项但一张地址都拿不到", (unsigned long)model.albumImages.count);
+        return;
+    }
+    GHLImagePreviewViewController *previewVC = [[GHLImagePreviewViewController alloc] initWithImageURLs:urls];
+    previewVC.modalPresentationStyle = UIModalPresentationFullScreen;
+    [GHLTopViewController() presentViewController:previewVC animated:YES completion:nil];
+    GHLLog(@"图片预览：已打开（%lu 张）", (unsigned long)urls.count);
+}
+
 #pragma mark - (30) 视频原声提取
 
 void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model) {
@@ -2595,7 +2680,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.22 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.23 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -3882,6 +3967,9 @@ void GHLProbeVoiceFeatures(void) {
 // 1.0.20：遮罩手勢只認卡片外（delegate＋cancelsTouchesInView=NO），卡片改深色毛玻璃＋
 // 底部「完成」鈕（導航棧縮進 10pt 露出毛玻璃邊框）；所有入口都開卡片（見 GHLShowFloatPanel）；
 // 卡片記住上次停的那頁（GHLSave/RestoreFloatPanelLastPage）。
+// 1.0.21：卡片加了 8 按鍵首頁（通用設置／首頁／朋友／消息／我／播放互動／診斷反饋／關於）。
+// 1.0.22：卡片玻璃重做（遮罩 0.12、ExtraLight 糊、tint 0.06、卡片收小）。
+// 1.0.23：首頁拿掉、卡片改回照片那款 A——根就是設定頁本身、淺色實心卡（見下面）。
 
 static UIButton *ghlFloatPanelButton = nil;
 static UIWindow *ghlFloatPanelWindow = nil;            // 卡片自己的窗口（不搶 keyWindow）
@@ -3890,14 +3978,14 @@ static UIView *ghlFloatPanelCard = nil;                // 圓角卡片
 static UINavigationController *ghlFloatPanelNav = nil; // 卡片內的導航棧（根＝設定頁）
 static BOOL ghlFloatPanelOpen = NO;
 static id ghlFloatPanelOrientationToken = nil; // 轉屏重排卡片（只註冊一次）
-static UIVisualEffectView *ghlFloatPanelBlurView = nil; // 卡片底：浅色毛玻璃（1.0.21，照片里文件夹那种）
-static UIView *ghlFloatPanelTintView = nil;             // 毛玻璃上再盖一层淡白，让浅色玻璃更透亮
-static UIButton *ghlFloatPanelDoneButton = nil;         // 卡片底部「完成」按钮（1.0.21：金色 pill）
-// 1.0.21：卡片共用的设置页实例——通用设置推它、关于页拿它当配置三行的帮手。
-// 只建一份（设置页建起来不便宜）；推上去时若已在栈里就回到它，不重复推。
+// 1.0.23：卡片改回照片那款 A——浅色实心卡，不追毛玻璃：糊和 tint 整个拿掉，
+// 卡片底就是一层实心浅灰（照片里卡片外框那个灰）；字靠不透明的内页保证清楚。
+static UIButton *ghlFloatPanelDoneButton = nil;         // 卡片底部「完成」按钮（金色 pill）
+// 1.0.21：卡片共用的设置页实例——1.0.23 起它就是卡片导航栈的根（设置页本身）；
+// 关于页拿它当配置三行的帮手。只建一份（设置页建起来不便宜）；推上去时若已在栈里就回到它，不重复推。
 static DYYYSettingViewController *ghlFloatPanelSharedSettingsVC = nil;
 
-// 1.0.20：卡片内边距（导航栈缩进 10pt，深色毛玻璃边框露出来）＋底部「完成」条高 64pt。
+// 1.0.20：卡片内边距（导航栈缩进 10pt，实心卡边框露出来）＋底部「完成」条高 64pt。
 static const CGFloat kGHLFloatPanelNavInset = 10;
 static const CGFloat kGHLFloatPanelDoneBarHeight = 64;
 // 1.0.20：卡片记住上次停在哪一页（偏好里记顶页标识；恢复失败就回根）。
@@ -3952,9 +4040,8 @@ static void GHLRefreshFloatPanelButton(void) {
 }
 
 // 卡片几何：1.0.22 收小——不要近全屏（1.0.21 是 390×800 级，读起来像实心灰板）。
-// 宽留 48pt 边距（最多 400），高留 240pt（最少 300）：像文件夹那样一眼看出是张卡片，
-// 后面的视频露出来，玻璃才有东西可透。首页 8 个按键高约 500pt，导航栏＋完成条约 110pt，
-// iPhone 11 上卡高 656pt 刚好装下；小屏上首页纵向滚动，不截断。
+// 宽留 48pt 边距（最多 400），高留 240pt（最少 300）：一眼看出是张卡片。
+// 1.0.23：实心卡不再透视频，尺寸照旧（iPhone 11 上卡高 656pt，导航栏＋完成条约 110pt）。
 static CGRect GHLFloatPanelCardFrameForBounds(CGRect bounds) {
     CGFloat cardWidth = MIN(bounds.size.width - 48, 400);
     CGFloat cardHeight = MAX(bounds.size.height - 240, 300);
@@ -3967,8 +4054,6 @@ static void GHLLayoutFloatPanel(void) {
     CGRect bounds = ghlFloatPanelWindow.bounds;
     ghlFloatPanelCard.frame = GHLFloatPanelCardFrameForBounds(bounds);
     CGRect cardBounds = ghlFloatPanelCard.bounds;
-    if (ghlFloatPanelBlurView) ghlFloatPanelBlurView.frame = cardBounds;
-    if (ghlFloatPanelTintView) ghlFloatPanelTintView.frame = cardBounds;
     if (ghlFloatPanelNav) {
         ghlFloatPanelNav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                                  cardBounds.size.width - kGHLFloatPanelNavInset * 2,
@@ -3999,12 +4084,11 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     panelWindow.hidden = YES; // 建好先藏着，打开时再显示
 
     // 宿主 VC 是空壳，view 就是全屏遮罩（点外面关闭）；导航栈挂在它下面。
-    // 1.0.22：遮罩大幅减淡（黑 0.5 → 0.12）——1.0.21 的黑遮罩把后面的视频压暗一半，
-    // 毛玻璃糊的是压暗后的画面，所以整张卡片读起来像实心灰板；减淡后玻璃糊的是亮的视频，
-    // 才像文件夹照片里那种透亮的玻璃。
+    // 1.0.23：遮罩改回黑 0.5（1.0.22 的 0.12 是给毛玻璃透亮留的；实心卡不需要透，
+    // 照片里卡片外面就是压暗的视频，0.5 才对）。
     UIViewController *hostVC = [[UIViewController alloc] init];
     UIView *container = [[UIView alloc] initWithFrame:bounds];
-    container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.12];
+    container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
     container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     // 1.0.20：dimTap 只认卡片外的触摸（delegate 见下面 GHLFeatures 分类）；
     // cancelsTouchesInView=NO 是第二道保险——手势认出来也不取消别的 view 的触摸。
@@ -4017,44 +4101,28 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     hostVC.view = container;
     panelWindow.rootViewController = hostVC;
 
-// 卡片：1.0.22 玻璃重做（1.0.21 渲染出来是平灰块，根本不是玻璃；录屏实锤）。
-// 参照是文件夹照片（亮、壁纸透出来糊掉）＋快手影片里的卡片面板：遮罩减到黑 0.12、
-// 糊换成更透的 ExtraLight（Light 太实）、淡白 tint 从 0.18 降到 0.06、卡片收小
-// （宽留 48、高留 240，不近全屏），让玻璃对着看得见的视频透出来。
-// 和第 3 项的张力：外壳做玻璃，卡片里面的页面内容要盖实、字要看得清——
-// 所以推上去的页面（设置列表／关于／日志）背景改不透明，只留首页和这 10pt 边框露玻璃。
+// 卡片：1.0.23 改回照片那款 A——浅色实心卡，不追毛玻璃了（1.0.21/1.0.22 两版
+// 玻璃真机都没糊出皇上要的效果，改回实心最稳）：卡片底就是实心浅灰，
+// 10pt 边框露出来就是照片里卡片外框那个灰；内页（设置列表／关于／日志）
+// 本来就是不透明的，字清楚，不用再赌糊不糊得出来。
     UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
-    card.backgroundColor = [UIColor clearColor];
+    card.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1.0];
     card.layer.cornerRadius = 24;
     card.layer.masksToBounds = YES;
     card.layer.borderWidth = 1.0;
     card.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.6].CGColor;
-    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleExtraLight]];
-    blurView.frame = card.bounds;
-    blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    blurView.layer.cornerRadius = 24;
-    blurView.layer.masksToBounds = YES;
-    blurView.userInteractionEnabled = NO;
-    [card addSubview:blurView];
-    // 淡白 tint：只留 0.06 提亮（1.0.21 的 0.18 太实，把糊盖住了）。
-    UIView *tintView = [[UIView alloc] initWithFrame:card.bounds];
-    tintView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
-    tintView.layer.cornerRadius = 24;
-    tintView.layer.masksToBounds = YES;
-    tintView.userInteractionEnabled = NO;
-    tintView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [card addSubview:tintView];
     // 居中不随尺寸变：四边留白自适应，转屏时靠下面的重排再算一次。
     card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin |
                             UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
     [container addSubview:card];
 
-    // 卡片里的导航栈：根是卡片首页（按键页：标题＋搜索框＋两列按键），
-    // 通用设置／播放互动／诊断反馈／关于都从首页按键推进去，不展开全屏。
-    // 1.0.21：导航栈缩进 10pt（浅色毛玻璃边框露出来）＋圆角 16，底部留 64pt 给「完成」条。
-    GHLFloatPanelHomeViewController *homeVC = [[GHLFloatPanelHomeViewController alloc] init];
-    homeVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:homeVC];
+    // 卡片里的导航栈：1.0.23 根改回设置页本身（1.0.19/1.0.20 就是这样，皇上
+    // 2026-11-15 05:48 说改回照片那款——照片里就是直接设置列表，没有 8 按键首页）。
+    // 分区行点进子页还在卡片内的导航栈上推，不展开全屏；关于、日志都从列表进。
+    // 1.0.21：导航栈缩进 10pt（实心卡边框露出来）＋圆角 16，底部留 64pt 给「完成」条。
+    DYYYSettingViewController *settingsVC = GHLFloatPanelSharedSettingsViewController();
+    settingsVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:settingsVC];
     // 1.0.22：导航栏改不透明（录屏实锤两处：关于页里 QQ 群号透过导航栏看得见；关于页滚到顶时
     // 内容顶到半透明导航栏下面被白条盖住）。不透明导航栏下，子页 view 自动排在导航栏下面，
     // 内容再也不会从导航栏下透出来、也不会被导航栏盖住。导航栈底色也盖实，免得页面之间透。
@@ -4078,8 +4146,8 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     [card addSubview:nav.view];
     [nav didMoveToParentViewController:hostVC];
 
-    // 1.0.21：底部「完成」按钮改成金色 pill（浅色玻璃上金字太淡，金底深字才醒目）；
-    // 放在卡片的浅色毛玻璃上，左右留 16pt。
+    // 1.0.21：底部「完成」按钮改成金色 pill（浅色卡片上金字太淡，金底深字才醒目）；
+    // 放在卡片的实心浅灰底上，左右留 16pt。
     UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
     [doneButton setTitle:@"完成" forState:UIControlStateNormal];
     [doneButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
@@ -4096,8 +4164,6 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     ghlFloatPanelHostVC = hostVC;
     ghlFloatPanelCard = card;
     ghlFloatPanelNav = nav;
-    ghlFloatPanelBlurView = blurView;
-    ghlFloatPanelTintView = tintView;
     ghlFloatPanelDoneButton = doneButton;
 
     // 转屏时重排卡片（只注册一次；进程内常驻，和巡检定时器一样不摘）。
@@ -4149,17 +4215,16 @@ static void GHLRestoreFloatPanelLastPage(void) {
     [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
     NSString *page = [[NSUserDefaults standardUserDefaults] stringForKey:kGHLFloatPanelLastPageKey];
     if (!page || [page isEqualToString:@"root"]) {
-        GHLLog(@"卡片记页：恢复到首页（%@）", page ?: @"没记过");
+        GHLLog(@"卡片记页：恢复到设置列表（%@）", page ?: @"没记过");
         return;
     }
-    UIViewController *rootVC = ghlFloatPanelNav.viewControllers.firstObject;
-    (void)rootVC; // 1.0.21：根页是卡片首页，不再是设置页；关于页的帮手改用共用的设置页实例。
+    // 1.0.23：根页改回设置页本身（记页恢复失败就回根＝设置列表）。
     @try {
         if ([page hasPrefix:@"section:"]) {
             NSInteger sectionIndex = [[page substringFromIndex:@"section:".length] integerValue];
             // 分区共 11 个（setupSectionTitles 与 settingSections 11/11 对齐）；越界就回根。
             if (sectionIndex < 0 || sectionIndex >= 11) {
-                GHLLog(@"卡片记页：分区 %@ 越界，回首页", page);
+                GHLLog(@"卡片记页：分区 %@ 越界，回设置列表", page);
                 return;
             }
             DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:sectionIndex];
@@ -4177,12 +4242,12 @@ static void GHLRestoreFloatPanelLastPage(void) {
             [ghlFloatPanelNav pushViewController:logVC animated:NO];
             GHLLog(@"卡片记页：恢复到日志页");
         } else {
-            GHLLog(@"卡片记页：标识「%@」对不上，回首页", page);
+            GHLLog(@"卡片记页：标识「%@」对不上，回设置列表", page);
         }
     } @catch (__unused NSException *exception) {
         // 恢复失败就回根（顶页在旧版删了、分区变了，都不崩）。
         [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
-        GHLLog(@"卡片记页：恢复「%@」时异常，回首页", page);
+        GHLLog(@"卡片记页：恢复「%@」时异常，回设置列表", page);
     }
 }
 

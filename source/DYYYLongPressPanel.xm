@@ -716,7 +716,7 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
         [viewModels addObject:timerCloseViewModel];
     }
 
-    // ===== 顾海龙抖音长按项（686-693）=====
+    // ===== 顾海龙抖音长按项（686-695）=====
     if (GHLGetBool(GHL_KEY_EXTRACT_AUDIO)) {
         AWELongPressPanelBaseViewModel *extractAudioViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         extractAudioViewModel.awemeModel = self.awemeModel;
@@ -895,6 +895,40 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
         [viewModels addObject:audioShareViewModel];
     }
 
+    // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）。
+    // 「复制下载链接」和「解析保存（影片/音频）」他那套里有，咱们已经有了——
+    // 复制下载链接＝687 复制无水印链接（解析后的直链），解析保存＝673 接口保存＋
+    // 666 保存视频／668 保存音频；不重复加，只补没有的两项。
+    if (GHLGetBool(GHL_KEY_AWEME_DATA)) {
+        AWELongPressPanelBaseViewModel *awemeDataViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        awemeDataViewModel.awemeModel = self.awemeModel;
+        awemeDataViewModel.actionType = 694;
+        awemeDataViewModel.duxIconName = @"ic_data_outlined";
+        awemeDataViewModel.describeString = @"获取作品数据";
+        awemeDataViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          GHLShowAwemeDataForAwemeModel(awemeModel);
+          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+          [panelManager dismissWithAnimation:YES completion:nil];
+        };
+        [viewModels addObject:awemeDataViewModel];
+    }
+
+    if (GHLGetBool(GHL_KEY_IMAGE_PREVIEW)) {
+        AWELongPressPanelBaseViewModel *imagePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        imagePreviewViewModel.awemeModel = self.awemeModel;
+        imagePreviewViewModel.actionType = 695;
+        imagePreviewViewModel.duxIconName = @"ic_image_outlined";
+        imagePreviewViewModel.describeString = @"图片预览";
+        imagePreviewViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          GHLPreviewAwemeImagesForAwemeModel(awemeModel);
+          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+          [panelManager dismissWithAnimation:YES completion:nil];
+        };
+        [viewModels addObject:imagePreviewViewModel];
+    }
+
     // 创建自定义组
     NSMutableArray *customGroups = [NSMutableArray array];
     NSInteger totalButtons = viewModels.count;
@@ -954,7 +988,7 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
 
 // ===== 1.0.9：网格长按面板（深色毛玻璃 + 三列金色图标 + 顶部金色龙头）=====
 // 自定义项：Modern 钩子标了 isDYYYCustomGroup；旧钩子没标，用 actionType 认
-//（666-679 是 DYYY 长按项，686-693 是顾海龙长按项）。
+//（666-679 是 DYYY 长按项，686-695 是顾海龙长按项）。
 static BOOL DYYYLongPressItemIsCustom(AWELongPressPanelBaseViewModel *item, AWELongPressPanelViewGroupModel *group) {
     if (!item) return NO;
     if (group && group.isDYYYCustomGroup) return YES;
@@ -1990,7 +2024,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         [viewModels addObject:timerCloseViewModel];
     }
 
-    // ===== 顾海龙抖音长按项（686-693）=====
+    // ===== 顾海龙抖音长按项（686-695）=====
     if (GHLGetBool(GHL_KEY_EXTRACT_AUDIO)) {
         AWELongPressPanelBaseViewModel *extractAudioViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         extractAudioViewModel.awemeModel = self.awemeModel;
@@ -2167,6 +2201,40 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
           [panelManager dismissWithAnimation:YES completion:nil];
         };
         [viewModels addObject:audioShareViewModel];
+    }
+
+    // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）。
+    // 「复制下载链接」和「解析保存（影片/音频）」他那套里有，咱们已经有了——
+    // 复制下载链接＝687 复制无水印链接（解析后的直链），解析保存＝673 接口保存＋
+    // 666 保存视频／668 保存音频；不重复加，只补没有的两项。
+    if (GHLGetBool(GHL_KEY_AWEME_DATA)) {
+        AWELongPressPanelBaseViewModel *awemeDataViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        awemeDataViewModel.awemeModel = self.awemeModel;
+        awemeDataViewModel.actionType = 694;
+        awemeDataViewModel.duxIconName = @"ic_data_outlined";
+        awemeDataViewModel.describeString = @"获取作品数据";
+        awemeDataViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          GHLShowAwemeDataForAwemeModel(awemeModel);
+          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+          [panelManager dismissWithAnimation:YES completion:nil];
+        };
+        [viewModels addObject:awemeDataViewModel];
+    }
+
+    if (GHLGetBool(GHL_KEY_IMAGE_PREVIEW)) {
+        AWELongPressPanelBaseViewModel *imagePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        imagePreviewViewModel.awemeModel = self.awemeModel;
+        imagePreviewViewModel.actionType = 695;
+        imagePreviewViewModel.duxIconName = @"ic_image_outlined";
+        imagePreviewViewModel.describeString = @"图片预览";
+        imagePreviewViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          GHLPreviewAwemeImagesForAwemeModel(awemeModel);
+          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+          [panelManager dismissWithAnimation:YES completion:nil];
+        };
+        [viewModels addObject:imagePreviewViewModel];
     }
 
     newGroupModel.groupArr = viewModels;

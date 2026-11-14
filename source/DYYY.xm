@@ -8727,6 +8727,20 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
+// 1.0.23：跳过 AD 章节探针用的字段读取——章节模型没有声明，KVC 探键拿不到就记“无此字段”，不崩。
+static NSString *GHLProbeChapterField(id object, NSString *key) {
+    if (!object || key.length == 0) return @"—";
+    @try {
+        id value = [object valueForKey:key];
+        if (!value || value == [NSNull null]) return @"—";
+        NSString *desc = [value description];
+        if (desc.length > 40) desc = [[desc substringToIndex:40] stringByAppendingString:@"…"];
+        return desc;
+    } @catch (__unused NSException *exception) {
+        return @"（无此字段）";
+    }
+}
+
 %hook AWEAwemeModel
 
 - (id)initWithDictionary:(id)arg1 error:(id *)arg2 {
@@ -9060,11 +9074,33 @@ static NSHashTable *processedParentViews = nil;
 
 //屏蔽章节要点数据
 - (NSArray *)chapterList {
+	NSArray *origList = %orig;
+	// 1.0.23：跳过 AD 章节探针（清单 2 号，probe-only）——章节模型没有声明，
+	// 广告章节的识别字段（标题/起止时间/类型/isAd）要靠真机日志看；开关开后
+	// 把每个章节的类名和可探字段 dump 到日志，只记不跳过；同一条视频只记一次。
+	if (GHLGetBool(GHL_KEY_SKIP_AD_CHAPTER) && origList.count > 0) {
+		static NSString *lastProbeItemID = nil;
+		NSString *itemID = self.itemID;
+		if (![itemID isEqualToString:lastProbeItemID]) {
+			lastProbeItemID = [itemID copy];
+			GHLLog(@"跳过 AD 章节探针：视频 %@ 共 %lu 个章节", itemID ?: @"?", (unsigned long)origList.count);
+			for (id chapter in origList) {
+				GHLLog(@"跳过 AD 章节探针：章节类 %@ 标题 %@ 开始 %@ 结束 %@ 类型 %@ isAd %@ 描述 %@",
+					NSStringFromClass([chapter class]),
+					GHLProbeChapterField(chapter, @"title"),
+					GHLProbeChapterField(chapter, @"startTime"),
+					GHLProbeChapterField(chapter, @"endTime"),
+					GHLProbeChapterField(chapter, @"type"),
+					GHLProbeChapterField(chapter, @"isAd"),
+					GHLProbeChapterField(chapter, @"description"));
+			}
+		}
+	}
 	BOOL hideChapterList = DYYYGetBool(@"DYYYHideChapterProgress");
 	if (hideChapterList) {
 		return @[]; // 返回空数组
 	}
-	return %orig;
+	return origList;
 }
 
 // 屏蔽共创数据
@@ -13334,10 +13370,59 @@ static void findTargetViewInView(UIView *view) {
 %end
 %end
 
+// 1.0.23：评论文字变蓝（清单 5 号）——评论正文没有现成的文本设置点（Swift 组件，
+// 正文标签类名没声明），用启发式定位：评论容器布局时扫一遍层级，多行、字号 ≥14 的
+// 标签当正文染蓝；用户名/时间是单行小字，不动。已染过的打标记，不重复扫。
+// 需真机验证：启发式可能染到不该染的（比如商品卡标题），日志里会记染了几个。
+static char kGHLBlueCommentLabelKey;
+
+static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
+    if (!view) return;
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        Class interactionLabelClass = NSClassFromString(@"AWECommentSwiftBizUI.CommentInteractionBaseLabel");
+        BOOL isInteractionLabel = interactionLabelClass && [label isKindOfClass:interactionLabelClass];
+        if (!isInteractionLabel &&
+            !objc_getAssociatedObject(label, &kGHLBlueCommentLabelKey) &&
+            label.numberOfLines == 0 && label.font.pointSize >= 14 && label.text.length > 0) {
+            UIColor *blue = [UIColor colorWithRed:0.10 green:0.45 blue:0.95 alpha:1.0];
+            if (label.attributedText.length > 0) {
+                NSMutableAttributedString *attr = [[NSMutableAttributedString alloc] initWithAttributedString:label.attributedText];
+                [attr addAttribute:NSForegroundColorAttributeName value:blue range:NSMakeRange(0, attr.length)];
+                label.attributedText = attr;
+            } else {
+                label.textColor = blue;
+            }
+            objc_setAssociatedObject(label, &kGHLBlueCommentLabelKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            (*newCount)++;
+        }
+    }
+    for (UIView *subview in view.subviews) {
+        GHLBlueCommentLabelsInView(subview, newCount);
+    }
+}
+
+%group GHLBlueCommentTextGroup
+%hook AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    if (!GHLGetBool(GHL_KEY_BLUE_COMMENT_TEXT)) return;
+    NSInteger newCount = 0;
+    // 动态 %init 的 hook 里 self 没有声明类型，先转成 UIViewController 再读 view。
+    GHLBlueCommentLabelsInView(((UIViewController *)self).view, &newCount);
+    if (newCount > 0) {
+        GHLLog(@"评论文字变蓝：本次新染蓝 %ld 个正文标签", (long)newCount);
+    }
+}
+%end
+%end
+
 %ctor {
     Class fullscreenCommentClass = objc_getClass("AWECommentPanelContainerSwiftImpl.CommentContainerInnerViewController");
     if (fullscreenCommentClass && [fullscreenCommentClass isSubclassOfClass:[UIViewController class]]) {
         %init(DYYYFullscreenCommentGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
+        // 1.0.23：评论文字变蓝（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
+        %init(GHLBlueCommentTextGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
     // 1.0.20：后台听视频开关首次出现——没存过值时，沿用旧「画中画 + 后台播放」开关的值
     // （皇上现在开着就继续开着，关着就继续关着）；从没存过旧值才默认开。
