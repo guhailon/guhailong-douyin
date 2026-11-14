@@ -225,7 +225,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.13：关于改成深色品牌页（雷鸣绿龙横幅＋金字标题，两张深色金边卡：关于/联系/QQ群＋配置管理/更新日志/检查更新/声明，声明在最下面，页底小灰字声明摘要）；检查更新联网比对源里的版本号；点版本行复制版本/机型/iOS 版本；配置管理加重启抖音；关于弹窗和底部 MIT/更新日志按钮废弃。\n"
            @"1.0.14：关于入口行拿掉右边的「查看关于」，点整行直接进关于页（只留右箭头）；关于页标题/版本行按横幅里龙头中心对齐（龙头在图里偏左，之前字相对龙头偏右）；QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变；原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。\n"
            @"1.0.15：关于入口一层直达（设置主页点「关于」直接进品牌页，中间那个只有一行的「关于」子页拿掉）；关于页横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按实测龙头中心 x=358 对齐），横幅背景能自己换（相册选图存到 Documents/DYYY/ghl-about-banner.jpg，也能恢复默认）；修画中画＋后台播放（监听 token 存下来不再立刻失效，触发改到切后台前一刻 WillResignActive，进后台兜底一次，系统回调如实记日志；播放器查找放宽到全部窗口递归找图层＋播放器控制器 KVC 探针，没图层时用播放器新建图层再建画中画，查找经过写进顾海龙日志）；长按网格去掉「更多」，原生项也进网格，长按只出网格（超 4 行可上下滑）。\n"
-       @"1.0.16：长按网格原生项（倍速/清屏播放/投屏等）改走原生选中，不再直接调 action（点了没反应就是缺面板控制器上下文）；点按入口和成功分支补日志；原生项图标补关键字映射（倍速/清屏/投屏/定时等各有图标，不再全是下载箭头）；面板首屏露 5 行、滚动对齐行高、下滑收起只在列表顶端才认；画中画兜底：抖音自有播放器没有系统播放器可挂时，用当前视频链接自起一个 AVPlayer 做画中画（会从头播，接不上进度；链接可能是短效签名，过期播不了；后台/锁屏/与原视频声音冲突待真机验证）；画中画查找记调用方，B 路加运行时控制器类名 dump；顾海龙日志从设置页常用功能移到关于页第二张卡（检查更新之后、声明之前）；日志查看器截断处防半个中文字符。";
+       @"1.0.16：长按网格原生项（倍速/清屏播放/投屏等）改走原生选中，不再直接调 action（点了没反应就是缺面板控制器上下文）；点按入口和成功分支补日志；原生项图标补关键字映射（倍速/清屏/投屏/定时等各有图标，不再全是下载箭头）；面板首屏露 5 行、滚动对齐行高、下滑收起只在列表顶端才认；画中画兜底：抖音自有播放器没有系统播放器可挂时，用当前视频链接自起一个 AVPlayer 做画中画（会从头播，接不上进度；链接可能是短效签名，过期播不了；后台/锁屏/与原视频声音冲突待真机验证）；画中画查找记调用方，B 路加运行时控制器类名 dump；顾海龙日志从设置页常用功能移到关于页第二张卡（检查更新之后、声明之前）；日志查看器截断处防半个中文字符。"
+           @"1.0.17：直播画中画：直播间没有普通视频的播放地址，D 路兜底加直播分支——进直播间/点画中画时探一次 room model 的拉流地址栏位（只记栏位名＋长度＋前 60 字），拿到 HLS（.m3u8）就走同一套自起播放器做画中画（从头播，接不上直播进度；拉流地址可能是短效签名；后台/锁屏/声音冲突待真机验证）；只有 FLV/RTMP 时如实记一行，不转封装；B 路探针遇到「键存在但值不是播放器/图层」时补记一行；画中画查找日志加一行是否在直播间。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -240,6 +241,8 @@ NSString *GHLChangelogText(void) {
 //   C. 有 AVPlayer 没图层时，用播放器新建一个 AVPlayerLayer 再建 PiP 控制器（见 GHLStartPiP）。
 //   D. （1.0.16 兜底）A/B/C 全空时，用当前视频链接自起一个 AVPlayer 做画中画
 //      （见 GHLStartFallbackPiP；从头播，接不上进度，链接可能是短效签名）。
+//      直播分支（1.0.17）：在直播间时从 room model 取 HLS 拉流地址走同一套兜底；
+//      只有 FLV/RTMP 时记一行，不转封装。
 // 什么都没找到时，日志写明现场（窗口数、各类图层数、探针结果），方便下一步判断——
 // 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
 // 系统画中画挂不上现有播放器，才走 D 路兜底。
@@ -398,6 +401,9 @@ static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLa
               if (sortedVCClasses.count > 40) sortedVCClasses = [sortedVCClasses subarrayWithRange:NSMakeRange(0, 40)];
               GHLLog(@"画中画查找 B 路：窗口里控制器共 %lu 类：%@", (unsigned long)allVCClasses.count, [sortedVCClasses componentsJoinedByString:@"、"]);
           }
+          // 1.0.17：键存在但值不是播放器/图层时补记一行（之前是盲点：只记命中，键存在但类型不对时静默跳过）。
+          // 只在 verbose 时记，8 条封顶，免得刷屏。
+          __block NSInteger mismatchLogCount = 0;
           for (UIViewController *vc in playerVCs) {
               if (foundPlayer || foundLayer) break;
               for (NSString *key in layerKeys) {
@@ -407,6 +413,9 @@ static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLa
                           foundLayer = (AVPlayerLayer *)value;
                           if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayerLayer", NSStringFromClass([vc class]), key);
                           break;
+                      } else if (value && verbose && mismatchLogCount < 8) {
+                          mismatchLogCount++;
+                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayerLayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
                       }
                   } @catch (__unused NSException *exception) {
                   }
@@ -419,6 +428,9 @@ static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLa
                           foundPlayer = (AVPlayer *)value;
                           if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayer", NSStringFromClass([vc class]), key);
                           break;
+                      } else if (value && verbose && mismatchLogCount < 8) {
+                          mismatchLogCount++;
+                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
                       }
                   } @catch (__unused NSException *exception) {
                   }
@@ -726,6 +738,8 @@ static void GHLPreparePiPAudioSession(void) {
 // 兜底 D 路（1.0.16）：A/B/C 全空时用当前视频链接自起一个 AVPlayer 做画中画。
 // 老实边界：会从头播（接不上当前进度）；播放地址可能是带签名的短效链接（过期播不了）；
 // 后台行为、锁屏控制、与抖音原播放器的声音冲突都要真机验证。
+// 直播分支（1.0.17）：直播间没有 video.playURL，改从 room model 取 HLS 拉流地址
+// （见 GHLProbeLiveStreamURL）；只有 FLV/RTMP 时记一行，不转封装。
 
 // 当前视频的播放地址（复用保存视频那套取法：video.playURL.originURLList 首个；
 // 图集视频走当前图的 clipVideo.playURL）。
@@ -745,6 +759,222 @@ static NSURL *GHLCurrentVideoPlayURL(void) {
             }
         }
     } @catch (__unused NSException *exception) {
+    }
+    return nil;
+}
+
+// ===== 1.0.17：直播画中画探针（D 路直播分支用）=====
+// 背景（2026-11-14 21:45 定死，GuHaiLongDouyin-3.log）：照片里卡住的小窗是抖音自己的
+// 原生小窗，咱们一次都没启动过，修不了；普通视频走 1.0.16 的 D 路兜底能绕过去，
+// 但直播间没有 video.playURL，D 路覆盖不了直播。
+// 探针只在两处跑：画中画查找发生在直播间时、进直播间时各一次——绝不进 2 秒巡检，
+// 免得刷屏。日志只记栏位名＋URL 长度＋前 60 字符，不记完整签名 URL。
+// AVPlayer 只能播 HLS（.m3u8），不能播 FLV/RTMP：只有 FLV/RTMP 时如实记一行，不转封装。
+
+// 递归收全部 VC（对象，不是类名）：子 VC + presented VC 都走。
+static void GHLCollectAllViewControllersInVC(UIViewController *vc, NSMutableArray<UIViewController *> *out) {
+    if (!vc || !out) return;
+    [out addObject:vc];
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLCollectAllViewControllersInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLCollectAllViewControllersInVC(vc.presentedViewController, out);
+}
+
+// 对象属性名清单（往上走 3 层父类，去重，60 个封顶）。
+static NSArray<NSString *> *GHLPropertyNamesOfObject(id obj) {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    Class cls = [obj class];
+    for (NSInteger level = 0; level < 3 && cls && cls != [NSObject class]; level++) {
+        unsigned int count = 0;
+        objc_property_t *props = class_copyPropertyList(cls, &count);
+        for (unsigned int i = 0; i < count && names.count < 60; i++) {
+            NSString *name = [NSString stringWithUTF8String:property_getName(props[i])];
+            if (name.length > 0 && ![seen containsObject:name]) {
+                [seen addObject:name];
+                [names addObject:name];
+            }
+        }
+        free(props);
+        cls = class_getSuperclass(cls);
+    }
+    return names;
+}
+
+// URL 分类：看内容，不看栏位名（栏位名可能骗人，内容不会）。
+static NSString *GHLClassifyStreamURLString(NSString *urlString) {
+    if (!urlString || urlString.length == 0) return nil;
+    NSString *lower = urlString.lowercaseString;
+    if ([lower containsString:@"m3u8"] || [lower containsString:@"hls"]) return @"HLS";
+    if ([lower containsString:@"flv"]) return @"FLV";
+    if ([lower containsString:@"rtmp"]) return @"RTMP";
+    return @"其他";
+}
+
+// 前 60 字符（不记完整签名 URL）。
+static NSString *GHLTruncatedURLString(NSString *urlString) {
+    if (!urlString) return @"";
+    if (urlString.length <= 60) return urlString;
+    return [urlString substringToIndex:60];
+}
+
+// 一个候选值里找拉流地址：字符串直接分类；数组取首个字符串；字典在里面按
+// hls/flv/rtmp 键找一层；其他对象枚举它的字符串属性（只找一层嵌套，HLS 优先）。
+// 命中记进 hits（@{key,type,where,url}），HLS 地址另记进 hlsURLs。
+static void GHLCollectStreamURLHitFromValue(id value, NSString *key, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs) {
+    if (!value) return;
+    NSString *urlString = nil;
+    NSString *hitKey = key;
+    if ([value isKindOfClass:[NSString class]]) {
+        urlString = (NSString *)value;
+    } else if ([value isKindOfClass:[NSArray class]]) {
+        for (id element in (NSArray *)value) {
+            if ([element isKindOfClass:[NSString class]] && ((NSString *)element).length > 0) {
+                urlString = (NSString *)element;
+                break;
+            }
+        }
+    } else if ([value isKindOfClass:[NSDictionary class]]) {
+        for (NSString *subKey in @[@"hls_pull_url", @"flv_pull_url", @"rtmp_pull_url", @"pull_url", @"url"]) {
+            id sub = ((NSDictionary *)value)[subKey];
+            if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
+                urlString = (NSString *)sub;
+                hitKey = [NSString stringWithFormat:@"%@.%@", key, subKey];
+                break;
+            }
+        }
+    } else if ([value isKindOfClass:[NSObject class]]) {
+        // 嵌套对象（比如 stream_url 对象）：先找名字带 hls 的属性，再找任意 url/pull/stream/play 属性。
+        NSArray<NSString *> *props = GHLPropertyNamesOfObject(value);
+        for (NSInteger pass = 0; pass < 2 && !urlString; pass++) {
+            for (NSString *prop in props) {
+                NSString *lower = prop.lowercaseString;
+                BOOL isURLish = [lower containsString:@"url"] || [lower containsString:@"pull"] || [lower containsString:@"stream"] || [lower containsString:@"play"];
+                if (!isURLish) continue;
+                if (pass == 0 && ![lower containsString:@"hls"]) continue;
+                @try {
+                    id sub = [value valueForKey:prop];
+                    if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
+                        urlString = (NSString *)sub;
+                        hitKey = [NSString stringWithFormat:@"%@.%@", key, prop];
+                        break;
+                    }
+                } @catch (__unused NSException *exception) {
+                }
+            }
+        }
+    }
+    if (!urlString || urlString.length == 0) return;
+    NSString *type = GHLClassifyStreamURLString(urlString);
+    if (!type) return;
+    [hits addObject:@{@"key": hitKey, @"type": type, @"where": where, @"url": urlString}];
+    if ([type isEqualToString:@"HLS"] && ![hlsURLs containsObject:urlString]) [hlsURLs addObject:urlString];
+}
+
+// 探一个模型对象：先按候选键逐个试，再把对象全部字符串属性里名字带 url/pull/stream/play 的都扫一遍
+// （候选键没覆盖到的也抓出来）。
+static void GHLProbeStreamURLOnModel(id model, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs) {
+    if (!model) return;
+    static NSArray<NSString *> *urlKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      urlKeys = @[@"hls_pull_url", @"hlsPullUrl", @"pullUrl", @"pull_url", @"streamUrl", @"stream_url", @"playUrl", @"play_url", @"flv_pull_url", @"flvPullUrl", @"rtmp_pull_url", @"rtmpPullUrl", @"hls_url", @"hlsUrl", @"liveUrl", @"url", @"playbackUrl", @"streamURL", @"pullStreamUrl", @"pullURL", @"originPullUrl"];
+    });
+    for (NSString *key in urlKeys) {
+        @try {
+            id value = [model valueForKey:key];
+            GHLCollectStreamURLHitFromValue(value, key, where, hits, hlsURLs);
+        } @catch (__unused NSException *exception) {
+        }
+    }
+    NSArray<NSString *> *propNames = GHLPropertyNamesOfObject(model);
+    for (NSString *prop in propNames) {
+        NSString *lower = prop.lowercaseString;
+        if (![lower containsString:@"url"] && ![lower containsString:@"pull"] && ![lower containsString:@"stream"] && ![lower containsString:@"play"]) continue;
+        if ([urlKeys containsObject:prop]) continue; // 第 1 步试过了
+        @try {
+            id value = [model valueForKey:prop];
+            GHLCollectStreamURLHitFromValue(value, prop, where, hits, hlsURLs);
+        } @catch (__unused NSException *exception) {
+        }
+    }
+}
+
+// 1.0.17：直播间拉流地址探针。返回 HLS 拉流地址（NSURL），没有 HLS 时返回 nil。
+// 跑两处：画中画查找发生在直播间时、进直播间时各一次（不在 2 秒巡检里跑）。
+static NSURL *GHLProbeLiveStreamURL(void) {
+    NSMutableArray<NSDictionary *> *hits = [NSMutableArray array];
+    NSMutableArray<NSString *> *hlsURLs = [NSMutableArray array];
+    // 1) 直播间 VC（类名含 Live，全树走，不只顶层）
+    NSMutableArray<UIViewController *> *liveVCs = [NSMutableArray array];
+    for (UIWindow *window in GHLAllAppWindows()) {
+        UIViewController *root = window.rootViewController;
+        while (root.presentedViewController) root = root.presentedViewController;
+        NSMutableArray<UIViewController *> *all = [NSMutableArray array];
+        GHLCollectAllViewControllersInVC(root, all);
+        for (UIViewController *vc in all) {
+            if ([NSStringFromClass([vc class]) rangeOfString:@"Live"].location != NSNotFound) {
+                if (![liveVCs containsObject:vc] && liveVCs.count < 5) [liveVCs addObject:vc];
+            }
+        }
+    }
+    NSMutableArray<NSString *> *liveVCNames = [NSMutableArray array];
+    for (UIViewController *vc in liveVCs) [liveVCNames addObject:NSStringFromClass([vc class])];
+    GHLLog(@"直播画中画探针：直播间 VC %lu 个（前 5）：%@", (unsigned long)liveVCs.count, liveVCNames.count > 0 ? [liveVCNames componentsJoinedByString:@"、"] : @"无");
+    static NSArray<NSString *> *modelKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      modelKeys = @[@"roomModel", @"liveRoomModel", @"room", @"model", @"liveModel", @"roomInfo", @"liveRoom", @"currentRoomModel", @"roomData", @"liveRoomInfo", @"roomViewModel", @"liveRoomViewModel", @"awemeModel", @"aweme"];
+    });
+    NSMutableSet<NSNumber *> *probedModels = [NSMutableSet set];
+    for (UIViewController *vc in liveVCs) {
+        NSString *vcName = NSStringFromClass([vc class]);
+        for (NSString *key in modelKeys) {
+            @try {
+                id model = [vc valueForKey:key];
+                if (!model || ![model isKindOfClass:[NSObject class]]) continue;
+                NSNumber *ptr = @((uintptr_t)(__bridge void *)model);
+                if ([probedModels containsObject:ptr]) continue;
+                [probedModels addObject:ptr];
+                NSString *modelClass = NSStringFromClass([model class]);
+                if ([modelClass hasPrefix:@"UI"] || [modelClass hasPrefix:@"NS"] || [modelClass hasPrefix:@"__NS"]) continue;
+                NSArray<NSString *> *props = GHLPropertyNamesOfObject(model);
+                GHLLog(@"直播画中画探针：在 %@ 上找到模型 %@（键 %@），属性 %lu 个：%@", vcName, modelClass, key, (unsigned long)props.count, props.count > 0 ? [props componentsJoinedByString:@"、"] : @"无");
+                GHLProbeStreamURLOnModel(model, [NSString stringWithFormat:@"%@.%@", vcName, key], hits, hlsURLs);
+            } @catch (__unused NSException *exception) {
+            }
+        }
+    }
+    // 2) 当前视频模型也探一下（直播间里 feed 的 model 可能是直播 aweme）
+    AWEAwemeModel *aweme = GHLCurrentAwemeModel();
+    if (aweme) {
+        GHLProbeStreamURLOnModel(aweme, @"当前视频模型", hits, hlsURLs);
+    }
+    // 3) 命中汇总（按 URL 去重，只记栏位名＋长度＋前 60 字）
+    NSMutableSet<NSString *> *seenURLs = [NSMutableSet set];
+    for (NSDictionary *hit in hits) {
+        NSString *url = hit[@"url"];
+        if ([seenURLs containsObject:url]) continue;
+        [seenURLs addObject:url];
+        GHLLog(@"直播画中画探针：栏位 %@ 命中 %@（%@，长 %lu，前 60 字：%@）", hit[@"key"], hit[@"type"], hit[@"where"], (unsigned long)((NSString *)url).length, GHLTruncatedURLString(url));
+    }
+    if (hlsURLs.count > 0) {
+        NSURL *hlsURL = [NSURL URLWithString:hlsURLs.firstObject];
+        if (hlsURL) {
+            GHLLog(@"直播画中画探针：HLS 地址已确认（%lu 条），画中画用第一条", (unsigned long)hlsURLs.count);
+            return hlsURL;
+        }
+        GHLLog(@"直播画中画探针：找到疑似 HLS 地址但拼不成 NSURL（见上面栏位行）");
+    }
+    BOOL hasFLVOrRTMP = NO;
+    for (NSDictionary *hit in hits) {
+        if ([hit[@"type"] isEqualToString:@"FLV"] || [hit[@"type"] isEqualToString:@"RTMP"]) { hasFLVOrRTMP = YES; break; }
+    }
+    if (hasFLVOrRTMP) {
+        GHLLog(@"直播画中画探针：只有 FLV/RTMP，没有 HLS，系统画中画做不了（AVPlayer 播不了 FLV/RTMP，不转封装）");
+    } else {
+        GHLLog(@"直播画中画探针：没找到任何拉流地址（模型/栏位见上面）");
     }
     return nil;
 }
@@ -770,9 +1000,16 @@ static void GHLCleanupFallbackPiPPlayer(void) {
 // 兜底启动：就绪后再 startPictureInPicture（KVO 监听 item.status）。
 // 返回 YES 表示兜底已接手（正在等就绪或已启动），调用方不用再报“没找到播放的视频”。
 static BOOL GHLStartFallbackPiP(void) {
-    NSURL *videoURL = GHLCurrentVideoPlayURL();
+    // 1.0.17：直播间先走直播分支（room model 的 HLS 拉流地址），不走普通视频的 playURL——
+    // 直播间没有 video.playURL，普通路拿不到地址。
+    BOOL isLive = GHLIsInLiveRoom();
+    NSURL *videoURL = isLive ? GHLProbeLiveStreamURL() : GHLCurrentVideoPlayURL();
     if (!videoURL) {
-        GHLLog(@"画中画兜底：当前视频拿不到播放地址，画中画开不了");
+        if (isLive) {
+            GHLLog(@"画中画兜底：直播间拿不到 HLS 拉流地址，画中画开不了（原因见上面探针行）");
+        } else {
+            GHLLog(@"画中画兜底：当前视频拿不到播放地址，画中画开不了");
+        }
         return NO;
     }
     // 同一个视频重复点：复用已建好的兜底播放器，直接播＋开画中画。
@@ -790,7 +1027,11 @@ static BOOL GHLStartFallbackPiP(void) {
     }
     // 换视频：先清掉旧兜底（KVO 一定要先摘掉再放 item，否则野指针崩）。
     GHLCleanupFallbackPiPPlayer();
-    GHLLog(@"画中画兜底：没找到系统播放器，用当前视频链接自起播放器（从头播，接不上进度；原视频声音可能同时响）");
+    if (isLive) {
+        GHLLog(@"画中画兜底：直播画中画用 HLS 拉流地址自起播放器（从头播，接不上直播进度；拉流地址可能是短效签名，过期播不了；后台/锁屏/与原直播声音冲突待真机验证）");
+    } else {
+        GHLLog(@"画中画兜底：没找到系统播放器，用当前视频链接自起播放器（从头播，接不上进度；原视频声音可能同时响）");
+    }
     AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
     AVPlayer *player = [AVPlayer playerWithPlayerItem:item];
     ghlPiPFallbackItem = item;
@@ -844,6 +1085,8 @@ void GHLStartPiP(void) {
 void GHLStartPiPWithCaller(NSString *caller) {
     GHLRunOnMain(^{
       GHLLog(@"画中画：触发（%@）", caller.length > 0 ? caller : @"未知");
+      // 1.0.17：查找日志加一行是否在直播间（直播的查找现场跟普通视频不一样）。
+      GHLLog(@"画中画查找：是否在直播间：%@", GHLIsInLiveRoom() ? @"是" : @"否");
       if (![AVPictureInPictureController isPictureInPictureSupported]) {
           [DYYYUtils showToast:@"当前设备不支持画中画"];
           GHLLog(@"画中画：设备不支持");
@@ -2004,7 +2247,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.16 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.17 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -3257,6 +3500,17 @@ void GHLProbeVoiceFeatures(void) {
 
 void GHLHousekeepingTick(void) {
     @try {
+        // 1.0.17：进直播间时探一次拉流地址（与 (39) 开关无关；只在进/出切换时跑一次，
+        // 不进巡检循环；用自己的进出标记，不动 GHLUpdateLiveDurationLabel 的调用条件）。
+        static BOOL ghlLiveProbeDoneForCurrentRoom = NO;
+        if (GHLIsInLiveRoom()) {
+            if (!ghlLiveProbeDoneForCurrentRoom) {
+                ghlLiveProbeDoneForCurrentRoom = YES;
+                GHLProbeLiveStreamURL();
+            }
+        } else {
+            ghlLiveProbeDoneForCurrentRoom = NO;
+        }
         if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD)) {
             GHLUpdateLiveDurationLabel();
         }
