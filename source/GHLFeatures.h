@@ -1,5 +1,5 @@
 // 顾海龙抖音 (GHL) — 新增功能
-// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。
+// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，免费使用，仅限学习交流。
 // 原 MIT 声明与 huami 版权行保留在 LICENSE 文件中，未做任何改动。
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
@@ -292,6 +292,8 @@ void GHLApplyNightMode(BOOL on);       // (9)
 void GHLApplyLivePurification(BOOL on); // (12) 开：记下现有值并全开隐藏项；关：恢复
 void GHLApplyCleanMode(BOOL on);       // (6) 开：首页净化+清屏按钮；关：只关首页净化
 void GHLStartPiP(void);                // (2) 画中画
+// 1.0.16：画中画带调用方（网格点按 / 切后台），查找日志记调用方，判别触发路。
+void GHLStartPiPWithCaller(NSString * _Nullable caller);
 void GHLProbeAntiRecall(void);         // (24) 启动时探针：记下疑似撤回相关类名
 
 // MARK: - 长按面板动作

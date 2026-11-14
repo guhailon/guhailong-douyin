@@ -23,6 +23,7 @@
 #import "DYYYSettingsHelper.h"
 #import "DYYYUtils.h"
 #import "GHLFeatures.h"
+#import "GHLLogViewerViewController.h"
 
 // 行动作
 typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
@@ -42,10 +43,11 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowDisclaimer = 206,   // 声明（放在最后）
     GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
     GHLAboutRowResetBanner = 208,  // 恢复默认横幅（1.0.15）
+    GHLAboutRowLogViewer = 209,    // 顾海龙日志（1.0.16，从设置页常用功能移过来）
 };
 
-// 1.0.12 的声明全文（措辞不动，皇上可改）。
-static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，仅供个人学习交流使用，不对外发布。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。";
+// 1.0.12 的声明全文；1.0.16 皇上改措辞：改成「免费使用，仅限学习交流」。
+static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，免费使用，仅限学习交流。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。";
 
 @interface GHLAboutViewController ()
 
@@ -141,6 +143,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         [self ghlRowSpecWithTitle:@"恢复默认横幅" icon:@"arrow.uturn.backward" tag:GHLAboutRowResetBanner chevron:YES],
         [self ghlRowSpecWithTitle:@"更新日志" icon:@"list.clipboard" tag:GHLAboutRowChangelog chevron:YES],
         [self ghlRowSpecWithTitle:@"检查更新" icon:@"sparkles" tag:GHLAboutRowCheckUpdate chevron:YES],
+        // 1.0.16：顾海龙日志从设置页常用功能移过来（检查更新之后、声明之前；声明必须在最下面）。
+        // 图标不用 list.clipboard（更新日志占了）和 doc.text（声明占了），用 doc.text.magnifyingglass。
+        [self ghlRowSpecWithTitle:@"顾海龙日志" icon:@"doc.text.magnifyingglass" tag:GHLAboutRowLogViewer chevron:YES],
         [self ghlRowSpecWithTitle:@"声明" icon:@"doc.text" tag:GHLAboutRowDisclaimer chevron:YES],
     ]
                                                joinButton:NO
@@ -394,6 +399,11 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             break;
         case GHLAboutRowCheckUpdate:
             [self ghlCheckForUpdate];
+            break;
+        case GHLAboutRowLogViewer:
+            // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是深色品牌页，
+            // 进出外观是否跳变要真机看一眼）。
+            [self.navigationController pushViewController:[[GHLLogViewerViewController alloc] init] animated:YES];
             break;
         case GHLAboutRowDisclaimer:
             // 声明在最下面，点开看 1.0.12 的声明全文（措辞不动）。

@@ -754,7 +754,7 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
         pipViewModel.duxIconName = @"ic_pip_outlined";
         pipViewModel.describeString = @"画中画播放";
         pipViewModel.action = ^{
-          GHLStartPiP();
+          GHLStartPiPWithCaller(@"网格点按");
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
         };
@@ -988,6 +988,101 @@ static void DYYYLongPressGridLogDiag(UIViewController *vc, NSString *reason) {
     GHLLog(@"长按面板：%@", reason);
 }
 
+// ===== 1.0.16：原生项走原生选中 =====
+// 倍速不能按的根因（诊断）：原生项的动作要面板控制器上下文（倍速要点开倍速选择页，
+// 大概率要从面板控制器 present），网格直接调 item.action() 上下文不对就静默失败，
+// 且成功分支也不记日志，日志里没有任何点按记录。
+// 修法：按 dataArray 里的组/序号找到原生格子，调抖音自己的分发，复现用户直接点原生格子的行为。
+// 找不到 table/格子/delegate、校验对不上时一律返回 NO，调用方回退 item.action()；全程 try/catch，不崩。
+static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view) {
+    if (!view) return nil;
+    if ([view isKindOfClass:[UITableView class]]) return (UITableView *)view;
+    for (UIView *sub in view.subviews) {
+        UITableView *found = DYYYLongPressFindTableViewInView(sub);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static UICollectionView *_Nullable DYYYLongPressFindCollectionViewInView(UIView *view) {
+    if (!view) return nil;
+    if ([view isKindOfClass:[UICollectionView class]]) return (UICollectionView *)view;
+    for (UIView *sub in view.subviews) {
+        UICollectionView *found = DYYYLongPressFindCollectionViewInView(sub);
+        if (found) return found;
+    }
+    return nil;
+}
+
+// groupIndex/itemIndex 是 dataArray 里的组/序号。Modern 面板每组一行横向条（条里是
+// collectionView，格子在里面）；经典面板一行就是一项（走 table 的 didSelect）。
+// 校验：条的 longPressViewGroupModel 必须是同一对象，或它的 dataArray 里有这一项——
+// 对不上就返回 NO，绝不按错序号点到别的项。
+static BOOL DYYYLongPressSelectNativeItem(UIViewController *vc, NSInteger groupIndex, NSInteger itemIndex, AWELongPressPanelBaseViewModel *item, AWELongPressPanelViewGroupModel *group) {
+    if (!vc || !vc.view || !item || !group) return NO;
+    @try {
+        UITableView *tableView = DYYYLongPressFindTableViewInView(vc.view);
+        if (!tableView) return NO;
+        if (groupIndex < 0 || groupIndex >= [tableView numberOfSections]) return NO;
+        NSInteger rowsInSection = [tableView numberOfRowsInSection:groupIndex];
+        if (rowsInSection < 1) return NO;
+        NSIndexPath *stripPath = [NSIndexPath indexPathForRow:0 inSection:groupIndex];
+        UITableViewCell *stripCell = [tableView cellForRowAtIndexPath:stripPath];
+        if (!stripCell) {
+            // 条不在可见区：把 table 滚到那一组再取（网格盖着，用户看不到底下滚动）。
+            [tableView scrollToRowAtIndexPath:stripPath atScrollPosition:UITableViewScrollPositionTop animated:NO];
+            [tableView layoutIfNeeded];
+            stripCell = [tableView cellForRowAtIndexPath:stripPath];
+            if (!stripCell) return NO;
+        }
+        UICollectionView *collectionView = DYYYLongPressFindCollectionViewInView(stripCell.contentView);
+        if (!collectionView) collectionView = DYYYLongPressFindCollectionViewInView(stripCell);
+        if (collectionView) {
+            // Modern：条里是 collectionView，格子在里面。
+            NSInteger resolvedItemIndex = itemIndex;
+            if ([stripCell respondsToSelector:@selector(longPressViewGroupModel)]) {
+                id cellGroup = [(id)stripCell longPressViewGroupModel];
+                if (cellGroup && cellGroup != (id)group) return NO; // 不是同一组，不点
+            }
+            if ([stripCell respondsToSelector:@selector(dataArray)]) {
+                NSArray *cellData = [(id)stripCell dataArray];
+                NSInteger found = NSNotFound;
+                for (NSInteger i = 0; i < (NSInteger)cellData.count; i++) {
+                    id obj = cellData[i];
+                    if ([obj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) {
+                        AWELongPressPanelBaseViewModel *vm = (AWELongPressPanelBaseViewModel *)obj;
+                        if (vm.actionType == item.actionType && [vm.describeString isEqualToString:item.describeString]) {
+                            found = i;
+                            break;
+                        }
+                    }
+                }
+                if (found == NSNotFound) return NO; // 条里没这一项，不点
+                resolvedItemIndex = found;
+            }
+            id<UICollectionViewDelegate> delegate = collectionView.delegate;
+            if (!delegate || ![delegate respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) return NO;
+            if (resolvedItemIndex < 0 || resolvedItemIndex >= [collectionView numberOfItemsInSection:0]) return NO;
+            [delegate collectionView:collectionView didSelectItemAtIndexPath:[NSIndexPath indexPathForItem:resolvedItemIndex inSection:0]];
+            return YES;
+        }
+        // 经典面板：一行就是一项，走 table 的 didSelectRowAtIndexPath:。
+        if (itemIndex < 0 || itemIndex >= rowsInSection) return NO;
+        id<UITableViewDelegate> tableDelegate = tableView.delegate;
+        if (!tableDelegate || ![tableDelegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) return NO;
+        [tableDelegate tableView:tableView didSelectRowAtIndexPath:[NSIndexPath indexPathForRow:itemIndex inSection:groupIndex]];
+        return YES;
+    } @catch (__unused NSException *exception) {
+        return NO;
+    }
+}
+
+// 1.0.16：建议的 sheet 高度——首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算）。
+// 抖音自己的 presentation 不一定採納 preferredContentSize，盡力而為，真機驗。
+static CGFloat DYYYLongPressGridPreferredSheetHeight(NSInteger totalItems, CGFloat safeBottom) {
+    return [DYYYLongPressGridPanelView ghl_preferredSheetHeightForItemCount:totalItems safeAreaBottom:safeBottom];
+}
+
 // 1.0.10：dataArray 刚存好数据时，主线程补一次盖网格（self 就是面板控制器）。
 // viewDidLoad/viewDidLayoutSubviews 可能都跑在 dataArray 之前，只靠它们会错过时机。
 static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc) {
@@ -1054,20 +1149,43 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         return;
     }
 
+    // 1.0.16：sheet 首屏露 5 行（系统 sheet 不一定採納，盡力而為）。
+    CGFloat safeBottom = 0;
+    if (@available(iOS 11.0, *)) safeBottom = vc.view.safeAreaInsets.bottom;
+    vc.preferredContentSize = CGSizeMake(vc.view.bounds.size.width, DYYYLongPressGridPreferredSheetHeight((NSInteger)gridItems.count, safeBottom));
+
+    __weak UIViewController *weakVC = vc; // 点按 handler 里走原生选中要用面板控制器（弱引用，不留住它）
     DYYYLongPressGridPanelView *panel = [[DYYYLongPressGridPanelView alloc] initWithItems:gridItems
                                                                         itemActionHandler:^(NSInteger actionType, NSString *title) {
-        // 点按时按 actionType + 标题找回原 viewModel 执行它的 action（下载/复制/过滤/定时等逻辑一点没改）。
-        // 标题一起比：原生项和自定义项 actionType 万一撞号也不会点错。
+        // 点按时按 actionType + 标题找回原 viewModel。标题一起比：原生项和自定义项
+        // actionType 万一撞号也不会点错。
+        // 1.0.16：原生项不再直接调 item.action()——改走原生选中（DYYYLongPressSelectNativeItem），
+        // 让抖音自己的分发去开倍速页/投屏等；走不通才回退 item.action()。自定义项逻辑一点没改。
+        // 成功分支也记日志（之前成功了也不记，点了没反应时日志里什么都看不出来）。
         NSArray *currentData = gDYYYLongPressPanelData;
-        for (id groupObj in currentData) {
+        for (NSInteger gi = 0; gi < (NSInteger)currentData.count; gi++) {
+            id groupObj = currentData[gi];
             if (![groupObj isKindOfClass:%c(AWELongPressPanelViewGroupModel)]) continue;
-            for (id itemObj in ((AWELongPressPanelViewGroupModel *)groupObj).groupArr) {
+            AWELongPressPanelViewGroupModel *group = (AWELongPressPanelViewGroupModel *)groupObj;
+            for (NSInteger ii = 0; ii < (NSInteger)group.groupArr.count; ii++) {
+                id itemObj = group.groupArr[ii];
                 if (![itemObj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) continue;
                 AWELongPressPanelBaseViewModel *item = (AWELongPressPanelBaseViewModel *)itemObj;
-                if (item.actionType == actionType && [item.describeString isEqualToString:title] && item.action) {
+                if (item.actionType != actionType || ![item.describeString isEqualToString:title]) continue;
+                if (!DYYYLongPressItemIsCustom(item, group)) {
+                    if (DYYYLongPressSelectNativeItem(weakVC, gi, ii, item, group)) {
+                        GHLLog(@"长按面板：原生项「%@」已走原生选中（组 %ld 序号 %ld）", title, (long)gi, (long)ii);
+                        return;
+                    }
+                    GHLLog(@"长按面板：原生项「%@」原生选中走不通，回退 item.action()", title);
+                }
+                if (item.action) {
                     item.action();
+                    GHLLog(@"长按面板：网格点按 actionType %ld「%@」已执行 action", (long)actionType, title);
                     return;
                 }
+                GHLLog(@"长按面板：网格点按 actionType %ld「%@」没找到对应项", (long)actionType, title);
+                return;
             }
         }
         GHLLog(@"长按面板：网格点按 actionType %ld「%@」没找到对应项", (long)actionType, title);
@@ -1905,7 +2023,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         pipViewModel.duxIconName = @"ic_pip_outlined";
         pipViewModel.describeString = @"画中画播放";
         pipViewModel.action = ^{
-          GHLStartPiP();
+          GHLStartPiPWithCaller(@"网格点按");
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
         };

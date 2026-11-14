@@ -15,12 +15,13 @@ static const CGFloat kDYYYGridDragonSize = 76.0;
 static const CGFloat kDYYYGridDragonTop = 10.0;
 static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 
-@interface DYYYLongPressGridPanelView ()
+@interface DYYYLongPressGridPanelView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 
 @property(nonatomic, copy) NSArray<NSDictionary *> *items;
 @property(nonatomic, copy) void (^itemActionHandler)(NSInteger actionType, NSString *title);
 @property(nonatomic, copy, nullable) void (^dismissHandler)(void);
 @property(nonatomic, assign) BOOL didDismiss;
+@property(nonatomic, strong, nullable) UIPanGestureRecognizer *dismissPan;
 
 @property(nonatomic, strong) UIVisualEffectView *blurView;
 @property(nonatomic, strong) UIImageView *dragonImageView;
@@ -63,7 +64,25 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         case 693: names = @[ @"square.and.arrow.up", @"music.note" ]; break; // 分享音频
         default:
             // 未知 actionType（多半是抖音原生项）：按标题关键字认图标，认不出再兜底下载图标。
-            if ([title containsString:@"不感兴趣"] || [title containsString:@"不喜欢"]) names = @[ @"eye.slash", @"hand.thumbsdown" ];
+            // 1.0.16：原生标题补映射（之前 10/12 个原生标题全掉进下载箭头兜底，皇上不要统一箭头）——
+            // 全用 SF Symbol，名字不存在时下面的循环会顺延到下一个候选再兜底下载箭头。
+            if ([title containsString:@"倍速"]) names = @[ @"gauge", @"speedometer" ];
+            else if ([title containsString:@"清屏播放"]) names = @[ @"rectangle.expand.vertical", @"arrow.up.left.and.arrow.down.right" ];
+            else if ([title containsString:@"投屏"]) names = @[ @"tv", @"airplayvideo" ];
+            else if ([title containsString:@"定时"]) names = @[ @"timer", @"clock" ];
+            else if ([title containsString:@"合拍"]) names = @[ @"person.2", @"rectangle.on.rectangle" ];
+            else if ([title containsString:@"识别图片"]) names = @[ @"viewfinder", @"photo" ];
+            else if ([title containsString:@"稍后再看"]) names = @[ @"bookmark", @"clock" ];
+            else if ([title containsString:@"缓存"]) names = @[ @"arrow.down.circle", @"tray.and.arrow.down" ];
+            else if ([title containsString:@"电脑"] || [title containsString:@"Pad"]) names = @[ @"desktopcomputer", @"laptopcomputer" ];
+            else if ([title containsString:@"弹幕"]) names = @[ @"text.bubble", @"captions.bubble" ];
+            else if ([title containsString:@"推荐"]) names = @[ @"hand.thumbsup", @"star" ];
+            else if ([title containsString:@"转发"]) names = @[ @"square.and.arrow.up" ];
+            else if ([title containsString:@"自动连播"]) names = @[ @"repeat", @"play.fill" ];
+            else if ([title containsString:@"后台音频"]) names = @[ @"speaker.wave.2", @"music.note" ];
+            else if ([title containsString:@"后台小窗"]) names = @[ @"macwindow", @"rectangle.on.rectangle" ];
+            else if ([title containsString:@"听抖音"]) names = @[ @"headphones", @"music.note" ];
+            else if ([title containsString:@"不感兴趣"] || [title containsString:@"不喜欢"]) names = @[ @"eye.slash", @"hand.thumbsdown" ];
             else if ([title containsString:@"举报"]) names = @[ @"flag", @"exclamationmark.triangle" ];
             else if ([title containsString:@"收藏"]) names = @[ @"star", @"star.fill" ];
             else if ([title containsString:@"分享"]) names = @[ @"square.and.arrow.up" ];
@@ -117,6 +136,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     _gridScrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
     _gridScrollView.showsVerticalScrollIndicator = YES; // 1.0.11：下面还有格子时一眼能看出来
     _gridScrollView.showsHorizontalScrollIndicator = NO;
+    _gridScrollView.delegate = self; // 1.0.16：滚动吸附（scrollViewWillEndDragging 里对齐行高，不留半行）
     [self addSubview:_gridScrollView];
 
     // 网格格子：每格一个圆角半透明底 + 金色图标 + 白字标题。
@@ -159,8 +179,24 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 
     // 下滑收起（原生面板点空白处/下滑也能收；我们盖住了面板，下滑手势自己补一个）。
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ghl_pan:)];
+    pan.delegate = self; // 1.0.16：列表滑到下面时往下拖是翻列表，不是收起（见 gestureRecognizerShouldBegin）
     [self addGestureRecognizer:pan];
+    self.dismissPan = pan;
     return self;
+}
+
+#pragma mark - 建议的 sheet 高度
+
+// 1.0.16：首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算，不留空）。
+// 数字和 layoutSubviews 里的同一套：龙头区 10+76+14，行高 92、间距 12，底部留 16。
++ (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom {
+    NSInteger rows = (NSInteger)ceil((double)MAX(count, 0) / (double)kDYYYGridColumns);
+    NSInteger visibleRows = MIN(rows, 5);
+    CGFloat height = kDYYYGridDragonTop + kDYYYGridDragonSize + kDYYYGridTopGap
+        + visibleRows * kDYYYGridCellHeight
+        + (visibleRows > 0 ? (visibleRows - 1) * kDYYYGridSpacing : 0)
+        + 16 + safeAreaBottom;
+    return height;
 }
 
 #pragma mark - 布局
@@ -209,6 +245,8 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 - (void)ghl_cellTapped:(UIButton *)sender {
     if (sender.tag < 0 || sender.tag >= (NSInteger)self.items.count) return;
     NSDictionary *item = self.items[sender.tag];
+    // 1.0.16：点按入口记一行——之前整个文件一个 GHLLog 都没有，点了没反应时日志里什么都看不出来。
+    GHLLog(@"长按面板：网格点按 actionType %ld「%@」", (long)[item[@"actionType"] integerValue], item[@"title"] ?: @"");
     if (self.itemActionHandler) {
         // 标题和 actionType 一起交出去：Hook 方按两个条件找回原 viewModel，
         // 原生项和自定义项 actionType 万一撞号也不会点错。
@@ -228,6 +266,31 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
             }
         }
     }
+}
+
+#pragma mark - UIScrollViewDelegate / UIGestureRecognizerDelegate（1.0.16）
+
+// 滚动吸附：停下时对齐到行高，不留半行（28 项 10 行时第四行被切一半就是这么来的）。
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
+    if (scrollView != self.gridScrollView) return;
+    CGFloat pitch = kDYYYGridCellHeight + kDYYYGridSpacing;
+    CGFloat maxOffset = MAX(0, scrollView.contentSize.height - scrollView.bounds.size.height);
+    CGFloat snapped = round(targetContentOffset->y / pitch) * pitch;
+    targetContentOffset->y = MIN(MAX(snapped, 0), maxOffset);
+}
+
+// 下滑收起只在列表顶端才认：滑到下面时往下拖是翻列表，不是收起（修快滑误收起）。
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer == self.dismissPan) {
+        return self.gridScrollView.contentOffset.y <= 0;
+    }
+    return YES;
+}
+
+// 下滑收起和列表滑动可以同时认（都在顶端往下拖时，列表回弹、面板收起，各干各的）。
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    if (otherGestureRecognizer == self.gridScrollView.panGestureRecognizer) return YES;
+    return NO;
 }
 
 @end

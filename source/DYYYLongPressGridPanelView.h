@@ -17,6 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
             itemActionHandler:(void (^)(NSInteger actionType, NSString *title))itemActionHandler
                dismissHandler:(nullable void (^)(void))dismissHandler;
 
+// 1.0.16：建議的 sheet 高度——首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算，
+// 不留空）。抖音自己的 presentation 不一定採納 preferredContentSize，盡力而為，真機驗。
++ (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom;
+
 @end
 
 NS_ASSUME_NONNULL_END

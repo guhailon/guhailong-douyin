@@ -1,5 +1,5 @@
 // 顾海龙抖音 (GHL) — 新增功能实现
-// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。
+// 基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，免费使用，仅限学习交流。
 // 原 MIT 声明与 huami 版权行保留在 LICENSE 文件中，未做任何改动。
 //
 // 约定：
@@ -224,7 +224,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.12：导出/导入/恢复默认配置三行从功能设置搬到新增的「关于」分区（逻辑不动）；「关于」和「基于DYYY」合并成「关于顾海龙抖音」一行；新增「声明」，措辞是草稿（皇上可改）；底部按钮只剩 MIT 声明和更新日志。\n"
            @"1.0.13：关于改成深色品牌页（雷鸣绿龙横幅＋金字标题，两张深色金边卡：关于/联系/QQ群＋配置管理/更新日志/检查更新/声明，声明在最下面，页底小灰字声明摘要）；检查更新联网比对源里的版本号；点版本行复制版本/机型/iOS 版本；配置管理加重启抖音；关于弹窗和底部 MIT/更新日志按钮废弃。\n"
            @"1.0.14：关于入口行拿掉右边的「查看关于」，点整行直接进关于页（只留右箭头）；关于页标题/版本行按横幅里龙头中心对齐（龙头在图里偏左，之前字相对龙头偏右）；QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变；原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。\n"
-           @"1.0.15：关于入口一层直达（设置主页点「关于」直接进品牌页，中间那个只有一行的「关于」子页拿掉）；关于页横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按实测龙头中心 x=358 对齐），横幅背景能自己换（相册选图存到 Documents/DYYY/ghl-about-banner.jpg，也能恢复默认）；修画中画＋后台播放（监听 token 存下来不再立刻失效，触发改到切后台前一刻 WillResignActive，进后台兜底一次，系统回调如实记日志；播放器查找放宽到全部窗口递归找图层＋播放器控制器 KVC 探针，没图层时用播放器新建图层再建画中画，查找经过写进顾海龙日志）；长按网格去掉「更多」，原生项也进网格，长按只出网格（超 4 行可上下滑）。";
+           @"1.0.15：关于入口一层直达（设置主页点「关于」直接进品牌页，中间那个只有一行的「关于」子页拿掉）；关于页横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按实测龙头中心 x=358 对齐），横幅背景能自己换（相册选图存到 Documents/DYYY/ghl-about-banner.jpg，也能恢复默认）；修画中画＋后台播放（监听 token 存下来不再立刻失效，触发改到切后台前一刻 WillResignActive，进后台兜底一次，系统回调如实记日志；播放器查找放宽到全部窗口递归找图层＋播放器控制器 KVC 探针，没图层时用播放器新建图层再建画中画，查找经过写进顾海龙日志）；长按网格去掉「更多」，原生项也进网格，长按只出网格（超 4 行可上下滑）。\n"
+       @"1.0.16：长按网格原生项（倍速/清屏播放/投屏等）改走原生选中，不再直接调 action（点了没反应就是缺面板控制器上下文）；点按入口和成功分支补日志；原生项图标补关键字映射（倍速/清屏/投屏/定时等各有图标，不再全是下载箭头）；面板首屏露 5 行、滚动对齐行高、下滑收起只在列表顶端才认；画中画兜底：抖音自有播放器没有系统播放器可挂时，用当前视频链接自起一个 AVPlayer 做画中画（会从头播，接不上进度；链接可能是短效签名，过期播不了；后台/锁屏/与原视频声音冲突待真机验证）；画中画查找记调用方，B 路加运行时控制器类名 dump；顾海龙日志从设置页常用功能移到关于页第二张卡（检查更新之后、声明之前）；日志查看器截断处防半个中文字符。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -237,9 +238,11 @@ NSString *GHLChangelogText(void) {
 //   B. 播放器控制器（AWEAwemePlayVideoViewController 等）里 KVC 探针找 AVPlayer / AVPlayerLayer
 //      （键名按惯例猜，每个键都 try/catch，拿不到就记一行，不崩）；
 //   C. 有 AVPlayer 没图层时，用播放器新建一个 AVPlayerLayer 再建 PiP 控制器（见 GHLStartPiP）。
+//   D. （1.0.16 兜底）A/B/C 全空时，用当前视频链接自起一个 AVPlayer 做画中画
+//      （见 GHLStartFallbackPiP；从头播，接不上进度，链接可能是短效签名）。
 // 什么都没找到时，日志写明现场（窗口数、各类图层数、探针结果），方便下一步判断——
 // 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
-// 系统画中画挂不上现有播放器，得另想办法（比如用视频链接自己起一个 AVPlayer）。
+// 系统画中画挂不上现有播放器，才走 D 路兜底。
 
 // 前向声明（实现在下面“记忆倍速”一节）。
 static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out);
@@ -344,6 +347,18 @@ AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
     return GHLFindPlayingAVPlayerLayerVerbose(NO, NULL, NULL);
 }
 
+// 1.0.16：运行时 VC 类名全 dump（判别播放器控制器是不是改名了——B 路只认 3 个类名，
+// 控制器改名会让 B 路永远 0 个；这一行打出来就能看到底有没有播放器控制器、叫什么）。
+// 只在 verbose 时调（画中画查找那次），平时不记。
+static void GHLCollectAllViewControllerClassesInVC(UIViewController *vc, NSMutableSet<NSString *> *out) {
+    if (!vc || !out) return;
+    [out addObject:NSStringFromClass([vc class])];
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLCollectAllViewControllerClassesInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLCollectAllViewControllerClassesInVC(vc.presentedViewController, out);
+}
+
 // B 路：在播放器控制器上 KVC 探针找 AVPlayer / AVPlayerLayer（verbose 时记结果）。
 // 键名是按惯例猜的：拿不到就记一行，不崩；拿到了先验类再用。
 static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLayer) {
@@ -371,6 +386,17 @@ static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLa
           }
           if (verbose) {
               GHLLog(@"画中画查找 B 路：播放器控制器 %lu 个（%@）", (unsigned long)playerVCs.count, playerVCs.count > 0 ? [vcClasses componentsJoinedByString:@"、"] : @"无");
+              // 1.0.16：窗口里控制器类名全 dump（B 路 0 个时看看到底有没有播放器控制器、叫什么）——
+              // 40 个封顶，免得一行太长；只在画中画查找那次记。
+              NSMutableSet<NSString *> *allVCClasses = [NSMutableSet set];
+              for (UIWindow *window in windows) {
+                  UIViewController *root = window.rootViewController;
+                  while (root.presentedViewController) root = root.presentedViewController;
+                  GHLCollectAllViewControllerClassesInVC(root, allVCClasses);
+              }
+              NSArray<NSString *> *sortedVCClasses = [[allVCClasses allObjects] sortedArrayUsingSelector:@selector(compare:)];
+              if (sortedVCClasses.count > 40) sortedVCClasses = [sortedVCClasses subarrayWithRange:NSMakeRange(0, 40)];
+              GHLLog(@"画中画查找 B 路：窗口里控制器共 %lu 类：%@", (unsigned long)allVCClasses.count, [sortedVCClasses componentsJoinedByString:@"、"]);
           }
           for (UIViewController *vc in playerVCs) {
               if (foundPlayer || foundLayer) break;
@@ -545,6 +571,21 @@ static AVPictureInPictureController *ghlPiPController = nil;
 // 控制器会留住它，这里再强引用一份保险。
 static AVPlayerLayer *ghlPiPSyntheticLayer = nil;
 
+// ===== 画中画兜底 D 路（1.0.16）=====
+// 抖音自有播放器（Metal 渲染）没有 AVPlayerLayer，A/B/C 全空时只能自起播放器。
+// 老实边界：从头播（接不上进度）、链接可能是带签名的短效链接（过期播不了）、
+// 后台/锁屏/与原视频声音冲突都要真机验证。player/item 都强引用留住（画中画停了
+// 也不放，下次同视频复用）；item 就绪（KVO status）后再 startPictureInPicture。
+static AVPlayer *ghlPiPFallbackPlayer = nil;
+static AVPlayerItem *ghlPiPFallbackItem = nil;
+static BOOL ghlPiPFallbackObserving = NO;
+static BOOL ghlPiPFallbackStarted = NO;
+static char kGHLPiPFallbackKVOContext;
+
+// 前向声明（定义在下面 GHLStartPiP 前；GHLPiPDelegate 的 KVO 回调里先用到）。
+static void GHLCleanupFallbackPiPObserver(void);
+static void GHLCleanupFallbackPiPPlayer(void);
+
 // 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
 // ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
 // GHLStartPiP() 一次都没跑过（皇上 19:53「滑出抖音没有小窗」的根因）。
@@ -598,7 +639,8 @@ static void GHLTriggerPiPForBackground(void) {
     if (ghlPiPTriggeredForCurrentBackground) return;
     if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
     ghlPiPTriggeredForCurrentBackground = YES;
-    GHLStartPiP();
+    // 1.0.16：切后台触发也记调用方（判别是网格点按还是切后台）。
+    GHLStartPiPWithCaller(@"切后台");
 }
 
 // 画中画 delegate：系统回调如实记日志（startPictureInPicture 只表示已调用，
@@ -630,13 +672,178 @@ static void GHLTriggerPiPForBackground(void) {
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
     GHLLog(@"画中画：已退出画中画");
+    // 兜底播放器是自己起的：小窗关了就停播，别让它在后台继续出声。
+    if (ghlPiPFallbackPlayer) [ghlPiPFallbackPlayer pause];
     GHLEndPiPBackgroundTask();
+}
+
+// 兜底 item 的 KVO：就绪后再 startPictureInPicture（没就绪就直接调大概率失败）。
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if (context == &kGHLPiPFallbackKVOContext) {
+        AVPlayerItem *item = (AVPlayerItem *)object;
+        if (item != ghlPiPFallbackItem) return; // 已换视频，旧 item 的回调不管
+        if (item.status == AVPlayerItemStatusReadyToPlay) {
+            if (!ghlPiPFallbackStarted) {
+                ghlPiPFallbackStarted = YES;
+                [ghlPiPFallbackPlayer play];
+                [ghlPiPController startPictureInPicture];
+                GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+            }
+            GHLCleanupFallbackPiPObserver(); // 就绪了就不用再监听
+        } else if (item.status == AVPlayerItemStatusFailed) {
+            GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
+            [DYYYUtils showToast:@"画中画启动失败"];
+            GHLCleanupFallbackPiPPlayer();
+        }
+        return;
+    }
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
 }
 
 @end
 
+// 画中画前先把音频会话切到 playback 并激活（抖音原播放器没走这条路时 PiP 容易没声音）。
+// 正常路和兜底路共用。只在类别不是 playback 时才改（只改类别、不动别的设置；失败如实记日志，不硬来）。
+static void GHLPreparePiPAudioSession(void) {
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    if (![session.category isEqualToString:AVAudioSessionCategoryPlayback]) {
+        NSString *oldCategory = session.category ?: @"未知";
+        NSError *categoryError = nil;
+        [session setCategory:AVAudioSessionCategoryPlayback error:&categoryError];
+        if (categoryError) {
+            GHLLog(@"画中画：音频会话改 playback 失败：%@", categoryError.localizedDescription);
+        } else {
+            GHLLog(@"画中画：音频会话已改成 playback（原来 %@）", oldCategory);
+        }
+    }
+    NSError *activeError = nil;
+    [session setActive:YES error:&activeError];
+    if (activeError) {
+        GHLLog(@"画中画：音频会话激活失败：%@", activeError.localizedDescription);
+    }
+}
+
+// 兜底 D 路（1.0.16）：A/B/C 全空时用当前视频链接自起一个 AVPlayer 做画中画。
+// 老实边界：会从头播（接不上当前进度）；播放地址可能是带签名的短效链接（过期播不了）；
+// 后台行为、锁屏控制、与抖音原播放器的声音冲突都要真机验证。
+
+// 当前视频的播放地址（复用保存视频那套取法：video.playURL.originURLList 首个；
+// 图集视频走当前图的 clipVideo.playURL）。
+static NSURL *GHLCurrentVideoPlayURL(void) {
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    if (!model) return nil;
+    @try {
+        AWEVideoModel *videoModel = model.video;
+        if (videoModel && videoModel.playURL && videoModel.playURL.originURLList.count > 0) {
+            NSString *urlString = videoModel.playURL.originURLList.firstObject;
+            if (urlString.length > 0) return [NSURL URLWithString:urlString];
+        }
+        if (model.awemeType == 68 && model.albumImages.count > 0 && model.currentImageIndex > 0 && model.currentImageIndex <= (NSInteger)model.albumImages.count) {
+            AWEImageAlbumImageModel *imageModel = model.albumImages[model.currentImageIndex - 1];
+            if (imageModel.clipVideo && imageModel.clipVideo.playURL) {
+                return [imageModel.clipVideo.playURL getDYYYSrcURLDownload];
+            }
+        }
+    } @catch (__unused NSException *exception) {
+    }
+    return nil;
+}
+
+static void GHLCleanupFallbackPiPObserver(void) {
+    if (ghlPiPFallbackObserving && ghlPiPFallbackItem) {
+        @try {
+            [ghlPiPFallbackItem removeObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" context:&kGHLPiPFallbackKVOContext];
+        } @catch (__unused NSException *exception) {
+        }
+        ghlPiPFallbackObserving = NO;
+    }
+}
+
+static void GHLCleanupFallbackPiPPlayer(void) {
+    GHLCleanupFallbackPiPObserver();
+    if (ghlPiPFallbackPlayer) [ghlPiPFallbackPlayer pause];
+    ghlPiPFallbackPlayer = nil;
+    ghlPiPFallbackItem = nil;
+    ghlPiPFallbackStarted = NO;
+}
+
+// 兜底启动：就绪后再 startPictureInPicture（KVO 监听 item.status）。
+// 返回 YES 表示兜底已接手（正在等就绪或已启动），调用方不用再报“没找到播放的视频”。
+static BOOL GHLStartFallbackPiP(void) {
+    NSURL *videoURL = GHLCurrentVideoPlayURL();
+    if (!videoURL) {
+        GHLLog(@"画中画兜底：当前视频拿不到播放地址，画中画开不了");
+        return NO;
+    }
+    // 同一个视频重复点：复用已建好的兜底播放器，直接播＋开画中画。
+    if (ghlPiPFallbackPlayer && ghlPiPFallbackItem && ghlPiPFallbackItem.asset) {
+        NSURL *existingURL = ((AVURLAsset *)ghlPiPFallbackItem.asset).URL;
+        if (existingURL && [existingURL.absoluteString isEqualToString:videoURL.absoluteString]) {
+            GHLLog(@"画中画兜底：复用已建好的自起播放器（从头播）");
+            [ghlPiPFallbackPlayer play];
+            if (ghlPiPController && !ghlPiPController.pictureInPictureActive) {
+                [ghlPiPController startPictureInPicture];
+                GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+            }
+            return YES;
+        }
+    }
+    // 换视频：先清掉旧兜底（KVO 一定要先摘掉再放 item，否则野指针崩）。
+    GHLCleanupFallbackPiPPlayer();
+    GHLLog(@"画中画兜底：没找到系统播放器，用当前视频链接自起播放器（从头播，接不上进度；原视频声音可能同时响）");
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
+    AVPlayer *player = [AVPlayer playerWithPlayerItem:item];
+    ghlPiPFallbackItem = item;
+    ghlPiPFallbackPlayer = player;
+    ghlPiPFallbackStarted = NO;
+    GHLPreparePiPAudioSession();
+    AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
+    ghlPiPSyntheticLayer = layer;
+    @try {
+        ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+        ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
+    } @catch (NSException *exception) {
+        [DYYYUtils showToast:@"画中画启动失败"];
+        GHLLog(@"画中画兜底启动失败：%@", exception.reason);
+        GHLCleanupFallbackPiPPlayer();
+        return NO;
+    }
+    // item 就绪后再 start：没就绪就直接调大概率失败（delegate 会记失败原因）。
+    if (item.status == AVPlayerItemStatusReadyToPlay) {
+        [player play];
+        [ghlPiPController startPictureInPicture];
+        ghlPiPFallbackStarted = YES;
+        GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+    } else if (item.status == AVPlayerItemStatusFailed) {
+        GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
+        [DYYYUtils showToast:@"画中画启动失败"];
+        GHLCleanupFallbackPiPPlayer();
+        return NO;
+    } else {
+        [item addObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:&kGHLPiPFallbackKVOContext];
+        ghlPiPFallbackObserving = YES;
+        [player play];
+        // 8 秒还没就绪也试一次（弱网时 item 可能一直卡在 Unknown；试了不行 delegate 会记失败）。
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          if (ghlPiPFallbackPlayer == player && !ghlPiPFallbackStarted && ghlPiPFallbackItem == item) {
+              if (item.status == AVPlayerItemStatusReadyToPlay) return; // KVO 那边会处理
+              GHLLog(@"画中画兜底：等播放器就绪超时，直接试一次 startPictureInPicture");
+              [ghlPiPController startPictureInPicture];
+              ghlPiPFallbackStarted = YES;
+              GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+          }
+        });
+    }
+    return YES;
+}
+
 void GHLStartPiP(void) {
+    GHLStartPiPWithCaller(nil);
+}
+
+void GHLStartPiPWithCaller(NSString *caller) {
     GHLRunOnMain(^{
+      GHLLog(@"画中画：触发（%@）", caller.length > 0 ? caller : @"未知");
       if (![AVPictureInPictureController isPictureInPictureSupported]) {
           [DYYYUtils showToast:@"当前设备不支持画中画"];
           GHLLog(@"画中画：设备不支持");
@@ -651,6 +858,8 @@ void GHLStartPiP(void) {
       AVPlayerLayer *realLayer = nil;
       AVPlayer *player = GHLFindPlayingAVPlayerForPiP(&realLayer);
       if (!player) {
+          // 1.0.16：A/B/C 全空时走 D 路兜底（自起 AVPlayer），兜底也开不了才报没找到。
+          if (GHLStartFallbackPiP()) return;
           [DYYYUtils showToast:@"没找到播放的视频"];
           GHLLog(@"画中画：没找到播放器（查找经过见上面“画中画查找”的日志）");
           return;
@@ -662,24 +871,7 @@ void GHLStartPiP(void) {
           GHLLog(@"画中画：没找到现成图层，用播放器新建了一个图层再建 PiP 控制器");
       }
       @try {
-          // 画中画要音频会话处于 playback：抖音播视频时一般已经是 playback，
-          // 不是时才改（只改类别、不动别的设置；失败如实记日志，不硬来）。
-          AVAudioSession *session = [AVAudioSession sharedInstance];
-          if (![session.category isEqualToString:AVAudioSessionCategoryPlayback]) {
-              NSString *oldCategory = session.category ?: @"未知";
-              NSError *categoryError = nil;
-              [session setCategory:AVAudioSessionCategoryPlayback error:&categoryError];
-              if (categoryError) {
-                  GHLLog(@"画中画：音频会话改 playback 失败：%@", categoryError.localizedDescription);
-              } else {
-                  GHLLog(@"画中画：音频会话已改成 playback（原来 %@）", oldCategory);
-              }
-          }
-          NSError *activeError = nil;
-          [session setActive:YES error:&activeError];
-          if (activeError) {
-              GHLLog(@"画中画：音频会话激活失败：%@", activeError.localizedDescription);
-          }
+          GHLPreparePiPAudioSession();
           ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
           ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
           [ghlPiPController startPictureInPicture];
@@ -1812,7 +2004,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.15 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.16 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。

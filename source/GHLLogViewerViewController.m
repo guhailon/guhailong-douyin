@@ -125,6 +125,14 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     }
     if (!data || data.length == 0) return nil;
     NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (!text) {
+        // 1.0.16：截断点可能切到多字节字符（中文 3 字节）中间，整段就解不出来、页面变「暂无日志」。
+        // 往后挪 1–3 字节再试（UTF-8 一个字符最多 4 字节），挪到合法边界就解得出来；再不行才返回 nil。
+        for (NSUInteger skip = 1; skip <= 3 && skip < data.length; skip++) {
+            text = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(skip, data.length - skip)] encoding:NSUTF8StringEncoding];
+            if (text) break;
+        }
+    }
     if (!text) return nil;
     // 从中间截断可能切到一行中间：丢掉第一行不完整的残行。
     if (truncated) {
