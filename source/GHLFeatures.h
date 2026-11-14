@@ -96,6 +96,8 @@ extern "C" {
 #define GHL_FLOAT_ACTION_SPEED @"倍速切换"
 #define GHL_FLOAT_ACTION_DANMAKU @"弹幕开关"
 #define GHL_FLOAT_ACTION_SCREENSHOT @"截图去水印"
+// 1.0.18 浮动按钮＋卡片面板：视频页左上角龙头浮动钮（默认开，设置页「悬浮按钮」分区可关）
+#define GHL_KEY_FLOAT_PANEL_BUTTON @"GHLFloatPanelButton"
 // 动作型入口（Picker 行，值本身无意义，选完即执行）
 #define GHL_KEY_DOWNLOAD_MANAGER @"GHLDownloadManager"   // 打开下载管理页
 #define GHL_KEY_LOG_VIEWER @"GHLLogViewer"             // 打开顾海龙日志查看页（1.0.6）

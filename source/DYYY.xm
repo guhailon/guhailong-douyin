@@ -9661,7 +9661,10 @@ static NSHashTable *processedParentViews = nil;
     }
     // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
     // 写进顾海龙日志（只在后台播放开关开着时记，避免刷屏）。
-    if (DYYYGetBool(@"DYYYEnableBackgroundListen")) {
+    // 1.0.18 降噪：只在 status 真变了时记一行——之前一秒十几行重複行，關鍵行會被淹沒。
+    static NSInteger ghlLastListenStatusLogged = -1;
+    if (DYYYGetBool(@"DYYYEnableBackgroundListen") && status != ghlLastListenStatusLogged) {
+        ghlLastListenStatusLogged = status;
         GHLLog(@"后台听视频：setListenVideoStatus 进来了，原 status=%ld，改写后 status=%ld", (long)status, (long)newStatus);
     }
     %orig(newStatus);
@@ -13320,7 +13323,9 @@ static void findTargetViewInView(UIView *view) {
         @"DYYYLongPressFilterUser" : @YES,
         @"DYYYLongPressFilterTitle" : @YES,
         @"DYYYLongPressTimerClose" : @YES,
-        @"DYYYLongPressCreateVideo" : @YES
+        @"DYYYLongPressCreateVideo" : @YES,
+        // 1.0.18：视频页左上角龙头浮动钮默认开（设置页「悬浮按钮」分区可关；只填没存过值的 key）。
+        @"GHLFloatPanelButton" : @YES
     }];
 
     DYYYMigrateCombinedHDRModeIfNeeded();

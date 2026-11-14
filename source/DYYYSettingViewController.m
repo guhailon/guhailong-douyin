@@ -612,7 +612,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"倍速按钮点一下" key:GHL_KEY_SPEED_BUTTON_TAP type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"倍速按钮长按" key:GHL_KEY_SPEED_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"清屏按钮点一下" key:GHL_KEY_CLEAR_BUTTON_TAP type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker],
+            // 1.0.18：视频页左上角龙头浮动钮，点开快捷面板（默认开）
+            [DYYYSettingItem itemWithTitle:@"视频页浮动按钮（龙头，点开快捷面板）" key:GHL_KEY_FLOAT_PANEL_BUTTON type:DYYYSettingItemTypeSwitch]
         ],
         @[
             // 1.0.14 关于分区：只剩单一入口行「关于顾海龙抖音」，点整行直接进深色品牌页
