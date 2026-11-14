@@ -14,6 +14,7 @@
 #import "DYYYFloatingButtonCoordinator.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYSettingsHelper.h"
+#import "DYYYSettingViewController.h"
 #import "GHLAboutViewController.h"
 #import "GHLLogViewerViewController.h"
 #import "DYYYToast.h"
@@ -30,16 +31,11 @@
 // 前向声明（part 4 定义，part 2 的左滑返回要用）
 static UIViewController *GHLTopViewController(void);
 
-// 前向声明（1.0.18 浮动按钮＋卡片面板，实现在巡检定时器前面一节；
+// 前向声明（1.0.19 卡片面板＝設定頁本身做成卡片，实现在巡检定时器前面一节；
 // @implementation GHLFeatures 里的点按回调在它前面，要先声明）
 static void GHLToggleFloatPanel(void);
 static void GHLHideFloatPanel(void);
-static void GHLFloatPanelHandleAction(NSInteger action);
 static void GHLFloatPanelHandleDimTap(UITapGestureRecognizer *gesture);
-static void GHLFloatPanelApplySearchFilter(NSString *query);
-static void GHLFloatPanelShowGrid(void);
-static void GHLFloatPanelPlaybackSwitchChanged(UISwitch *sender);
-static void GHLFloatPanelDismissModal(void);
 static void GHLRefreshFloatPanelButton(void);
 
 #pragma mark - 基础工具
@@ -242,7 +238,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.15：关于入口一层直达（设置主页点「关于」直接进品牌页，中间那个只有一行的「关于」子页拿掉）；关于页横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按实测龙头中心 x=358 对齐），横幅背景能自己换（相册选图存到 Documents/DYYY/ghl-about-banner.jpg，也能恢复默认）；修画中画＋后台播放（监听 token 存下来不再立刻失效，触发改到切后台前一刻 WillResignActive，进后台兜底一次，系统回调如实记日志；播放器查找放宽到全部窗口递归找图层＋播放器控制器 KVC 探针，没图层时用播放器新建图层再建画中画，查找经过写进顾海龙日志）；长按网格去掉「更多」，原生项也进网格，长按只出网格（超 4 行可上下滑）。\n"
        @"1.0.16：长按网格原生项（倍速/清屏播放/投屏等）改走原生选中，不再直接调 action（点了没反应就是缺面板控制器上下文）；点按入口和成功分支补日志；原生项图标补关键字映射（倍速/清屏/投屏/定时等各有图标，不再全是下载箭头）；面板首屏露 5 行、滚动对齐行高、下滑收起只在列表顶端才认；画中画兜底：抖音自有播放器没有系统播放器可挂时，用当前视频链接自起一个 AVPlayer 做画中画（会从头播，接不上进度；链接可能是短效签名，过期播不了；后台/锁屏/与原视频声音冲突待真机验证）；画中画查找记调用方，B 路加运行时控制器类名 dump；顾海龙日志从设置页常用功能移到关于页第二张卡（检查更新之后、声明之前）；日志查看器截断处防半个中文字符。"
            @"1.0.17：直播画中画：直播间没有普通视频的播放地址，D 路兜底加直播分支——进直播间/点画中画时探一次 room model 的拉流地址栏位（只记栏位名＋长度＋前 60 字），拿到 HLS（.m3u8）就走同一套自起播放器做画中画（从头播，接不上直播进度；拉流地址可能是短效签名；后台/锁屏/声音冲突待真机验证）；只有 FLV/RTMP 时如实记一行，不转封装；B 路探针遇到「键存在但值不是播放器/图层」时补记一行；画中画查找日志加一行是否在直播间。\n"
-           @"1.0.18：视频页左上角加龙头浮动钮，点开快捷面板（深色毛玻璃卡：标题＋搜索框＋两列按钮＋完成；通用设置／首页／朋友／消息／我／播放互动／诊断反馈／关于；搜索只过滤面板按钮；播放互动里直接列画中画＋后台播放／记忆倍速／快进手势三个开关；设置页「悬浮按钮」分区可关）；直播探针下探一层（上次只探到 IESLiveRoomService 服务外壳，这次再探它里面的 roomModel 等容器键一层），探针改后台线程跑（画中画查找那路 5 秒超时，超时按拿不到地址处理）；另加计时日志（只记日志不改行为，用来定位画面冻住的原因：巡检每跳耗时＋上跳间隔、视频页布局钩子每秒次数＋耗时）；后台听视频日志降噪（status 真变了才记一行）。";
+           @"1.0.18：视频页左上角加龙头浮动钮，点开快捷面板（深色毛玻璃卡：标题＋搜索框＋两列按钮＋完成；通用设置／首页／朋友／消息／我／播放互动／诊断反馈／关于；搜索只过滤面板按钮；播放互动里直接列画中画＋后台播放／记忆倍速／快进手势三个开关；设置页「悬浮按钮」分区可关）；直播探针下探一层（上次只探到 IESLiveRoomService 服务外壳，这次再探它里面的 roomModel 等容器键一层），探针改后台线程跑（画中画查找那路 5 秒超时，超时按拿不到地址处理）；另加计时日志（只记日志不改行为，用来定位画面冻住的原因：巡检每跳耗时＋上跳间隔、视频页布局钩子每秒次数＋耗时）；后台听视频日志降噪（status 真变了才记一行）。\n"
+           @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -610,9 +607,19 @@ static BOOL ghlPiPFallbackObserving = NO;
 static BOOL ghlPiPFallbackStarted = NO;
 static char kGHLPiPFallbackKVOContext;
 
+// 画中画 start 回调标记：didStart/失败任一到就置 YES；每次调 startPictureInPicture 前清掉。
+// 8 秒都没回调＝系统根本没接上（1.0.18 日志：8 次调用 0 成功、7 次没任何回调），
+// 看门狗就把兜底播放器停掉，别让它在后台一直出声。
+static BOOL ghlPiPStartCallbackReceived = NO;
+static CFAbsoluteTime ghlPiPLastStartTime = 0;
+// 合成图层宿主：画中画的 AVPlayerLayer 必须挂在窗口里的 view 上才能启动，
+// 只建图层不挂＝start 调了也没回调（1.0.18 的 7 次无回调就是这么来的）。
+static UIView *ghlPiPLayerHostView = nil;
+
 // 前向声明（定义在下面 GHLStartPiP 前；GHLPiPDelegate 的 KVO 回调里先用到）。
 static void GHLCleanupFallbackPiPObserver(void);
 static void GHLCleanupFallbackPiPPlayer(void);
+static void GHLNotePiPStartAttempted(void);
 
 // 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
 // ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
@@ -690,12 +697,19 @@ static void GHLTriggerPiPForBackground(void) {
 
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
     GHLLog(@"画中画：系统已开始画中画");
+    ghlPiPStartCallbackReceived = YES;
     GHLEndPiPBackgroundTask();
 }
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
     GHLLog(@"画中画：系统启动失败：%@", error.localizedDescription ?: @"未知错误");
+    ghlPiPStartCallbackReceived = YES;
     GHLEndPiPBackgroundTask();
+    // 兜底播放器：画中画没接上就不能让它继续放，否则切后台后声音一直讲
+    // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）；只清兜底播放器，C 路用的原播放器不动。
+    if (pictureInPictureController == ghlPiPController && ghlPiPFallbackPlayer) {
+        GHLCleanupFallbackPiPPlayer();
+    }
 }
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
@@ -715,6 +729,7 @@ static void GHLTriggerPiPForBackground(void) {
                 ghlPiPFallbackStarted = YES;
                 [ghlPiPFallbackPlayer play];
                 [ghlPiPController startPictureInPicture];
+                GHLNotePiPStartAttempted();
                 GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
             }
             GHLCleanupFallbackPiPObserver(); // 就绪了就不用再监听
@@ -1066,10 +1081,62 @@ static void GHLCleanupFallbackPiPObserver(void) {
 
 static void GHLCleanupFallbackPiPPlayer(void) {
     GHLCleanupFallbackPiPObserver();
-    if (ghlPiPFallbackPlayer) [ghlPiPFallbackPlayer pause];
+    if (ghlPiPFallbackPlayer) {
+        [ghlPiPFallbackPlayer pause];
+        GHLLog(@"兜底播放器：已停止");
+    }
     ghlPiPFallbackPlayer = nil;
     ghlPiPFallbackItem = nil;
     ghlPiPFallbackStarted = NO;
+    // 控制器和合成图层也一起清掉，别留一个死的控制器给复用路
+    // （复用路只在 player/item 还在时才走，清掉后不会误用）。
+    if (ghlPiPSyntheticLayer) [ghlPiPSyntheticLayer removeFromSuperlayer];
+    ghlPiPSyntheticLayer = nil;
+    ghlPiPController = nil;
+}
+
+// 合成图层挂到窗口里：2×2 的小宿主 view 放在当前窗口右下角（看不见，不挡操作），
+// 图层必须在窗口里，系统才肯启动画中画；只建图层不挂，start 调了也不会有回调
+// （1.0.18 的 7 次无回调就是这么来的——图层只存在内存里，没进过任何窗口）。
+static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
+    if (!layer) return;
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    if (!window) return;
+    if (!ghlPiPLayerHostView) {
+        ghlPiPLayerHostView = [[UIView alloc] init];
+        ghlPiPLayerHostView.backgroundColor = [UIColor clearColor];
+        ghlPiPLayerHostView.userInteractionEnabled = NO;
+    }
+    ghlPiPLayerHostView.frame = CGRectMake(window.bounds.size.width - 4, window.bounds.size.height - 4, 2, 2);
+    if (ghlPiPLayerHostView.window != window) [window addSubview:ghlPiPLayerHostView];
+    [window bringSubviewToFront:ghlPiPLayerHostView];
+    [layer removeFromSuperlayer];
+    layer.frame = ghlPiPLayerHostView.bounds;
+    [ghlPiPLayerHostView.layer addSublayer:layer];
+}
+
+// 每次调 startPictureInPicture 后都记一下：8 秒后还没回调（didStart/失败都没来），
+// 当系统没接上，停掉兜底播放器（复用路/KVO 路/超时路都走这里）。
+static void GHLWatchPiPStartTimeout(void) {
+    __block AVPictureInPictureController *controller = ghlPiPController;
+    __block AVPlayer *player = ghlPiPFallbackPlayer;
+    __block CFAbsoluteTime startTime = ghlPiPLastStartTime;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      if (ghlPiPStartCallbackReceived) return;
+      if (controller != ghlPiPController || player != ghlPiPFallbackPlayer) return; // 已换过一轮，不管
+      if (startTime != ghlPiPLastStartTime) return;                                 // 又调了一次 start，后面的看门狗会处理
+      if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
+      if (!ghlPiPFallbackPlayer) return;
+      GHLLog(@"画中画：等系统回调超时（8 秒没回），兜底播放器已停止");
+      GHLCleanupFallbackPiPPlayer();
+    });
+}
+
+// 调 startPictureInPicture 前统一记一笔（清回调标记＋记时间＋挂看门狗）。
+static void GHLNotePiPStartAttempted(void) {
+    ghlPiPStartCallbackReceived = NO;
+    ghlPiPLastStartTime = CFAbsoluteTimeGetCurrent();
+    GHLWatchPiPStartTimeout();
 }
 
 // 兜底启动：就绪后再 startPictureInPicture（KVO 监听 item.status）。
@@ -1092,6 +1159,7 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
             [ghlPiPFallbackPlayer play];
             if (ghlPiPController && !ghlPiPController.pictureInPictureActive) {
                 [ghlPiPController startPictureInPicture];
+                GHLNotePiPStartAttempted();
                 GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
             }
             return YES;
@@ -1112,6 +1180,7 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
     GHLPreparePiPAudioSession();
     AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
     ghlPiPSyntheticLayer = layer;
+    GHLAttachPiPLayerToHostView(layer); // 图层必须挂进窗口，系统才肯启动画中画（1.0.18 没挂，7 次没回调）
     @try {
         ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
         ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
@@ -1125,6 +1194,7 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
     if (item.status == AVPlayerItemStatusReadyToPlay) {
         [player play];
         [ghlPiPController startPictureInPicture];
+        GHLNotePiPStartAttempted();
         ghlPiPFallbackStarted = YES;
         GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
     } else if (item.status == AVPlayerItemStatusFailed) {
@@ -1142,6 +1212,7 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
               if (item.status == AVPlayerItemStatusReadyToPlay) return; // KVO 那边会处理
               GHLLog(@"画中画兜底：等播放器就绪超时，直接试一次 startPictureInPicture");
               [ghlPiPController startPictureInPicture];
+              GHLNotePiPStartAttempted();
               ghlPiPFallbackStarted = YES;
               GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
           }
@@ -1210,6 +1281,7 @@ void GHLStartPiPWithCaller(NSString *caller) {
       if (!layer) {
           layer = [AVPlayerLayer playerLayerWithPlayer:player];
           ghlPiPSyntheticLayer = layer;
+          GHLAttachPiPLayerToHostView(layer); // 新建的图层也要挂进窗口，不然 start 调了也没回调
           GHLLog(@"画中画：没找到现成图层，用播放器新建了一个图层再建 PiP 控制器");
       }
       @try {
@@ -2185,8 +2257,9 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     GHLHandleSwipeRight(gesture);
 }
 
-// 1.0.18 浮动按钮＋卡片面板（target-action 只能挂对象方法，挂 GHLFeatures 的类方法）
+// 1.0.19 浮动按钮＋卡片面板（target-action 只能挂对象方法，挂 GHLFeatures 的类方法）
 + (void)ghl_floatPanelButtonTapped {
+    GHLLog(@"快捷面板：已点浮动钮");
     GHLToggleFloatPanel();
 }
 
@@ -2194,28 +2267,9 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     GHLFloatPanelHandleDimTap(gesture);
 }
 
-+ (void)ghl_floatPanelGridButtonTapped:(UIButton *)sender {
-    GHLFloatPanelHandleAction(sender.tag);
-}
-
-+ (void)ghl_floatPanelSearchChanged:(UITextField *)field {
-    GHLFloatPanelApplySearchFilter(field.text);
-}
-
-+ (void)ghl_floatPanelDoneTapped {
+// 卡片里设置页根的「关闭」按钮（点一下关掉整张卡片）。
++ (void)ghl_floatPanelCloseTapped {
     GHLHideFloatPanel();
-}
-
-+ (void)ghl_floatPanelBackTapped {
-    GHLFloatPanelShowGrid();
-}
-
-+ (void)ghl_floatPanelPlaybackSwitchChanged:(UISwitch *)sender {
-    GHLFloatPanelPlaybackSwitchChanged(sender);
-}
-
-+ (void)ghl_floatPanelDismissModal {
-    GHLFloatPanelDismissModal();
 }
 
 @end
@@ -2403,7 +2457,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.18 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.19 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2445,6 +2499,18 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                               }
                           }
                           GHLTriggerPiPForBackground();
+                          // 1.0.19：切后台时画中画没接上，兜底播放器不能留着继续放
+                          // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）。
+                          // 3 秒后再查一次（给系统回调留时间；只清已经调过 start、回调又没来的那次，
+                          // item 还没就绪的别动——KVO 就绪后还会调 start，看门狗会接手）。
+                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            if (!ghlPiPFallbackPlayer || !ghlPiPFallbackStarted) return;
+                            if (ghlPiPStartCallbackReceived) return;
+                            if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
+                            if (CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 3) return;
+                            GHLLog(@"画中画：切后台时没接上（3 秒没回调），停掉兜底播放器");
+                            GHLCleanupFallbackPiPPlayer();
+                          });
                         }];
         ghlPiPDidBecomeActiveToken = [center addObserverForName:UIApplicationDidBecomeActiveNotification
                             object:nil
@@ -3657,49 +3723,23 @@ void GHLProbeVoiceFeatures(void) {
 // 参照视频（皇上 22:40 发的快手录屏）：视频页左上角一个红色浮动钮，点开一张深色毛玻璃卡片，
 // 顶上标题＋搜索框，下面两列按钮＋底下「完成」。我们用自己的龙头图＋金色视觉
 // （长按网格／关于页那套：深色毛玻璃、圆角 16/24、金边金图标），绝不抄它的代码／资源。
-// 浮动钮是 window 层级的 UIButton，2 秒巡检里刷新显隐（只在视频 feed 页出现）；
-// 面板是 window 层级的遮罩＋卡片，点外面／点「完成」关闭。
-// 点按回调挂在 GHLFeatures 的类方法上（见 @implementation GHLFeatures 的 ghl_floatPanel*）。
-
-typedef NS_ENUM(NSInteger, GHLFloatPanelAction) {
-    GHLFloatPanelActionSettings = 1, // 通用设置
-    GHLFloatPanelActionHome,         // 首页
-    GHLFloatPanelActionFriends,      // 朋友
-    GHLFloatPanelActionMessages,     // 消息
-    GHLFloatPanelActionMine,         // 我
-    GHLFloatPanelActionPlayback,     // 播放互动
-    GHLFloatPanelActionDiagnosis,    // 诊断反馈
-    GHLFloatPanelActionAbout,        // 关于
-};
+// 1.0.19：浮动钮＋卡片面板（設定頁本身做成卡片）。
+// 皇上 2026-11-15 00:01 確認：點龍頭浮動鈕彈出的卡片，不要 1.0.18 那張深色導航卡片
+// （通用設置／首頁／朋友／消息／我／播放互動／診斷反饋／關於 8 個按鈕＋搜索＋完成），
+// 要直接就是設定頁本身做成卡片——像皇上發的設定頁截圖那樣：白卡頭＋搜索框＋分區列表。
+// 做法：卡片裡嵌一個 UINavigationController，根就是現成的 DYYYSettingViewController
+// （不重寫列表，否則兩份列表會漂移；分區行點了在卡片內的導航棧上推子頁）。
+// 卡片放在自己的 UIWindow（level alert）裡，rootVC 是個空殼宿主 VC，
+// 子頁導航棧都在卡片內，不動 feed 的 VC 層級；點卡片外／點「關閉」關掉。
+// 點按回調掛在 GHLFeatures 的類方法上（見 @implementation GHLFeatures 的 ghl_floatPanel*）。
 
 static UIButton *ghlFloatPanelButton = nil;
-static UIView *ghlFloatPanelContainer = nil; // 全屏遮罩（点外面关闭）
-static UIVisualEffectView *ghlFloatPanelCard = nil;
-static UITextField *ghlFloatPanelSearchField = nil;
-static UIView *ghlFloatPanelGridView = nil;     // 两列按钮区
-static UIView *ghlFloatPanelPlaybackView = nil; // 播放互动子页（三行开关＋返回）
-static UILabel *ghlFloatPanelEmptyLabel = nil;  // 搜索无结果时显示
-static NSArray<UIButton *> *ghlFloatPanelGridButtons = nil;
+static UIWindow *ghlFloatPanelWindow = nil;            // 卡片自己的窗口（不搶 keyWindow）
+static UIViewController *ghlFloatPanelHostVC = nil;    // 窗口的 rootVC（空殼，view 就是遮罩）
+static UIView *ghlFloatPanelCard = nil;                // 圓角卡片
+static UINavigationController *ghlFloatPanelNav = nil; // 卡片內的導航棧（根＝設定頁）
 static BOOL ghlFloatPanelOpen = NO;
-static BOOL ghlFloatPanelInPlaybackMode = NO;
-
-static NSArray<NSDictionary *> *GHLFloatPanelGridItems(void) {
-    static NSArray<NSDictionary *> *items;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      items = @[
-        @{@"title": @"通用设置", @"icon": @"gearshape", @"action": @(GHLFloatPanelActionSettings)},
-        @{@"title": @"首页", @"icon": @"house", @"action": @(GHLFloatPanelActionHome)},
-        @{@"title": @"朋友", @"icon": @"person.2", @"action": @(GHLFloatPanelActionFriends)},
-        @{@"title": @"消息", @"icon": @"message", @"action": @(GHLFloatPanelActionMessages)},
-        @{@"title": @"我", @"icon": @"person", @"action": @(GHLFloatPanelActionMine)},
-        @{@"title": @"播放互动", @"icon": @"play.circle", @"action": @(GHLFloatPanelActionPlayback)},
-        @{@"title": @"诊断反馈", @"icon": @"questionmark.circle", @"action": @(GHLFloatPanelActionDiagnosis)},
-        @{@"title": @"关于", @"icon": @"info.circle", @"action": @(GHLFloatPanelActionAbout)},
-      ];
-    });
-    return items;
-}
+static id ghlFloatPanelOrientationToken = nil; // 轉屏重排卡片（只註冊一次）
 
 static BOOL GHLFloatPanelButtonEnabled(void) {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_FLOAT_PANEL_BUTTON];
@@ -3727,6 +3767,11 @@ static void GHLRefreshFloatPanelButton(void) {
         ghlFloatPanelButton = button;
         GHLLog(@"快捷面板：浮动钮已建（龙头，左上角）");
     }
+    // 卡片开着时钮藏起来（不然它会被 2 秒巡检重新加到窗口最上层，盖在卡片上）。
+    if (ghlFloatPanelOpen) {
+        ghlFloatPanelButton.hidden = YES;
+        return;
+    }
     if (ghlFloatPanelButton.window != window) [window addSubview:ghlFloatPanelButton];
     // 位置：左上角、状态栏下方；小一点（40pt），不挡操作。
     CGFloat topInset = 0;
@@ -3744,322 +3789,79 @@ static void GHLRefreshFloatPanelButton(void) {
     ghlFloatPanelButton.hidden = !show;
 }
 
-// 两列按钮区布局：只排可见的（搜索过滤后），两列、行高 56、间距 12。
-static void GHLFloatPanelLayoutGrid(void) {
-    if (!ghlFloatPanelGridView) return;
-    CGFloat width = ghlFloatPanelGridView.bounds.size.width;
-    if (width <= 0) return;
-    CGFloat cellWidth = (width - 12) / 2;
-    CGFloat cellHeight = 56;
-    NSInteger visibleIndex = 0;
-    for (UIButton *button in ghlFloatPanelGridButtons) {
-        if (button.hidden) continue;
-        NSInteger row = visibleIndex / 2;
-        NSInteger col = visibleIndex % 2;
-        button.frame = CGRectMake(col * (cellWidth + 12), row * (cellHeight + 12), cellWidth, cellHeight);
-        visibleIndex++;
-    }
-    ghlFloatPanelEmptyLabel.hidden = (visibleIndex > 0);
-    if (visibleIndex == 0) {
-        ghlFloatPanelEmptyLabel.frame = ghlFloatPanelGridView.bounds;
-    }
+// 卡片几何：占屏幕大部分，居中；宽最多 430。
+static CGRect GHLFloatPanelCardFrameForBounds(CGRect bounds) {
+    CGFloat cardWidth = MIN(bounds.size.width - 24, 430);
+    CGFloat cardHeight = MAX(bounds.size.height - 96, 240);
+    return CGRectMake((bounds.size.width - cardWidth) / 2, (bounds.size.height - cardHeight) / 2, cardWidth, cardHeight);
 }
 
-// 搜索只过滤面板按钮，不搜全设置——完整搜设置项太大，先做按钮过滤（注释老实写清楚）。
-static void GHLFloatPanelApplySearchFilter(NSString *query) {
-    if (!ghlFloatPanelGridButtons) return;
-    NSString *trimmed = [query stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    for (UIButton *button in ghlFloatPanelGridButtons) {
-        if (trimmed.length == 0) {
-            button.hidden = NO;
-        } else {
-            button.hidden = ([button.accessibilityLabel rangeOfString:trimmed options:NSCaseInsensitiveSearch].location == NSNotFound);
-        }
-    }
-    GHLFloatPanelLayoutGrid();
-}
-
-static void GHLFloatPanelShowGrid(void) {
-    ghlFloatPanelInPlaybackMode = NO;
-    ghlFloatPanelPlaybackView.hidden = YES;
-    ghlFloatPanelGridView.hidden = NO;
-    ghlFloatPanelSearchField.hidden = NO;
-    GHLFloatPanelApplySearchFilter(ghlFloatPanelSearchField.text ?: @"");
-}
-
-// 播放互动子页：三行开关（复用已有 key，值存在 NSUserDefaults 里，和设置页同一套）。
-static void GHLFloatPanelShowPlayback(void) {
-    ghlFloatPanelInPlaybackMode = YES;
-    ghlFloatPanelGridView.hidden = YES;
-    ghlFloatPanelSearchField.hidden = YES; // 搜索只过滤网格按钮，子页里先藏起来
-    // 开关值每次打开都重读设置，保证和设置页一致。
-    for (UIView *row in ghlFloatPanelPlaybackView.subviews) {
-        for (UIView *sub in row.subviews) {
-            if (![sub isKindOfClass:[UISwitch class]]) continue;
-            UISwitch *sw = (UISwitch *)sub;
-            NSArray<NSString *> *keys = @[GHL_KEY_BACKGROUND_AUDIO, GHL_KEY_REMEMBER_SPEED_PER_AUTHOR, GHL_KEY_SEEK_GESTURES];
-            if (sw.tag >= 0 && sw.tag < (NSInteger)keys.count) {
-                sw.on = [[NSUserDefaults standardUserDefaults] boolForKey:keys[sw.tag]];
-            }
-        }
-    }
-    ghlFloatPanelPlaybackView.hidden = NO;
-}
-
-static void GHLFloatPanelPlaybackSwitchChanged(UISwitch *sender) {
-    NSArray<NSString *> *keys = @[GHL_KEY_BACKGROUND_AUDIO, GHL_KEY_REMEMBER_SPEED_PER_AUTHOR, GHL_KEY_SEEK_GESTURES];
-    NSArray<NSString *> *names = @[@"画中画 + 后台播放", @"记忆倍速（按作者）", @"快进手势"];
-    if (sender.tag < 0 || sender.tag >= (NSInteger)keys.count) return;
-    [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:keys[sender.tag]];
-    GHLLog(@"快捷面板：%@已%@", names[sender.tag], sender.on ? @"开" : @"关");
-}
-
-// 底栏切页（探针）：从根 VC 往下找 UITabBarController，按分頁標題匹配切过去。
-// 抖音的主分頁可能是自訂 tab bar（AWENormalModeTabBar），不是 UITabBarController，
-// 那就切不過去——只记一行日志＋弹提示，不假装成功。
-static void GHLFloatPanelSwitchToTab(NSString *title) {
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    if (!window || !window.rootViewController) {
-        GHLLog(@"快捷面板：底欄切頁做不到，没有窗口");
-        [DYYYUtils showToast:@"切不過去"];
-        return;
-    }
-    NSMutableArray<UIViewController *> *stack = [NSMutableArray arrayWithObject:window.rootViewController];
-    UITabBarController *tabBar = nil;
-    while (stack.count > 0 && !tabBar) {
-        UIViewController *vc = stack.lastObject;
-        [stack removeLastObject];
-        if (!vc) continue;
-        if ([vc isKindOfClass:[UITabBarController class]]) {
-            tabBar = (UITabBarController *)vc;
-            break;
-        }
-        [stack addObjectsFromArray:vc.childViewControllers];
-        if (vc.presentedViewController) [stack addObject:vc.presentedViewController];
-    }
-    if (!tabBar) {
-        GHLLog(@"快捷面板：底欄切頁做不到，沒找到 UITabBarController（根是 %@）", NSStringFromClass([window.rootViewController class]));
-        [DYYYUtils showToast:@"切不過去，沒找到底欄"];
-        return;
-    }
-    NSArray<UIViewController *> *children = tabBar.viewControllers ?: @[];
-    NSInteger targetIndex = NSNotFound;
-    NSMutableArray<NSString *> *titles = [NSMutableArray array];
-    for (NSInteger i = 0; i < (NSInteger)children.count; i++) {
-        UIViewController *child = children[i];
-        NSString *tabTitle = child.tabBarItem.title ?: child.title ?: @"";
-        [titles addObject:tabTitle];
-        if ([tabTitle isEqualToString:title]) targetIndex = i;
-    }
-    if (targetIndex == NSNotFound) {
-        GHLLog(@"快捷面板：底欄切頁做不到，沒找到「%@」分頁（現有分頁：%@）", title, [titles componentsJoinedByString:@"、"]);
-        [DYYYUtils showToast:[NSString stringWithFormat:@"沒找到「%@」分頁", title]];
-        return;
-    }
-    tabBar.selectedIndex = targetIndex;
-    GHLLog(@"快捷面板：已切到底欄「%@」（第 %ld 個）", title, (long)targetIndex);
-}
-
-static void GHLFloatPanelDismissModal(void) {
-    UIViewController *top = GHLTopViewController();
-    if (top) [top dismissViewControllerAnimated:YES completion:nil];
-}
-
-// 从面板打开一个页：有导航栈就 push，没有就包一层导航栏模态弹出（左上角有关闭按钮）。
-static void GHLFloatPanelPresentViewController(UIViewController *vc) {
-    UIViewController *top = GHLTopViewController();
-    if (!top || !vc) return;
-    if (top.navigationController) {
-        [top.navigationController pushViewController:vc animated:YES];
-    } else {
-        vc.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelDismissModal)];
-        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-        nav.modalPresentationStyle = UIModalPresentationPageSheet;
-        [top presentViewController:nav animated:YES completion:nil];
-    }
-}
-
-static void GHLFloatPanelHandleAction(NSInteger action) {
-    switch (action) {
-        case GHLFloatPanelActionSettings:
-            GHLHideFloatPanel();
-            [DYYYSettingsHelper openSettingsWithViewController:GHLTopViewController()];
-            break;
-        case GHLFloatPanelActionHome:
-        case GHLFloatPanelActionFriends:
-        case GHLFloatPanelActionMessages:
-        case GHLFloatPanelActionMine: {
-            NSString *title = (action == GHLFloatPanelActionHome) ? @"首页" : (action == GHLFloatPanelActionFriends) ? @"朋友" : (action == GHLFloatPanelActionMessages) ? @"消息" : @"我";
-            GHLHideFloatPanel();
-            GHLFloatPanelSwitchToTab(title);
-            break;
-        }
-        case GHLFloatPanelActionPlayback:
-            GHLFloatPanelShowPlayback();
-            break;
-        case GHLFloatPanelActionDiagnosis:
-            GHLHideFloatPanel();
-            GHLFloatPanelPresentViewController([[GHLLogViewerViewController alloc] init]);
-            break;
-        case GHLFloatPanelActionAbout:
-            GHLHideFloatPanel();
-            GHLFloatPanelPresentViewController([[GHLAboutViewController alloc] init]);
-            break;
-        default:
-            break;
-    }
-}
-
-// 遮罩点按：点到卡片上不关，点到卡片外才关（手势挂在遮罩上，用位置判断）。
-static void GHLFloatPanelHandleDimTap(UITapGestureRecognizer *gesture) {
-    if (!ghlFloatPanelContainer || !ghlFloatPanelCard) return;
-    CGPoint point = [gesture locationInView:ghlFloatPanelContainer];
-    if (CGRectContainsPoint(ghlFloatPanelCard.frame, point)) return;
-    GHLHideFloatPanel();
+// 卡片重排（转屏／窗口尺寸变了时调；只在卡片建好后有用）。
+static void GHLLayoutFloatPanel(void) {
+    if (!ghlFloatPanelWindow || !ghlFloatPanelCard) return;
+    CGRect bounds = ghlFloatPanelWindow.bounds;
+    ghlFloatPanelCard.frame = GHLFloatPanelCardFrameForBounds(bounds);
+    if (ghlFloatPanelNav) ghlFloatPanelNav.view.frame = ghlFloatPanelCard.bounds;
 }
 
 static void GHLBuildFloatPanelIfNeeded(void) {
-    if (ghlFloatPanelContainer) return;
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    if (!window) return;
-    CGRect bounds = window.bounds;
-    CGFloat cardWidth = MIN(bounds.size.width - 32, 420);
-    CGFloat rowHeight = (bounds.size.height < 600) ? 50 : 56;
-    CGFloat gridHeight = 4 * rowHeight + 3 * 12;
-    CGFloat cardHeight = 16 + 28 + 12 + 40 + 12 + gridHeight + 16 + 52 + 16;
-    CGFloat cardX = (bounds.size.width - cardWidth) / 2;
-    CGFloat cardY = MAX((bounds.size.height - cardHeight) / 2, 20);
+    if (ghlFloatPanelWindow) return;
+    UIWindow *mainWindow = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    if (!mainWindow) return;
+    CGRect bounds = mainWindow.bounds;
 
+    UIWindow *panelWindow = [[UIWindow alloc] initWithFrame:bounds];
+    if (@available(iOS 13.0, *)) {
+        panelWindow.windowScene = mainWindow.windowScene;
+    }
+    panelWindow.windowLevel = UIWindowLevelAlert;
+    panelWindow.backgroundColor = [UIColor clearColor];
+    panelWindow.hidden = YES; // 建好先藏着，打开时再显示
+
+    // 宿主 VC 是空壳，view 就是全屏遮罩（点外面关闭）；导航栈挂在它下面。
+    UIViewController *hostVC = [[UIViewController alloc] init];
     UIView *container = [[UIView alloc] initWithFrame:bounds];
     container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
     container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     UITapGestureRecognizer *dimTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_floatPanelDimTapped:)];
     [container addGestureRecognizer:dimTap];
+    hostVC.view = container;
+    panelWindow.rootViewController = hostVC;
 
-    UIVisualEffectView *card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
-    card.frame = CGRectMake(cardX, cardY, cardWidth, cardHeight);
+    // 卡片：圆角＋金边（和 1.0.18 旧卡片同款边）；阴影不要——masksToBounds 会裁掉。
+    UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
+    card.backgroundColor = [UIColor systemGroupedBackgroundColor];
     card.layer.cornerRadius = 24;
     card.layer.masksToBounds = YES;
     card.layer.borderWidth = 1;
     card.layer.borderColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.45].CGColor;
+    // 居中不随尺寸变：四边留白自适应，转屏时靠下面的重排再算一次。
+    card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin |
+                            UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
     [container addSubview:card];
-    UIView *content = card.contentView;
-    UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
 
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 16, cardWidth - 32, 28)];
-    titleLabel.text = @"顾海龙抖音";
-    titleLabel.textColor = gold;
-    titleLabel.font = [UIFont boldSystemFontOfSize:20];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    [content addSubview:titleLabel];
+    // 卡片里的导航栈：根就是真正的设置页（DYYYSettingViewController），
+    // 白卡头＋搜索框＋分区列表全是它自己的；分区行点进子页在卡片内推，不展开全屏。
+    DYYYSettingViewController *settingsVC = [[DYYYSettingViewController alloc] init];
+    settingsVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:settingsVC];
+    nav.view.frame = card.bounds;
+    nav.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [hostVC addChildViewController:nav];
+    [card addSubview:nav.view];
+    [nav didMoveToParentViewController:hostVC];
 
-    UITextField *searchField = [[UITextField alloc] initWithFrame:CGRectMake(16, 56, cardWidth - 32, 40)];
-    searchField.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
-    searchField.layer.cornerRadius = 12;
-    searchField.layer.masksToBounds = YES;
-    searchField.textColor = [UIColor whiteColor];
-    searchField.font = [UIFont systemFontOfSize:15];
-    searchField.placeholder = @"搜索设置...";
-    searchField.clearButtonMode = UITextFieldViewModeWhileEditing;
-    searchField.returnKeyType = UIReturnKeySearch;
-    UIImageView *magnifier = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass"]];
-    magnifier.tintColor = [[UIColor whiteColor] colorWithAlphaComponent:0.6];
-    magnifier.frame = CGRectMake(0, 0, 22, 16);
-    magnifier.contentMode = UIViewContentModeScaleAspectFit;
-    searchField.leftView = magnifier;
-    searchField.leftViewMode = UITextFieldViewModeAlways;
-    [searchField addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelSearchChanged:) forControlEvents:UIControlEventEditingChanged];
-    [content addSubview:searchField];
-
-    UIView *gridView = [[UIView alloc] initWithFrame:CGRectMake(16, 108, cardWidth - 32, gridHeight)];
-    [content addSubview:gridView];
-    NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
-    for (NSDictionary *item in GHLFloatPanelGridItems()) {
-        UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-        button.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
-        button.layer.cornerRadius = 16;
-        button.layer.masksToBounds = YES;
-        button.accessibilityLabel = item[@"title"];
-        button.tag = [item[@"action"] integerValue];
-        UIImageView *iconView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:item[@"icon"]]];
-        iconView.tintColor = gold;
-        iconView.contentMode = UIViewContentModeScaleAspectFit;
-        iconView.frame = CGRectMake(14, (rowHeight - 22) / 2, 22, 22);
-        iconView.tag = 1001;
-        [button addSubview:iconView];
-        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(42, 0, (cardWidth - 32 - 12) / 2 - 42 - 8, rowHeight)];
-        label.text = item[@"title"];
-        label.textColor = [UIColor whiteColor];
-        label.font = [UIFont systemFontOfSize:15];
-        label.tag = 1002;
-        [button addSubview:label];
-        [button addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelGridButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [gridView addSubview:button];
-        [buttons addObject:button];
-    }
-    UILabel *emptyLabel = [[UILabel alloc] initWithFrame:gridView.bounds];
-    emptyLabel.text = @"没有匹配的按钮";
-    emptyLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.6];
-    emptyLabel.font = [UIFont systemFontOfSize:15];
-    emptyLabel.textAlignment = NSTextAlignmentCenter;
-    emptyLabel.hidden = YES;
-    [gridView addSubview:emptyLabel];
-
-    // 播放互动子页：和网格区同一块地方，三行开关＋一行返回。
-    UIView *playbackView = [[UIView alloc] initWithFrame:gridView.frame];
-    playbackView.hidden = YES;
-    [content addSubview:playbackView];
-    UIButton *backButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    backButton.frame = CGRectMake(0, 0, gridView.bounds.size.width, 44);
-    backButton.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
-    backButton.layer.cornerRadius = 16;
-    backButton.layer.masksToBounds = YES;
-    [backButton setTitle:@"‹ 返回" forState:UIControlStateNormal];
-    [backButton setTitleColor:gold forState:UIControlStateNormal];
-    backButton.titleLabel.font = [UIFont systemFontOfSize:15];
-    backButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-    backButton.titleEdgeInsets = UIEdgeInsetsMake(0, 14, 0, 0);
-    [backButton addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelBackTapped) forControlEvents:UIControlEventTouchUpInside];
-    [playbackView addSubview:backButton];
-    NSArray<NSString *> *playbackTitles = @[@"画中画 + 后台播放", @"记忆倍速（按作者）", @"快进手势"];
-    for (NSInteger i = 0; i < 3; i++) {
-        UIView *row = [[UIView alloc] initWithFrame:CGRectMake(0, 56 + i * 56, gridView.bounds.size.width, 48)];
-        row.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
-        row.layer.cornerRadius = 16;
-        row.layer.masksToBounds = YES;
-        UILabel *rowLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 0, row.bounds.size.width - 70, 48)];
-        rowLabel.text = playbackTitles[i];
-        rowLabel.textColor = [UIColor whiteColor];
-        rowLabel.font = [UIFont systemFontOfSize:15];
-        [row addSubview:rowLabel];
-        UISwitch *rowSwitch = [[UISwitch alloc] init];
-        rowSwitch.frame = CGRectMake(row.bounds.size.width - 60, 8, 51, 31);
-        rowSwitch.onTintColor = gold;
-        rowSwitch.tag = i;
-        [rowSwitch addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelPlaybackSwitchChanged:) forControlEvents:UIControlEventValueChanged];
-        [row addSubview:rowSwitch];
-        [playbackView addSubview:row];
-    }
-
-    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    doneButton.frame = CGRectMake(16, cardHeight - 16 - 52, cardWidth - 32, 52);
-    doneButton.backgroundColor = gold;
-    doneButton.layer.cornerRadius = 14;
-    doneButton.layer.masksToBounds = YES;
-    [doneButton setTitle:@"完成" forState:UIControlStateNormal];
-    [doneButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-    doneButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
-    [doneButton addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelDoneTapped) forControlEvents:UIControlEventTouchUpInside];
-    [content addSubview:doneButton];
-
-    ghlFloatPanelContainer = container;
+    ghlFloatPanelWindow = panelWindow;
+    ghlFloatPanelHostVC = hostVC;
     ghlFloatPanelCard = card;
-    ghlFloatPanelSearchField = searchField;
-    ghlFloatPanelGridView = gridView;
-    ghlFloatPanelPlaybackView = playbackView;
-    ghlFloatPanelEmptyLabel = emptyLabel;
-    ghlFloatPanelGridButtons = buttons;
-    GHLFloatPanelLayoutGrid();
+    ghlFloatPanelNav = nav;
+
+    // 转屏时重排卡片（只注册一次；进程内常驻，和巡检定时器一样不摘）。
+    if (!ghlFloatPanelOrientationToken) {
+        ghlFloatPanelOrientationToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIDeviceOrientationDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(__unused NSNotification *note) {
+          if (ghlFloatPanelOpen) GHLLayoutFloatPanel();
+        }];
+    }
 }
 
 static void GHLShowFloatPanel(void) {
@@ -4070,31 +3872,43 @@ static void GHLShowFloatPanel(void) {
         return;
     }
     GHLBuildFloatPanelIfNeeded();
-    if (!ghlFloatPanelContainer) return;
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    if (!window) return;
-    if (ghlFloatPanelContainer.superview != window) [window addSubview:ghlFloatPanelContainer];
-    GHLFloatPanelShowGrid();
-    ghlFloatPanelSearchField.text = @"";
-    [ghlFloatPanelSearchField resignFirstResponder];
+    if (!ghlFloatPanelWindow) return;
+    // 每次打开都按当前屏幕尺寸重排（转屏后第一次打开也不会错位）。
+    GHLLayoutFloatPanel();
+    // 回到根（上次可能停在某个分区子页里，下次打开从设置主页开始）。
+    if (ghlFloatPanelNav) [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
+    ghlFloatPanelWindow.hidden = NO;
     ghlFloatPanelOpen = YES;
-    ghlFloatPanelContainer.alpha = 0;
+    if (ghlFloatPanelButton) ghlFloatPanelButton.hidden = YES;
+    ghlFloatPanelWindow.alpha = 0;
     ghlFloatPanelCard.transform = CGAffineTransformMakeScale(0.96, 0.96);
     [UIView animateWithDuration:0.2 animations:^{
-      ghlFloatPanelContainer.alpha = 1;
+      ghlFloatPanelWindow.alpha = 1;
       ghlFloatPanelCard.transform = CGAffineTransformIdentity;
     }];
+    GHLLog(@"快捷面板：已打开");
 }
 
 static void GHLHideFloatPanel(void) {
-    if (!ghlFloatPanelOpen || !ghlFloatPanelContainer) return;
+    if (!ghlFloatPanelOpen || !ghlFloatPanelWindow) return;
     ghlFloatPanelOpen = NO;
-    [ghlFloatPanelSearchField resignFirstResponder];
     [UIView animateWithDuration:0.15 animations:^{
-      ghlFloatPanelContainer.alpha = 0;
+      ghlFloatPanelWindow.alpha = 0;
     } completion:^(__unused BOOL finished) {
-      [ghlFloatPanelContainer removeFromSuperview];
+      ghlFloatPanelWindow.hidden = YES;
+      ghlFloatPanelWindow.alpha = 1;
     }];
+    GHLLog(@"快捷面板：已关闭");
+}
+
+// 遮罩点按：点到卡片上不关，点到卡片外才关（手势挂在遮罩上，用位置判断）。
+static void GHLFloatPanelHandleDimTap(UITapGestureRecognizer *gesture) {
+    if (!ghlFloatPanelWindow || !ghlFloatPanelCard) return;
+    UIView *container = ghlFloatPanelHostVC.view;
+    if (!container) return;
+    CGPoint point = [gesture locationInView:container];
+    if (CGRectContainsPoint(ghlFloatPanelCard.frame, point)) return;
+    GHLHideFloatPanel();
 }
 
 static void GHLToggleFloatPanel(void) {

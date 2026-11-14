@@ -754,9 +754,14 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
         pipViewModel.duxIconName = @"ic_pip_outlined";
         pipViewModel.describeString = @"画中画播放";
         pipViewModel.action = ^{
-          GHLStartPiPWithCaller(@"网格点按");
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
+          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
+          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
+          // 等 0.4 秒让收起动画跑完再触发。
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GHLStartPiPWithCaller(@"网格点按");
+          });
         };
         [viewModels addObject:pipViewModel];
     }
@@ -2023,9 +2028,14 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         pipViewModel.duxIconName = @"ic_pip_outlined";
         pipViewModel.describeString = @"画中画播放";
         pipViewModel.action = ^{
-          GHLStartPiPWithCaller(@"网格点按");
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
+          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
+          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
+          // 等 0.4 秒让收起动画跑完再触发。
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GHLStartPiPWithCaller(@"网格点按");
+          });
         };
         [viewModels addObject:pipViewModel];
     }
