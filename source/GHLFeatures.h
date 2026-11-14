@@ -98,6 +98,7 @@ extern "C" {
 #define GHL_FLOAT_ACTION_SCREENSHOT @"截图去水印"
 // 动作型入口（Picker 行，值本身无意义，选完即执行）
 #define GHL_KEY_DOWNLOAD_MANAGER @"GHLDownloadManager"   // 打开下载管理页
+#define GHL_KEY_LOG_VIEWER @"GHLLogViewer"             // 打开顾海龙日志查看页（1.0.6）
 #define GHL_KEY_IMPORT_SETTINGS @"GHLImportSettings"     // 导入配置（系统文件选择器选 .plist）
 #define GHL_KEY_EXPORT_SETTINGS @"GHLExportSettings"     // 导出配置（分享“顾海龙抖音配置.plist”）
 #define GHL_KEY_RESET_SETTINGS @"GHLResetSettings"       // 恢复默认配置（先弹确认框）
@@ -245,7 +246,9 @@ void GHLRunOnMain(dispatch_block_t block);
 BOOL GHLKeywordFilterEnabled(void);
 // 跟随系统深色：键不存在时默认开（1.0.4 新增开关，没设过就跟随系统）
 BOOL GHLFollowSystemDarkEnabled(void);
-// 写诊断日志到 /var/mobile/Library/Logs/GuHaiLongDouyin.log
+// 诊断日志主路径（Documents/DYYY/GuHaiLongDouyin.log；拿不到就返回 nil）
+NSString *GHLLogFilePath(void);
+// 写诊断日志到 Documents/DYYY/GuHaiLongDouyin.log（App 沙盒内；旧路径只作兜底）
 void GHLLog(NSString *format, ...);
 
 // MARK: - 播放器
@@ -295,7 +298,7 @@ BOOL GHLHasCustomBackground(void);
 BOOL GHLPerformFloatButtonAction(NSString *action);
 // 1.0.5 手势自定义：执行一个手势动作（前 5 个复用悬浮按钮那套 + 静音开关 + 下一个视频）；返回 YES 表示已处理
 BOOL GHLPerformGestureAction(NSString *action);
-// 更新日志文本（1.0.1–1.0.5 各一行真实改动）
+// 更新日志文本（1.0.1–1.0.6 各一行真实改动）
 NSString *GHLChangelogText(void);
 // 语音包收藏
 BOOL GHLIsVoiceFavorite(NSString *voiceId);

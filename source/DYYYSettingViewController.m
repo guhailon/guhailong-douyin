@@ -6,6 +6,7 @@
 #import "DYYYBottomAlertView.h"
 #import "DYYYConstants.h"
 #import "DYYYDownloadManagerViewController.h"
+#import "GHLLogViewerViewController.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYFloatingButtonCoordinator.h"
@@ -270,7 +271,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
             // 1.0.4 下载管理页入口
-            [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker],
+            // 1.0.6 顾海龙日志查看页入口（紧挨下载管理）
+            [DYYYSettingItem itemWithTitle:@"顾海龙日志（诊断日志查看）" key:GHL_KEY_LOG_VIEWER type:DYYYSettingItemTypePicker]
         ],
         @[
             // 顾海龙抖音（二）：32-43（xuu 行为参考，代码自己写）
@@ -787,6 +790,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         // 1.0.4 下载管理页入口
         return @[ @"打开下载管理" ];
+    } else if ([key isEqualToString:GHL_KEY_LOG_VIEWER]) {
+        // 1.0.6 顾海龙日志查看页入口
+        return @[ @"打开顾海龙日志" ];
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         // 1.0.4 导入配置
         return @[ @"选择配置文件导入" ];
@@ -835,6 +841,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_LOG_VIEWER]) {
+        return @"打开顾海龙日志";
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         return @"选择配置文件导入";
     } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
@@ -873,6 +881,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_LOG_VIEWER]) {
+        return @"打开顾海龙日志";
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         return @"选择配置文件导入";
     } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
@@ -1216,6 +1226,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              // 1.0.4 下载管理页
                                                              DYYYDownloadManagerViewController *downloadVC = [[DYYYDownloadManagerViewController alloc] init];
                                                              [self.navigationController pushViewController:downloadVC animated:YES];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_LOG_VIEWER]) {
+                                                             // 1.0.6 顾海龙日志查看页
+                                                             GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
+                                                             [self.navigationController pushViewController:logVC animated:YES];
                                                          } else if ([item.key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
                                                              // 1.0.4 导入配置
                                                              [self ghlPresentImportPicker];

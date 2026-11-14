@@ -21,6 +21,7 @@
   - `DYYYSettingsHelper.(h/m)`：设置项依赖、入口、协议弹窗。
   - `DYYYSettingsBackup.(h/m)`：设置导入 / 导出 / 恢复默认（1.0.4）。
   - `DYYYDownloadManagerViewController.(h/m)`：下载管理页（1.0.4，已保存统计 + 缓存清理）。
+  - `GHLLogViewerViewController.(h/m)`：顾海龙日志查看页（1.0.6，读 Documents/DYYY/GuHaiLongDouyin.log，只显示最后约 200KB）。
 - **业务/下载**
   - `DYYYManager.(h/m)`：下载、合成、任务管理、授权。
   - `DYYYDownloadScheduler.(h/m)`：下载并发限制、等待队列与取消调度。

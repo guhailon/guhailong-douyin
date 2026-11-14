@@ -4,7 +4,7 @@
 #define DYYY_NAME @"顾海龙抖音"
 #define DYYY_SETTINGS_NAME @"顾海龙抖音设置"
 
-#define DYYY_VERSION @"1.0.5"
+#define DYYY_VERSION @"1.0.6"
 
 // 顾海龙抖音 QQ 交流群（关于弹窗用；加群链接只留这一份，不要在代码里贴两遍）
 #define GHL_QQ_GROUP_NUMBER @"1130823454"
