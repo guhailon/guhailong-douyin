@@ -592,11 +592,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"长按评论复制评论" key:@"DYYYCommentCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按简介复制简介" key:@"DYYYBioCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按文案复制文案" key:@"DYYYLongPressCopyTextEnabled" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"下载完成震动反馈" key:@"DYYYHapticFeedbackEnabled" type:DYYYSettingItemTypeSwitch],
-            // 1.0.4 备份/恢复：导入 + 导出 + 恢复默认配置（同一套，别另做）
-            [DYYYSettingItem itemWithTitle:@"导入配置" key:GHL_KEY_IMPORT_SETTINGS type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"导出配置" key:GHL_KEY_EXPORT_SETTINGS type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"恢复默认配置" key:GHL_KEY_RESET_SETTINGS type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"下载完成震动反馈" key:@"DYYYHapticFeedbackEnabled" type:DYYYSettingItemTypeSwitch]
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"启用快捷倍速按钮" key:@"DYYYEnableFloatSpeedButton" type:DYYYSettingItemTypeSwitch],
@@ -619,12 +615,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"倍速按钮长按" key:GHL_KEY_SPEED_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"清屏按钮点一下" key:GHL_KEY_CLEAR_BUTTON_TAP type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker]
+        ],
+        @[
+            // 1.0.12 关于分区：关于顾海龙抖音（关于+基于DYYY 合并）+ 声明 + 配置三行（从功能设置搬过来，逻辑不动）
+            [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"声明" key:GHL_KEY_DISCLAIMER_DIALOG type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"导出配置" key:GHL_KEY_EXPORT_SETTINGS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"导入配置" key:GHL_KEY_IMPORT_SETTINGS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"恢复默认配置" key:GHL_KEY_RESET_SETTINGS type:DYYYSettingItemTypePicker]
         ]
     ];
 }
 
 - (void)setupSectionTitles {
-    self.sectionTitles = [@[ @"常用功能", @"自动功能", @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
+    self.sectionTitles = [@[ @"常用功能", @"自动功能", @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮", @"关于" ] mutableCopy];
 }
 
 // 1.0.2 白色卡片主页头：龙头 logo 招牌 + 名字 + 版本 + 统计，
@@ -726,15 +730,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     self.statsLabel.text = [NSString stringWithFormat:@"%ld 项设置 · %ld 项已开启", (long)total, (long)enabled];
 }
 
-// 底部一排按钮：关于 / 基于DYYY / MIT 声明 / 更新日志（照 xuu 卡片底部按钮的样子，1.0.4 加了更新日志）。
+// 底部一排按钮：MIT 声明 / 更新日志（1.0.12：关于和基于DYYY 已搬进「关于」分区，这里只剩两个；照 xuu 卡片底部按钮的样子，1.0.4 加了更新日志）。
 - (void)setupFooterButtons {
     CGFloat width = self.view.bounds.size.width;
     UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 116)];
     footer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
-    NSArray<NSString *> *titles = @[ @"关于", @"基于DYYY", @"MIT 声明", @"更新日志" ];
-    CGFloat buttonWidth = (width - 32 - 24) / 4.0;
-    for (NSInteger i = 0; i < 4; i++) {
+    NSArray<NSString *> *titles = @[ @"MIT 声明", @"更新日志" ];
+    CGFloat buttonWidth = (width - 32 - 8) / 2.0;
+    for (NSInteger i = 0; i < 2; i++) {
         UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
         button.frame = CGRectMake(16 + i * (buttonWidth + 8), 12, buttonWidth, 44);
         [button setTitle:titles[i] forState:UIControlStateNormal];
@@ -761,16 +765,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 - (void)footerButtonTapped:(UIButton *)sender {
     if (sender.tag == 0) {
-        // 1.0.4：长串加群链接不贴了，改成“加入QQ群”按钮；群号留在文字里，点一下复制。
-        [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
-                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548\nQQ群：1130823454", DYYY_VERSION]
-                                  onConfirm:nil
-                               joinGroupURL:GHL_QQ_GROUP_JOIN_URL];
-    } else if (sender.tag == 1) {
-        [DYYYSettingsHelper showAboutDialog:@"基于 DYYY"
-                                    message:@"本插件基于 DYYY (MIT, Copyright (c) 2024 huami) 二次开发，原作者 huami，源码仓库 Wtrwx/DYYY。\n\n顾海龙抖音只做个人二创，不对外发布；原作者版权声明保留在 LICENSE 中。"
-                                  onConfirm:nil];
-    } else if (sender.tag == 2) {
         [DYYYSettingsHelper showAboutDialog:@"MIT License"
                                     message:@"Copyright (c) 2024 huami.\n\n"
                                             @"Permission is hereby granted, free of charge, to any person obtaining a copy "
@@ -789,7 +783,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                             @"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
                                             @"SOFTWARE."
                                   onConfirm:nil];
-    } else if (sender.tag == 3) {
+    } else if (sender.tag == 1) {
         // 1.0.4：更新日志入口，随时重看。
         [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
     }
@@ -837,6 +831,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
         // 1.0.11 长按面板头像：从相册选图换头像，或恢复默认龙头
         return @[ @"从相册选图", @"恢复默认龙头" ];
+    } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+        // 1.0.12 关于顾海龙抖音：点开看合并后的关于对话框
+        return @[ @"查看关于" ];
+    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
+        // 1.0.12 声明：点开看声明对话框
+        return @[ @"查看声明" ];
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：点一套就把现有颜色类 key 一次设好
         return @[ @"无", @"金龙", @"冰蓝", @"樱粉", @"暗夜" ];
@@ -891,6 +891,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         // 1.0.11：选单里的两个动作原样显示；没选过动作时行上显示当前头像状态
         if ([value isKindOfClass:[NSString class]] && ([value isEqualToString:@"从相册选图"] || [value isEqualToString:@"恢复默认龙头"])) return value;
         return GHLHasCustomLogo() ? @"已换自选图" : @"默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+        return @"查看关于";
+    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
+        return @"查看声明";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：没选过就是无
         return value ?: @"无";
@@ -939,6 +943,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认龙头";
     } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
         return @"默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+        return @"查看关于";
+    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
+        return @"查看声明";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         return @"无";
     } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
@@ -1336,6 +1344,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              } else {
                                                                  [self ghlPresentImagePickerForKind:0];
                                                              }
+                                                         } else if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+                                                             // 1.0.12 关于顾海龙抖音：原来底部「关于」+「基于DYYY」两个对话框合并成一个
+                                                             [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
+                                                                                         message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n原作者 huami，源码仓库 Wtrwx/DYYY；原作者版权声明保留在 LICENSE 中。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548\nQQ群：1130823454", DYYY_VERSION]
+                                                                                       onConfirm:nil
+                                                                                    joinGroupURL:GHL_QQ_GROUP_JOIN_URL];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
+                                                             // 1.0.12 声明：措辞是草稿，皇上可改
+                                                             [DYYYSettingsHelper showAboutDialog:@"声明"
+                                                                                         message:@"声明：顾海龙抖音基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，仅供个人学习交流使用，不对外发布。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。"
+                                                                                       onConfirm:nil];
                                                          } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {

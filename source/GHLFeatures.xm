@@ -219,7 +219,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.8：颜色行改系统调色盘，主题预设一键换（金龙/冰蓝/樱粉/暗夜），侧边栏图标大小/间距/圆角底，进度条加粗圆角默认金色，头像金边（关注实心/未关注细边），弹幕字号/描边/透明度+多时自动变淡，底栏毛玻璃+选中态金色；双击爱心换图标仍是探针（爱心动画类没找到，只记日志，需真机验证）。\n"
            @"1.0.9：长按下载面板换成我们自己的网格面板（深色毛玻璃、三列金色图标、顶部金色龙头；更多回原生面板；精简模式和隐藏列表照常生效）。\n"
            @"1.0.10：修网格面板盖不上（数据改强引用持有到收起，dataArray 一到就主线程补盖一次；每个失败分支都记诊断日志，下次没盖上日志直接写明哪一关没过）。\n"
-           @"1.0.11：长按项开关默认全开（12 个 DYYY 开关，没存过值时才默认开，亲手关掉的不会被覆盖），普通视频的网格从 2 行（6 项）变成 4 行（9 项+更多；格子收小到 92pt，下面还有时显示滚动条）；面板设置里加「长按面板头像」，能从相册任意换头像或恢复默认龙头，换完下一次长按就生效，不用重启抖音；网格盖上时的日志补上各项标题。";
+           @"1.0.11：长按项开关默认全开（12 个 DYYY 开关，没存过值时才默认开，亲手关掉的不会被覆盖），普通视频的网格从 2 行（6 项）变成 4 行（9 项+更多；格子收小到 92pt，下面还有时显示滚动条）；面板设置里加「长按面板头像」，能从相册任意换头像或恢复默认龙头，换完下一次长按就生效，不用重启抖音；网格盖上时的日志补上各项标题。\n"
+           @"1.0.12：导出/导入/恢复默认配置三行从功能设置搬到新增的「关于」分区（逻辑不动）；「关于」和「基于DYYY」合并成「关于顾海龙抖音」一行；新增「声明」，措辞是草稿（皇上可改）；底部按钮只剩 MIT 声明和更新日志。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -1503,7 +1504,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.11 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.12 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
