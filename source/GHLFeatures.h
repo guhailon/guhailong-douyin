@@ -188,8 +188,7 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_LONG_PRESS_DOWNLOAD @"GHLLongPressDownload" // 长按下载（接上游）
 #define GHL_KEY_LONG_PRESS_GRID_PANEL @"GHLLongPressGridPanel" // 长按面板网格风格（龙头，1.0.9；默认开，%ctor 里 registerDefaults）
 #define GHL_KEY_GRID_PANEL_AVATAR @"GHLGridPanelAvatar"     // 长按面板头像（1.0.11；Picker 入口，值无意义）
-#define GHL_KEY_ABOUT_PAGE @"GHLAboutPage"                 // 关于顾海龙抖音（1.0.12；Picker 入口，值无意义）
-#define GHL_KEY_DISCLAIMER_DIALOG @"GHLDisclaimerDialog"   // 声明（1.0.12；Picker 入口，值无意义）
+#define GHL_KEY_ABOUT_PAGE @"GHLAboutPage"                 // 关于顾海龙抖音（1.0.13；极简页入口，值无意义）
 #define GHL_KEY_DOWNLOAD_PROGRESS @"GHLDownloadProgress"   // 下载进度日志+提示
 #define GHL_KEY_SAVE_AVATAR @"GHLSaveAvatar"               // 保存头像（长按面板）
 #define GHL_KEY_COPY_PROFILE @"GHLCOPYProfile"             // 复制个人资料（长按面板）
@@ -304,6 +303,8 @@ void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
 
 // MARK: - Logo
 UIImage *GHLLogoImage(void);
+// 关于深色品牌页横幅（1.0.13；base64 内嵌的 640x360 雷鸣绿龙横幅，裁自公司 logo 海报）
+UIImage *GHLAboutBannerImage(void);
 // 1.0.4 自选龙头 / 自定义背景（存在 Documents/DYYY/ 里，不进仓库；读不到、损坏一律回退内置/默认）
 UIImage *GHLCustomLogoImage(void);
 BOOL GHLSaveCustomLogoImage(UIImage *image);     // 居中裁正方形 → 256x256 → JPEG q88

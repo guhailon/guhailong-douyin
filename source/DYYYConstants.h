@@ -4,9 +4,14 @@
 #define DYYY_NAME @"顾海龙抖音"
 #define DYYY_SETTINGS_NAME @"顾海龙抖音设置"
 
-#define DYYY_VERSION @"1.0.12"
+#define DYYY_VERSION @"1.0.13"
 
-// 顾海龙抖音 QQ 交流群（关于弹窗用；加群链接只留这一份，不要在代码里贴两遍）
+// 顾海龙集团越狱源（关于页用；检查更新拉的就是这个源的 Packages）
+#define GHL_REPO_URL @"https://guhailong-repo.pages.dev"
+// DYYY 上游源码仓库（关于页「基于 DYYY」「源码」两行跳这里）
+#define GHL_DYYY_SOURCE_URL @"https://github.com/Wtrwx/DYYY"
+// 顾海龙抖音 QQ 交流（个人号；加群链接只留这一份，不要在代码里贴两遍）
+#define GHL_QQ_CONTACT_NUMBER @"2309103548"
 #define GHL_QQ_GROUP_NUMBER @"1130823454"
 #define GHL_QQ_GROUP_JOIN_URL @"https://qun.qq.com/universal-share/share?ac=1&authKey=1jedvqhgrhj4mHm9Sn3c2xEkV3wYRdGeXsFSXn8hHJsRBfOUByIchAevdyEfS5zF&busi_data=eyJncm91cENvZGUiOiIxMTMwODIzNDU0IiwidG9rZW4iOiJxOE5XZTRWSi85emU0RjdNZXNyd2k2Y0lMYmw4MmtnNWVjNjRCeE56SnpNMWRYditLaFJFSU5iV2xoYzViNEl5IiwidWluIjoiMjMwOTEwMzU0OCJ9&data=nYcdCBHCI0lOt1ACENZWO6AfqrZ-Ha1TSfx7CBzkhHazin64W38fmSNXGIU0a9oPEvGgEk8ggiqR2imYH4J-pg&svctype=4&tempid=h5_group_info"
 

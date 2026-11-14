@@ -7,6 +7,7 @@
 #import "DYYYConstants.h"
 #import "DYYYDownloadManagerViewController.h"
 #import "GHLLogViewerViewController.h"
+#import "GHLAboutViewController.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYFloatingButtonCoordinator.h"
@@ -111,7 +112,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [self setupTableView];
     if ([self isHomeMode]) {
         [self setupHeaderCardAndSearch];
-        [self setupFooterButtons];
         [self refreshHeaderStats];
     }
     // 1.0.4：深色跟随 + 自定义背景（主页和子页都走同一套）。
@@ -617,12 +617,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker]
         ],
         @[
-            // 1.0.12 关于分区：关于顾海龙抖音（关于+基于DYYY 合并）+ 声明 + 配置三行（从功能设置搬过来，逻辑不动）
-            [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"声明" key:GHL_KEY_DISCLAIMER_DIALOG type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"导出配置" key:GHL_KEY_EXPORT_SETTINGS type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"导入配置" key:GHL_KEY_IMPORT_SETTINGS type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"恢复默认配置" key:GHL_KEY_RESET_SETTINGS type:DYYYSettingItemTypePicker]
+            // 1.0.13 关于分区：只剩单一入口行「关于顾海龙抖音」，点进深色品牌页
+            // （1.0.12 的关于弹窗、声明行和配置三行废弃：配置三行搬进极简页的配置管理区，逻辑不动）
+            [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker]
         ]
     ];
 }
@@ -730,65 +727,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     self.statsLabel.text = [NSString stringWithFormat:@"%ld 项设置 · %ld 项已开启", (long)total, (long)enabled];
 }
 
-// 底部一排按钮：MIT 声明 / 更新日志（1.0.12：关于和基于DYYY 已搬进「关于」分区，这里只剩两个；照 xuu 卡片底部按钮的样子，1.0.4 加了更新日志）。
-- (void)setupFooterButtons {
-    CGFloat width = self.view.bounds.size.width;
-    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 116)];
-    footer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-
-    NSArray<NSString *> *titles = @[ @"MIT 声明", @"更新日志" ];
-    CGFloat buttonWidth = (width - 32 - 8) / 2.0;
-    for (NSInteger i = 0; i < 2; i++) {
-        UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-        button.frame = CGRectMake(16 + i * (buttonWidth + 8), 12, buttonWidth, 44);
-        [button setTitle:titles[i] forState:UIControlStateNormal];
-        button.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-        [button setTitleColor:[DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:[self ghlDarkModeActive]] forState:UIControlStateNormal];
-        button.backgroundColor = [self ghlDarkModeActive] ? [UIColor colorWithWhite:1 alpha:0.08] : [UIColor colorWithWhite:0.93 alpha:1.0];
-        button.layer.cornerRadius = 12;
-        button.tag = i;
-        [button addTarget:self action:@selector(footerButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
-        button.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-        [footer addSubview:button];
-    }
-
-    UILabel *attributionLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 68, width - 32, 16)];
-    attributionLabel.text = @"基于 DYYY (MIT, Copyright (c) 2024 huami)，仅自用";
-    attributionLabel.font = [UIFont systemFontOfSize:12];
-    attributionLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
-    attributionLabel.textAlignment = NSTextAlignmentCenter;
-    attributionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [footer addSubview:attributionLabel];
-
-    self.tableView.tableFooterView = footer;
-}
-
-- (void)footerButtonTapped:(UIButton *)sender {
-    if (sender.tag == 0) {
-        [DYYYSettingsHelper showAboutDialog:@"MIT License"
-                                    message:@"Copyright (c) 2024 huami.\n\n"
-                                            @"Permission is hereby granted, free of charge, to any person obtaining a copy "
-                                            @"of this software and associated documentation files (the \"Software\"), to deal "
-                                            @"in the Software without restriction, including without limitation the rights "
-                                            @"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
-                                            @"copies of the Software, and to permit persons to whom the Software is "
-                                            @"furnished to do so, subject to the following conditions:\n\n"
-                                            @"The above copyright notice and this permission notice shall be included in all "
-                                            @"copies or substantial portions of the Software.\n\n"
-                                            @"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR "
-                                            @"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
-                                            @"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE "
-                                            @"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER "
-                                            @"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, "
-                                            @"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
-                                            @"SOFTWARE."
-                                  onConfirm:nil];
-    } else if (sender.tag == 1) {
-        // 1.0.4：更新日志入口，随时重看。
-        [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
-    }
-}
-
 #pragma mark - Helper Methods
 
 - (NSArray *)optionsForKey:(NSString *)key {
@@ -834,9 +772,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         // 1.0.12 关于顾海龙抖音：点开看合并后的关于对话框
         return @[ @"查看关于" ];
-    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
-        // 1.0.12 声明：点开看声明对话框
-        return @[ @"查看声明" ];
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：点一套就把现有颜色类 key 一次设好
         return @[ @"无", @"金龙", @"冰蓝", @"樱粉", @"暗夜" ];
@@ -893,8 +828,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return GHLHasCustomLogo() ? @"已换自选图" : @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         return @"查看关于";
-    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
-        return @"查看声明";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：没选过就是无
         return value ?: @"无";
@@ -945,8 +878,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         return @"查看关于";
-    } else if ([key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
-        return @"查看声明";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         return @"无";
     } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
@@ -1283,6 +1214,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return;
     }
     DYYYSettingItem *item = [self itemForIndexPath:indexPath];
+    // 1.0.13：关于入口行直接推进极简页，不弹选择框（主页分类行和搜索结果都走这里）。
+    if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+        GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
+        aboutVC.settingsViewController = self;
+        [self.navigationController pushViewController:aboutVC animated:YES];
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        return;
+    }
     if (item.type == DYYYSettingItemTypePicker) {
         [self showUniversalPickerForIndexPath:indexPath];
     } else if (item.type == DYYYSettingItemTypeColor) {
@@ -1344,17 +1283,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              } else {
                                                                  [self ghlPresentImagePickerForKind:0];
                                                              }
-                                                         } else if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
-                                                             // 1.0.12 关于顾海龙抖音：原来底部「关于」+「基于DYYY」两个对话框合并成一个
-                                                             [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
-                                                                                         message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n原作者 huami，源码仓库 Wtrwx/DYYY；原作者版权声明保留在 LICENSE 中。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548\nQQ群：1130823454", DYYY_VERSION]
-                                                                                       onConfirm:nil
-                                                                                    joinGroupURL:GHL_QQ_GROUP_JOIN_URL];
-                                                         } else if ([item.key isEqualToString:GHL_KEY_DISCLAIMER_DIALOG]) {
-                                                             // 1.0.12 声明：措辞是草稿，皇上可改
-                                                             [DYYYSettingsHelper showAboutDialog:@"声明"
-                                                                                         message:@"声明：顾海龙抖音基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，仅供个人学习交流使用，不对外发布。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。"
-                                                                                       onConfirm:nil];
                                                          } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
@@ -1585,7 +1513,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     }
     UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ url ] applicationActivities:nil];
     if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
-        UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
+        // 1.0.13：关于页复用时传 nil（不用某行的 cell 当 popover 锚点），直接用整个 view。
+        UITableViewCell *cell = indexPath ? [self.tableView cellForRowAtIndexPath:indexPath] : nil;
         activityVC.popoverPresentationController.sourceView = cell ?: self.view;
         activityVC.popoverPresentationController.sourceRect = cell ? cell.bounds : self.view.bounds;
     }
