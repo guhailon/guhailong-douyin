@@ -13295,7 +13295,8 @@ static void findTargetViewInView(UIView *view) {
         %init(DYYYFullscreenCommentGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{
-        @"DYYYDisableFeedNowPlayingInfo" : @YES
+        @"DYYYDisableFeedNowPlayingInfo" : @YES,
+        @"GHLLongPressGridPanel" : @YES // 1.0.9：长按面板网格风格默认开
     }];
 
     DYYYMigrateCombinedHDRModeIfNeeded();

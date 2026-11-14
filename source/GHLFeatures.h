@@ -186,6 +186,7 @@ void GHLProbeVoiceFeatures(void);
 // (37) 下载增强
 #define GHL_KEY_DOUBLE_TAP_DOWNLOAD @"GHLDoubleTapDownload" // 双击下载（开后双击不再快进）
 #define GHL_KEY_LONG_PRESS_DOWNLOAD @"GHLLongPressDownload" // 长按下载（接上游）
+#define GHL_KEY_LONG_PRESS_GRID_PANEL @"GHLLongPressGridPanel" // 长按面板网格风格（龙头，1.0.9；默认开，%ctor 里 registerDefaults）
 #define GHL_KEY_DOWNLOAD_PROGRESS @"GHLDownloadProgress"   // 下载进度日志+提示
 #define GHL_KEY_SAVE_AVATAR @"GHLSaveAvatar"               // 保存头像（长按面板）
 #define GHL_KEY_COPY_PROFILE @"GHLCOPYProfile"             // 复制个人资料（长按面板）

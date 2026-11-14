@@ -37,7 +37,7 @@
 - **浮窗与快捷操作**
   - 显示协调：`DYYYFloatingButtonCoordinator.(h/m)`，根据实际选中页面、评论、纯净模式与前后台状态统一管理两个悬浮按钮。
   - 漂浮按钮：`DYYYFloatSpeedButton.(h/m)`、`DYYYFloatClearButton.(h/xm)`。
-  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYBottomAlertView.(h/m)`（复用提示）。
+  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板）、`DYYYBottomAlertView.(h/m)`（复用提示）。
 - **辅助代理**
   - `DYYYImagePickerDelegate.(h/m)`、`DYYYBackupPickerDelegate.(h/m)`：统一封装系统 Picker 逻辑。
   - `DYYYCustomInputView.(h/m)`：文本输入。

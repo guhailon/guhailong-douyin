@@ -5,9 +5,20 @@
 #import "DYYYCustomInputView.h"
 #import "DYYYFilterSettingsView.h"
 #import "DYYYKeywordListView.h"
+#import "DYYYLongPressGridPanelView.h"
 #import "DYYYManager.h"
 #import "DYYYToast.h"
 #import "DYYYUtils.h"
+
+// ===== 1.0.9：网格长按面板用的弱引用（放文件顶部，dataArray 钩子在下面就用）=====
+// dataArray 每次被表格取数据都会跑，最新结果存在弱引用里（不持有：viewModel 的 action block
+// 捕获了面板控制器，强引用会造成控制器→数组→viewModel→block→控制器循环引用，面板永远不释放）。
+// 面板收起后表格释放数组，弱引用自动变 nil；同一时间只可能有一个长按面板，用全局弱引用没问题。
+static __weak NSArray *gDYYYLongPressPanelData = nil;
+// 当前盖在面板上的网格视图（弱引用：它由面板控制器的 view 持有，收起后自动释放）。
+static __weak DYYYLongPressGridPanelView *gDYYYLongPressGridPanel = nil;
+// 这次点了“更多”回到原生面板的控制器（弱引用）：同一次展示里不再盖网格，避免转屏后又盖回来。
+static __weak UIViewController *gDYYYLongPressGridPanelNativeVC = nil;
 
 %hook AWELongPressPanelViewGroupModel
 %property(nonatomic, assign) BOOL isDYYYCustomGroup;
@@ -919,7 +930,144 @@
         [customGroups addObject:secondRowGroup];
     }
 
-    return [customGroups arrayByAddingObjectsFromArray:originalArray];
+    NSArray *finalArray = [customGroups arrayByAddingObjectsFromArray:originalArray];
+    gDYYYLongPressPanelData = finalArray; // 1.0.9：网格面板用的最新数据（弱引用，不持有，避免循环引用）
+    return finalArray;
+}
+%end
+
+// ===== 1.0.9：网格长按面板（深色毛玻璃 + 三列金色图标 + 顶部金色龙头）=====
+// 自定义项：Modern 钩子标了 isDYYYCustomGroup；旧钩子没标，用 actionType 认
+//（666-679 是 DYYY 长按项，686-693 是顾海龙长按项）。
+static BOOL DYYYLongPressItemIsCustom(AWELongPressPanelBaseViewModel *item, AWELongPressPanelViewGroupModel *group) {
+    if (!item) return NO;
+    if (group && group.isDYYYCustomGroup) return YES;
+    return item.actionType >= 666 && item.actionType <= 699;
+}
+
+// 隐藏列表匹配（和 dataArray 钩子里同一套：小写精确或包含匹配）。
+static BOOL DYYYLongPressItemHiddenByHideList(NSString *desc, NSSet<NSString *> *hideSet) {
+    if (!desc || desc.length == 0 || hideSet.count == 0) return NO;
+    NSString *descLower = [desc lowercaseString];
+    if ([hideSet containsObject:descLower]) return YES;
+    for (NSString *hideItem in hideSet) {
+        if ([descLower containsString:hideItem] || [hideItem containsString:descLower]) return YES;
+    }
+    return NO;
+}
+
+// 在面板控制器上盖网格（viewDidLoad / viewWillAppear / viewDidLayoutSubviews 里都调一次，
+// dataArray 可能在 viewDidLoad 之后才跑，靠后几次补上；已经盖上或点过“更多”的直接返回）。
+static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
+    if (!vc || !vc.view) return;
+    if (!GHLGetBool(GHL_KEY_LONG_PRESS_GRID_PANEL)) return; // 开关在面板设置里，默认开（%ctor 里 registerDefaults）
+    if (gDYYYLongPressGridPanelNativeVC == vc) return;
+    if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) return;
+    NSArray *data = gDYYYLongPressPanelData;
+    if (!data || data.count == 0) return;
+
+    // 隐藏列表（逗号分隔，和原生面板同一份设置；网格里同样生效）。
+    NSMutableSet<NSString *> *hideSet = [NSMutableSet set];
+    NSString *hidePanelItems = DYYYGetString(@"DYYYHidePanelItems");
+    if (hidePanelItems.length > 0) {
+        NSString *normalized = [hidePanelItems stringByReplacingOccurrencesOfString:@"，" withString:@","];
+        for (NSString *raw in [normalized componentsSeparatedByString:@","]) {
+            NSString *trimmed = [raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (trimmed.length > 0) [hideSet addObject:[trimmed lowercaseString]];
+        }
+    }
+
+    // 收集自定义项（保持 dataArray 里的顺序），同时记有没有原生项。
+    NSMutableArray<NSDictionary *> *gridItems = [NSMutableArray array];
+    BOOL hasNativeItems = NO;
+    for (id groupObj in data) {
+        if (![groupObj isKindOfClass:%c(AWELongPressPanelViewGroupModel)]) continue;
+        AWELongPressPanelViewGroupModel *group = (AWELongPressPanelViewGroupModel *)groupObj;
+        BOOL groupHasCustom = NO;
+        for (id itemObj in group.groupArr) {
+            if (![itemObj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) continue;
+            AWELongPressPanelBaseViewModel *item = (AWELongPressPanelBaseViewModel *)itemObj;
+            if (DYYYLongPressItemIsCustom(item, group)) {
+                groupHasCustom = YES;
+                if (DYYYLongPressItemHiddenByHideList(item.describeString, hideSet)) continue;
+                if (item.describeString.length == 0) continue;
+                [gridItems addObject:@{@"title": item.describeString, @"actionType": @(item.actionType)}];
+            }
+        }
+        if (!groupHasCustom && group.groupArr.count > 0) hasNativeItems = YES;
+    }
+    if (gridItems.count == 0) return; // 一个自定义项都没开，原生面板就是对的，不盖网格
+
+    __weak UIViewController *weakVC = vc;
+    DYYYLongPressGridPanelView *panel = [[DYYYLongPressGridPanelView alloc] initWithItems:gridItems
+                                                                           hasNativeItems:hasNativeItems
+                                                                        itemActionHandler:^(NSInteger actionType) {
+        // 点按时按 actionType 找回原 viewModel 执行它的 action（下载/复制/过滤/定时等逻辑一点没改）。
+        NSArray *currentData = gDYYYLongPressPanelData;
+        for (id groupObj in currentData) {
+            if (![groupObj isKindOfClass:%c(AWELongPressPanelViewGroupModel)]) continue;
+            for (id itemObj in ((AWELongPressPanelViewGroupModel *)groupObj).groupArr) {
+                if (![itemObj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) continue;
+                AWELongPressPanelBaseViewModel *item = (AWELongPressPanelBaseViewModel *)itemObj;
+                if (item.actionType == actionType && item.action) {
+                    item.action();
+                    return;
+                }
+            }
+        }
+        GHLLog(@"长按面板：网格点按 actionType %ld 没找到对应项", (long)actionType);
+    } revealNativeHandler:^{
+        gDYYYLongPressGridPanelNativeVC = weakVC;
+    } dismissHandler:^{
+        AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+        [panelManager dismissWithAnimation:YES completion:nil];
+    }];
+    panel.frame = vc.view.bounds;
+    [vc.view addSubview:panel];
+    [panel setNeedsLayout];
+    gDYYYLongPressGridPanel = panel;
+    GHLLog(@"长按面板：网格已盖上（%lu 项，原生项%@）", (unsigned long)gridItems.count, hasNativeItems ? @"有" : @"无");
+}
+
+static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
+    if (!vc || !vc.view) return;
+    DYYYLongPressGridPanelView *panel = gDYYYLongPressGridPanel;
+    if (panel && panel.superview == vc.view) {
+        panel.frame = vc.view.bounds;
+        [panel setNeedsLayout];
+    }
+}
+
+%hook AWEModernLongPressPanelTableViewController
+- (void)viewDidLoad {
+    %orig;
+    DYYYShowLongPressGridPanelIfNeeded(self);
+}
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    DYYYShowLongPressGridPanelIfNeeded(self);
+}
+- (void)viewDidLayoutSubviews {
+    %orig;
+    DYYYLayoutLongPressGridPanel(self);
+    DYYYShowLongPressGridPanelIfNeeded(self);
+}
+%end
+
+// 旧版长按面板（DYYYEnableModernPanel 没开时走这里）：同一套网格，别只换新版。
+%hook AWELongPressPanelTableViewController
+- (void)viewDidLoad {
+    %orig;
+    DYYYShowLongPressGridPanelIfNeeded(self);
+}
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    DYYYShowLongPressGridPanelIfNeeded(self);
+}
+- (void)viewDidLayoutSubviews {
+    %orig;
+    DYYYLayoutLongPressGridPanel(self);
+    DYYYShowLongPressGridPanelIfNeeded(self);
 }
 %end
 
@@ -1823,9 +1971,13 @@
     if (originalArray.count > 0) {
         NSMutableArray *resultArray = [originalArray mutableCopy];
         [resultArray insertObject:newGroupModel atIndex:0];
-        return [resultArray copy];
+        NSArray *finalArray = [resultArray copy];
+        gDYYYLongPressPanelData = finalArray; // 1.0.9：网格面板用的最新数据（弱引用，不持有，避免循环引用）
+        return finalArray;
     } else {
-        return @[ newGroupModel ];
+        NSArray *finalArray = @[ newGroupModel ];
+        gDYYYLongPressPanelData = finalArray; // 1.0.9：网格面板用的最新数据（弱引用，不持有，避免循环引用）
+        return finalArray;
     }
 }
 %end
