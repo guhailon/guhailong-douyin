@@ -1122,7 +1122,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.2 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.3 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil

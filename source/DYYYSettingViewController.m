@@ -506,7 +506,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 - (void)setupSectionTitles {
-    self.sectionTitles = [@[ @"顾海龙抖音", @"顾海龙抖音（二）", @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
+    self.sectionTitles = [@[ @"常用功能", @"自动功能", @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
 }
 
 // 1.0.2 白色卡片主页头：龙头 logo 招牌 + 名字 + 版本 + 统计，
@@ -624,7 +624,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 - (void)footerButtonTapped:(UIButton *)sender {
     if (sender.tag == 0) {
         [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
-                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。", DYYY_VERSION]
+                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548", DYYY_VERSION]
                                   onConfirm:nil];
     } else if (sender.tag == 1) {
         [DYYYSettingsHelper showAboutDialog:@"基于 DYYY"
