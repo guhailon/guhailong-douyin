@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)ghlPresentImportPicker;
 - (void)ghlConfirmResetSettings;
 
+// 1.0.21：卡片内的设置页（卡片首页推的根页/子页/记页恢复）强制浅色玻璃——
+// table 背景透明（卡片的毛玻璃透上来）、cell 半透明白、深色字；
+// 卡片外打开时不设，照旧走深色跟随/自定义背景。
+@property(nonatomic, assign) BOOL ghlInFloatPanel;
+
 @end
 
 NS_ASSUME_NONNULL_END

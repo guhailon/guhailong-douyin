@@ -145,12 +145,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 // 1.0.4：当前是不是深色（跟随系统深色开着、且系统/抖音是深色）。
+// 1.0.21：卡片内永远按浅色算（卡片本身就是浅色玻璃，深色字才看得清）。
 - (BOOL)ghlDarkModeActive {
+    if (self.ghlInFloatPanel) return NO;
     return GHLFollowSystemDarkEnabled() && [DYYYUtils isDarkMode];
 }
 
 // 1.0.4：统一视觉——深色跟随（关了就强制浅色：overrideUserInterfaceStyle 让系统颜色也跟着浅）。
 - (void)ghlApplySettingsAppearance {
+    // 1.0.21：卡片内强制浅色玻璃——页底透明（卡片的毛玻璃透上来），不跟系统深浅。
+    if (self.ghlInFloatPanel) {
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+        self.view.backgroundColor = [UIColor clearColor];
+        return;
+    }
     self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
     BOOL dark = [self ghlDarkModeActive];
     self.view.backgroundColor = dark ? [UIColor colorWithRed:28 / 255.0 green:28 / 255.0 blue:30 / 255.0 alpha:1.0] : [UIColor systemGroupedBackgroundColor];
@@ -158,6 +166,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 // 1.0.4：自定义背景铺底（有自选图就铺图 + 遮罩，没有就回默认分组底色）。
 - (void)ghlApplySettingsBackground {
+    // 1.0.21：卡片内不铺自定义背景图——铺了就把卡片的毛玻璃盖住了；
+    // table 背景透明、背景视图清掉，让玻璃感透出来（cell 底色见 cellForRowAtIndexPath）。
+    if (self.ghlInFloatPanel) {
+        self.tableView.backgroundView = nil;
+        self.tableView.backgroundColor = [UIColor clearColor];
+        [self.tableView reloadData];
+        return;
+    }
     BOOL dark = [self ghlDarkModeActive];
     self.backgroundImage = GHLCustomBackgroundImage();
     self.tableView.backgroundView = [DYYYUtils dYYYSettingsBackgroundViewForImage:self.backgroundImage darkMode:dark];
@@ -1018,8 +1034,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         }
         // 1.0.4 统一视觉：颜色跟随深色/自定义背景（每次配行时都算，别只在创建时设一次）。
+        // 1.0.21：卡片内用半透明白（ghlDarkModeActive 在卡片内已返回 NO，字是深色）。
         BOOL dark = [self ghlDarkModeActive];
-        cell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+        cell.backgroundColor = self.ghlInFloatPanel ? [DYYYUtils dYYYSettingsCellBackgroundColorForFloatPanel] : [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
         cell.textLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
         cell.detailTextLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark];
         if (!cell.selectedBackgroundView) cell.selectedBackgroundView = [[UIView alloc] init];
@@ -1110,10 +1127,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     }
 
     // 1.0.4 统一视觉：颜色跟随深色/自定义背景（每次配行时都算，别只在创建时设一次）。
+    // 1.0.21：卡片内用半透明白（ghlDarkModeActive 在卡片内已返回 NO，字是深色）。
     BOOL dark = [self ghlDarkModeActive];
     cell.textLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
     cell.detailTextLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark];
-    cell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+    cell.backgroundColor = self.ghlInFloatPanel ? [DYYYUtils dYYYSettingsCellBackgroundColorForFloatPanel] : [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
     cell.selectedBackgroundView.backgroundColor = dark ? [UIColor colorWithWhite:1 alpha:0.12] : [UIColor colorWithWhite:0.9 alpha:1.0];
 
     if (item.type == DYYYSettingItemTypeSwitch) {

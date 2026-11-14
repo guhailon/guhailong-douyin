@@ -1,11 +1,15 @@
-// GHLAboutViewController — 关于深色品牌页（1.0.13，方案四）
+// GHLAboutViewController — 关于浅色玻璃页（1.0.13 方案四；1.0.21 深色改浅色，
+// 和卡片首页／长按面板同款 iOS 文件夹式浅色玻璃：半透明白卡、深色字、金色点缀）
 // 1.0.14：标题/版本行按横幅里龙头中心对齐；QQ 行标签改成「QQ：QQ群交流：」+ 号码；
 // 原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。
 // 1.0.15：横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按重测的龙头中心 x=358 对齐）；
 // 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）和
 // 「恢复默认横幅」（删自选图回内置展翅龙；自选图时标题按横幅中心对齐）。
-// 显式深色，不跟随系统：顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
-// 标题金字＋灰字版本叠在横幅下半部）＋两张深色金边卡＋页底小灰字声明摘要。
+// 1.0.21：深色改浅色——页底/卡底改半透明白、字改深色、显式浅色不跟随系统；
+// 对齐：行图标/文字/箭头/转圈共用同一套常量（转圈中心＝箭头中心，长标题太长时自动缩字不截断，
+// 分隔线左端＝文字左端、右端＝卡片右内边）；横幅标题/版本行仍按龙头中心对齐（1.0.14/1.0.15 实测值不动）。
+// 顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
+// 标题金字＋灰字版本叠在横幅下半部）＋两张浅色玻璃卡＋页底小灰字声明摘要。
 // 第一张卡：关于/联系（基于 DYYY、原作者、源码、越狱源、QQ交流、QQ群）＋金色加群大按钮；
 // 第二张卡：配置管理（导出/导入/恢复默认/重启抖音）＋更新日志＋检查更新＋声明（声明在最下面）。
 // 检查更新、越狱源、重启抖音、点版本行复制信息是 1.0.13 新增；
@@ -62,7 +66,18 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
 
 @end
 
-// 横幅里龙头中心（实测）：展翅龙图里两只红眼睛的中点在 640x360 横幅图的 x=358（358/640），
+// 1.0.21：行对齐常量——图标/文字/箭头/转圈/分隔线都从这里算，改一处全页都对齐。
+// （皇上 1.0.20「关于那边都没有对齐」；截图未到，先把系统性的几处修掉：
+//  转圈中心比箭头中心偏左 2pt、长标题在小屏上被截断、分隔线右端和卡片右内边没对上。）
+static const CGFloat kGHLAboutRowHeight = 52;
+static const CGFloat kGHLAboutRowIconX = 16;
+static const CGFloat kGHLAboutRowIconSize = 24;
+static const CGFloat kGHLAboutRowLabelX = 52; // 图标右端（16+24）+12 间距＝文字左端；分隔线也从这里起
+static const CGFloat kGHLAboutCardMargin = 16; // 卡片/横幅左右边距；行右内边也是 16
+static const CGFloat kGHLAboutCardSpacing = 16; // 横幅/卡片/页底之间的纵向间距
+static const CGFloat kGHLAboutChevronWidth = 12;
+static const CGFloat kGHLAboutChevronHeight = 18;
+static const CGFloat kGHLAboutSpinnerSize = 20;
 // 不在图正中心（320）。标题/版本行按龙头中心对齐，不要按横幅 view 居中——
 // 否则字看起来相对龙头偏右（1.0.13 真机反馈「没对准好」）。换横幅图时要重测这个值。
 // （1.0.14 的旧图是 280/640；1.0.15 换成展翅龙后重测为 358/640。
@@ -72,22 +87,23 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 
 @implementation GHLAboutViewController
 
-#pragma mark - 深色品牌色（本页显式深色，不跟随系统；金色走统一的 dYYYGoldAccentColor）
+#pragma mark - 浅色玻璃色（1.0.21：深色改浅色；本页显式浅色，不跟随系统；金色走统一的 dYYYGoldAccentColor）
 
 - (UIColor *)ghlPageBackgroundColor {
-    return [UIColor colorWithRed:10 / 255.0 green:10 / 255.0 blue:18 / 255.0 alpha:1.0];
+    // 页底透明——卡片里的毛玻璃从下面透上来；万一哪天又全屏打开，背后是导航栈的底色，不会黑。
+    return [UIColor clearColor];
 }
 
 - (UIColor *)ghlCardBackgroundColor {
-    return [UIColor colorWithRed:23 / 255.0 green:23 / 255.0 blue:36 / 255.0 alpha:1.0];
+    return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
 }
 
 - (UIColor *)ghlSecondaryTextColor {
-    return [UIColor colorWithWhite:0.62 alpha:1.0];
+    return [UIColor colorWithWhite:0.45 alpha:1.0];
 }
 
 - (UIColor *)ghlSeparatorColor {
-    return [UIColor colorWithWhite:1.0 alpha:0.08];
+    return [UIColor colorWithWhite:0.0 alpha:0.08];
 }
 
 #pragma mark - 页面结构
@@ -96,8 +112,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     [super viewDidLoad];
     self.title = @"关于";
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
-    // 深色品牌页：显式深色，不跟随系统。
-    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    // 浅色玻璃页：显式浅色，不跟随系统。
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
     self.view.backgroundColor = [self ghlPageBackgroundColor];
 
     UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
@@ -111,9 +127,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 
     // 顶上横幅：雷鸣绿龙图＋金字标题＋灰字版本（点版本行复制信息）。
     UIView *banner = [self ghlBannerView];
-    banner.frame = CGRectMake(16, 16, width - 32, (width - 32) * 360.0 / 640.0);
+    banner.frame = CGRectMake(kGHLAboutCardMargin, kGHLAboutCardMargin, width - kGHLAboutCardMargin * 2, (width - kGHLAboutCardMargin * 2) * 360.0 / 640.0);
     [scrollView addSubview:banner];
-    y = CGRectGetMaxY(banner.frame) + 16;
+    y = CGRectGetMaxY(banner.frame) + kGHLAboutCardSpacing;
 
     // 第一张卡：关于/联系＋金色加群大按钮。
     UIView *card1 = [self ghlBuildCardWithRows:@[
@@ -127,10 +143,10 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ群 %@", GHL_QQ_GROUP_NUMBER] icon:@"person.2" tag:GHLAboutRowQQGroup chevron:NO],
     ]
                                                joinButton:YES
-                                                      width:width - 32];
-    card1.frame = CGRectMake(16, y, width - 32, card1.frame.size.height);
+                                                      width:width - kGHLAboutCardMargin * 2];
+    card1.frame = CGRectMake(kGHLAboutCardMargin, y, width - kGHLAboutCardMargin * 2, card1.frame.size.height);
     [scrollView addSubview:card1];
-    y = CGRectGetMaxY(card1.frame) + 16;
+    y = CGRectGetMaxY(card1.frame) + kGHLAboutCardSpacing;
 
     // 第二张卡：配置管理＋更新日志＋检查更新＋声明（声明在最下面）。
     UIView *card2 = [self ghlBuildCardWithRows:@[
@@ -149,13 +165,13 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         [self ghlRowSpecWithTitle:@"声明" icon:@"doc.text" tag:GHLAboutRowDisclaimer chevron:YES],
     ]
                                                joinButton:NO
-                                                      width:width - 32];
-    card2.frame = CGRectMake(16, y, width - 32, card2.frame.size.height);
+                                                      width:width - kGHLAboutCardMargin * 2];
+    card2.frame = CGRectMake(kGHLAboutCardMargin, y, width - kGHLAboutCardMargin * 2, card2.frame.size.height);
     [scrollView addSubview:card2];
-    y = CGRectGetMaxY(card2.frame) + 16;
+    y = CGRectGetMaxY(card2.frame) + kGHLAboutCardSpacing;
 
-    // 页底一行小灰字：声明摘要。
-    UILabel *footerLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, y, width - 48, 28)];
+    // 页底一行小灰字：声明摘要（框和卡片左右对齐，文字本身居中）。
+    UILabel *footerLabel = [[UILabel alloc] initWithFrame:CGRectMake(kGHLAboutCardMargin, y, width - kGHLAboutCardMargin * 2, 28)];
     footerLabel.text = @"基于开源项目 DYYY 二次开发，仅供学习交流使用";
     footerLabel.font = [UIFont systemFontOfSize:12];
     footerLabel.textColor = [self ghlSecondaryTextColor];
@@ -258,15 +274,15 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     return @{@"title": title, @"icon": icon, @"tag": @(tag), @"chevron": @(chevron)};
 }
 
-// 深色卡：深底＋金边＋圆角 16；行高 52；可选底部金色加群大按钮。
+// 浅色玻璃卡：半透明白底＋细金边＋圆角 16；行高 52；可选底部金色加群大按钮。
 - (UIView *)ghlBuildCardWithRows:(NSArray<NSDictionary *> *)rows joinButton:(BOOL)joinButton width:(CGFloat)width {
-    CGFloat rowHeight = 52;
+    CGFloat rowHeight = kGHLAboutRowHeight;
     CGFloat height = rows.count * rowHeight + (joinButton ? (12 + 56 + 16) : 0);
     UIView *card = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, height)];
     card.backgroundColor = [self ghlCardBackgroundColor];
     card.layer.cornerRadius = 16;
-    card.layer.borderWidth = 1.0;
-    card.layer.borderColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.45].CGColor;
+    card.layer.borderWidth = 0.6;
+    card.layer.borderColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.35].CGColor;
     card.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     CGFloat y = 0;
     for (NSInteger i = 0; i < (NSInteger)rows.count; i++) {
@@ -275,7 +291,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         row.frame = CGRectMake(0, y, width, rowHeight);
         [card addSubview:row];
         if (i + 1 < (NSInteger)rows.count) {
-            UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(52, y + rowHeight - 0.5, width - 52 - 16, 0.5)];
+            // 分隔线：左端＝文字左端（52），右端＝卡片右内边（16），和文字/箭头对齐。
+            UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(kGHLAboutRowLabelX, y + rowHeight - 0.5, width - kGHLAboutRowLabelX - kGHLAboutCardMargin, 0.5)];
             sep.backgroundColor = [self ghlSeparatorColor];
             sep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
             [card addSubview:sep];
@@ -284,7 +301,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     }
     if (joinButton) {
         UIButton *join = [UIButton buttonWithType:UIButtonTypeCustom];
-        join.frame = CGRectMake(16, y + 12, width - 32, 56);
+        join.frame = CGRectMake(kGHLAboutCardMargin, y + 12, width - kGHLAboutCardMargin * 2, 56);
         join.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         join.backgroundColor = [DYYYUtils dYYYGoldAccentColor];
         join.layer.cornerRadius = 16;
@@ -297,30 +314,37 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     return card;
 }
 
-// 卡内一行：金图标＋白字＋（有动作时）金色箭头。
+// 卡内一行：金图标＋深色字＋（有动作时）金色箭头。
+// 对齐：图标 x=16（24×24，行高 52 里垂直居中）；文字 x=52；箭头右端＝卡片右内边 16；
+// 转圈中心＝箭头中心（以前转圈中心比箭头偏左 2pt）；长标题太长时自动缩字不截断。
 - (UIButton *)ghlRowButtonWithTitle:(NSString *)title icon:(NSString *)iconName tag:(NSInteger)tag hasChevron:(BOOL)hasChevron width:(CGFloat)width {
     UIButton *row = [UIButton buttonWithType:UIButtonTypeCustom];
-    row.frame = CGRectMake(0, 0, width, 52);
+    row.frame = CGRectMake(0, 0, width, kGHLAboutRowHeight);
     row.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     row.tag = tag;
     [row addTarget:self action:@selector(ghlRowTapped:) forControlEvents:UIControlEventTouchUpInside];
 
-    UIImageView *iconView = [[UIImageView alloc] initWithFrame:CGRectMake(16, 14, 24, 24)];
+    UIImageView *iconView = [[UIImageView alloc] initWithFrame:CGRectMake(kGHLAboutRowIconX, (kGHLAboutRowHeight - kGHLAboutRowIconSize) / 2, kGHLAboutRowIconSize, kGHLAboutRowIconSize)];
     iconView.image = [UIImage systemImageNamed:iconName];
     iconView.tintColor = [DYYYUtils dYYYGoldAccentColor];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     [row addSubview:iconView];
 
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(52, 0, width - 52 - 36, 52)];
+    CGFloat labelRightInset = hasChevron ? (kGHLAboutCardMargin + kGHLAboutChevronWidth + 8) : kGHLAboutCardMargin;
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kGHLAboutRowLabelX, 0, width - kGHLAboutRowLabelX - labelRightInset, kGHLAboutRowHeight)];
     label.text = title;
     label.font = [UIFont systemFontOfSize:17];
-    label.textColor = [UIColor whiteColor];
+    label.textColor = [UIColor colorWithWhite:0.15 alpha:1.0];
     label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    // 长标题（QQ 行 19 字）在小屏上会超宽：自动缩字到 0.85 倍，不截断。
+    label.adjustsFontSizeToFitWidth = YES;
+    label.minimumScaleFactor = 0.85;
     [row addSubview:label];
 
     UIImageView *chevron = nil;
     if (hasChevron) {
-        chevron = [[UIImageView alloc] initWithFrame:CGRectMake(width - 28, 17, 12, 18)];
+        CGFloat chevronX = width - kGHLAboutCardMargin - kGHLAboutChevronWidth;
+        chevron = [[UIImageView alloc] initWithFrame:CGRectMake(chevronX, (kGHLAboutRowHeight - kGHLAboutChevronHeight) / 2, kGHLAboutChevronWidth, kGHLAboutChevronHeight)];
         chevron.image = [UIImage systemImageNamed:@"chevron.right"];
         chevron.tintColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.55];
         chevron.contentMode = UIViewContentModeScaleAspectFit;
@@ -332,7 +356,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         self.checkRowTitleLabel = label;
         self.checkRowChevron = chevron;
         UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-        spinner.frame = CGRectMake(width - 34, 16, 20, 20);
+        // 转圈中心和箭头中心同一个点（箭头中心 x＝卡片右内边 16＋箭头宽 12 的一半＝宽-22）。
+        CGFloat spinnerCenterX = width - kGHLAboutCardMargin - kGHLAboutChevronWidth / 2;
+        spinner.frame = CGRectMake(spinnerCenterX - kGHLAboutSpinnerSize / 2, (kGHLAboutRowHeight - kGHLAboutSpinnerSize) / 2, kGHLAboutSpinnerSize, kGHLAboutSpinnerSize);
         spinner.color = [DYYYUtils dYYYGoldAccentColor];
         spinner.hidden = YES;
         spinner.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
@@ -401,7 +427,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             [self ghlCheckForUpdate];
             break;
         case GHLAboutRowLogViewer:
-            // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是深色品牌页，
+            // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，
             // 进出外观是否跳变要真机看一眼）。
             [self.navigationController pushViewController:[[GHLLogViewerViewController alloc] init] animated:YES];
             break;

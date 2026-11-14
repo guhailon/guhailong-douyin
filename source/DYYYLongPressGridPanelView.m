@@ -1,5 +1,6 @@
 // 顾海龙抖音长按下载面板：网格风格（1.0.9）
-// 深色毛玻璃底板 + 三列金色图标网格 + 顶部金色龙头（复用 GHLLogoImage()，圆形金边，和设置页头卡同一套）。
+// 浅色毛玻璃底板 + 三列金色图标网格 + 顶部金色龙头（复用 GHLLogoImage()，圆形金边，和设置页头卡同一套）。
+// 1.0.21：深色改浅色（和卡片首页／关于页同款 iOS 文件夹式浅色玻璃）。
 // 效果图：workspace/imagine_media/media-generation-download-menu-grid-dragon-0-168c78e9-fb05-4e57-8b23-f8476d304c10.webp
 // 与效果图的一处差别：龙头没有探出面板顶边（贴边 10pt 放在毛玻璃里），避免 sheet 容器裁切导致龙头被切一半。
 // 1.0.15：没有「更多」了——自定义项和抖音原生项全在网格里，长按只出网格，不再回到原生列表页。
@@ -114,8 +115,8 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     self.backgroundColor = [UIColor clearColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-    // 深色毛玻璃底板（效果图是深色毛玻璃，不跟随系统深浅；和 1.0.8 底栏毛玻璃同一套做法）。
-    _blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
+    // 浅色毛玻璃底板（1.0.21：和卡片首页／关于页同款浅色玻璃，不跟随系统深浅）。
+    _blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialLight]];
     _blurView.userInteractionEnabled = NO;
     _blurView.layer.cornerRadius = 24;
     _blurView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
@@ -139,7 +140,8 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     _gridScrollView.delegate = self; // 1.0.16：滚动吸附（scrollViewWillEndDragging 里对齐行高，不留半行）
     [self addSubview:_gridScrollView];
 
-    // 网格格子：每格一个圆角半透明底 + 金色图标 + 白字标题。
+    // 网格格子：每格一个圆角浅色半透明底 + 细亮边 + 金色图标 + 深色字标题。
+    // 1.0.21：深色改浅色（和卡片首页／关于页同款）。
     // 1.0.15：没有「更多」格了——items 里就是全部项（自定义＋原生），有几项就出几格；
     // 超出 4 行时纵向滚动（scrollView 带滚动条），不截断。
     UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
@@ -150,9 +152,11 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         if (!title || title.length == 0) title = @"未命名";
 
         UIButton *cell = [UIButton buttonWithType:UIButtonTypeCustom];
-        cell.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
+        cell.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.55];
         cell.layer.cornerRadius = 16;
         cell.layer.masksToBounds = YES;
+        cell.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.6].CGColor;
+        cell.layer.borderWidth = 0.6;
         cell.accessibilityLabel = title;
         cell.tag = i; // 格子序号：点按时按序号找回 items 里的标题和 actionType。
 
@@ -165,7 +169,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 
         UILabel *label = [[UILabel alloc] init];
         label.text = title;
-        label.textColor = [UIColor whiteColor];
+        label.textColor = [UIColor colorWithWhite:0.15 alpha:1.0];
         label.font = [UIFont systemFontOfSize:13];
         label.textAlignment = NSTextAlignmentCenter;
         label.numberOfLines = 1;

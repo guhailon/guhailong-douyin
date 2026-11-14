@@ -121,9 +121,23 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
 
 // 1.0.20：按搜索框过滤日志行（大小写不敏感；没搜就显示整份，滚到最后看最新一段；
 // 有搜就只显示命中的行，滚到最上面看第一条命中）。
+// 1.0.21：第 8 项——搜索记一行（同一 query 只记一次：搜什么、命中几行，方便从日志验证）。
 - (void)ghlApplyLogFilter {
     if (!self.fullLogText) return; // 还没读出来（正在加载或暂无日志），不动
     NSString *query = [self.searchBar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    static NSString *lastLoggedQuery = nil;
+    if (![query isEqualToString:lastLoggedQuery ?: @""]) {
+        lastLoggedQuery = [query copy];
+        if (query.length == 0) {
+            GHLLog(@"日志页：搜索已清空");
+        } else {
+            NSInteger hits = 0;
+            for (NSString *line in [self.fullLogText componentsSeparatedByString:@"\n"]) {
+                if ([line.lowercaseString containsString:query.lowercaseString]) hits++;
+            }
+            GHLLog(@"日志页：搜索「%@」，命中 %ld 行", query, (long)hits);
+        }
+    }
     if (query.length == 0) {
         self.textView.text = self.fullLogText;
         [self.textView scrollRangeToVisible:NSMakeRange(self.textView.text.length, 0)];

@@ -234,6 +234,9 @@ static __weak AWEAwemeModel *dyyyCurrentSpeedAweme = nil;
 static NSString *dyyyLastAutoRestoredSpeedAwemeIdentifier = nil;
 static BOOL dyyyLongPressFastSpeedActive = NO;
 static BOOL dyyyLongPressLockedSpeedActive = NO;
+// 1.0.21：双指长按进行中（双指长按只开卡片，不触发倍速——见 handleDoubleFingerLongPressGesture；
+// 标志只由双指手势的 Began/Ended 管，不放进 DYYYClearLongPressSpeedState，免得手势还没松开就被清掉）。
+static BOOL dyyyTwoFingerLongPressActive = NO;
 
 static void DYYYClearLongPressSpeedState(void) {
     dyyyLongPressFastSpeedActive = NO;
@@ -3328,6 +3331,15 @@ static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
 %new
 - (void)handleDoubleFingerLongPressGesture:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state == UIGestureRecognizerStateBegan) {
+        // 1.0.21：双指长按只开卡片，不触发抖音的长按倍速——先把标志立起来
+        // （changeSpeed:/handleLongPressFastSpeed: 见到标志就不改速度），
+        // 再把已经触发的长按倍速恢复回配置速度（单指识别器可能比双指的先触发，
+        // 手指按下去那一下速度可能闪一下——彻底不闪要让单指识别器等双指的失败，
+        // 抖音自己的识别器拿不到引用，做不到，日志里如实记）。
+        dyyyTwoFingerLongPressActive = YES;
+        DYYYClearLongPressSpeedState();
+        DYYYScheduleConfiguredPlaybackSpeedRestore();
+        GHLLog(@"双指长按：已阻止倍速");
         UIViewController *rootViewController = self.rootViewController;
         if (rootViewController) {
             // 1.0.2：双指长按直接进顾海龙抖音设置主页。
@@ -3337,6 +3349,11 @@ static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
             GHLLog(@"快捷面板：双指长按已触发");
             [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:rootViewController];
         }
+    } else if (gesture.state == UIGestureRecognizerStateEnded ||
+               gesture.state == UIGestureRecognizerStateCancelled ||
+               gesture.state == UIGestureRecognizerStateFailed) {
+        // 1.0.21：双指松开，倍速抑制解除（单指长按又能改速度了）。
+        dyyyTwoFingerLongPressActive = NO;
     }
 }
 
@@ -4706,6 +4723,8 @@ static BOOL isGestureActive = NO;
 }
 
 - (void)changeSpeed:(double)speed {
+    // 1.0.21：双指长按进行中时不改速度（双指长按只开卡片，见 handleDoubleFingerLongPressGesture）。
+    if (dyyyTwoFingerLongPressActive) return;
     float longPressSpeed = DYYYGetFloat(@"DYYYLongPressSpeed");
 
     if (isGestureActive && currentLongPressSpeed > 0) {
@@ -4733,6 +4752,11 @@ static BOOL isGestureActive = NO;
     BOOL isEnding = gesture.state == UIGestureRecognizerStateEnded ||
                     gesture.state == UIGestureRecognizerStateCancelled ||
                     gesture.state == UIGestureRecognizerStateFailed;
+
+    // 1.0.21：双指长按进行中时，单指长按倍速不接手（Began/Changed 直接 return）；
+    // 但 Ended/Cancelled 一定要走完清理（isGestureActive/currentLongPressSpeed 清掉，
+    // 否则下次改速度会用残留的长按速度），再恢复配置速度。
+    if (dyyyTwoFingerLongPressActive && !isEnding) return;
 
     if (isBeginning) {
         dyyyLongPressFastSpeedActive = YES;
@@ -9656,12 +9680,21 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
+// 1.0.21：最近一次 setListenVideoStatus 记下的改写后值（-1 表示还没见过），
+// 画中画的音频状态日志用（GHLLogAudioState 在 GHLFeatures.xm 里调；声明在 GHLFeatures.h）。
+static NSInteger ghlCurrentListenVideoStatus = -1;
+NSInteger GHLCurrentListenVideoStatus(void) {
+    return ghlCurrentListenVideoStatus;
+}
+
 %hook AWEAwemeStatusModel
 - (void)setListenVideoStatus:(NSInteger)status {
     NSInteger newStatus = status;
     if (status == 1 && DYYYGetBool(@"DYYYEnableBackgroundListen")) {
         newStatus = 2;
     }
+    // 1.0.21：每次都记下改写后值（不只记日志那次），画中画的音频状态日志要读最新值。
+    ghlCurrentListenVideoStatus = newStatus;
     // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
     // 写进顾海龙日志（只在后台播放开关开着时记，避免刷屏）。
     // 1.0.18 降噪：只在 status 真变了时记一行——之前一秒十几行重複行，關鍵行會被淹沒。

@@ -1129,6 +1129,11 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return [self dYYYSettingsCardColorDarkMode:darkMode];
 }
 
+// 1.0.21：卡片内设置行底色——半透明白（和卡片首页/关于页/长按面板同款浅色玻璃）。
++ (UIColor *)dYYYSettingsCellBackgroundColorForFloatPanel {
+    return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
+}
+
 + (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode {
     if (!image) return nil;
     // 先给屏幕尺寸的初始 frame（tableView 接手后会再调 container 的 frame，子视图靠 autoresizing 跟着变）。

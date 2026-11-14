@@ -119,6 +119,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (UIColor *)dYYYSettingsSecondaryTextColorDarkMode:(BOOL)darkMode;
 // 设置行底色：有自定义背景图就透明（让背景透出来），否则跟卡片底色一致。
 + (UIColor *)dYYYSettingsCellBackgroundColorForBackgroundImage:(nullable UIImage *)backgroundImage darkMode:(BOOL)darkMode;
+// 1.0.21：卡片内设置行底色——半透明白（让卡片的浅色毛玻璃透出来），不跟自定义背景/深色走。
++ (UIColor *)dYYYSettingsCellBackgroundColorForFloatPanel;
 // 自定义背景的铺底视图（图 + 淡色遮罩：浅色白遮罩、深色黑遮罩，字才看得清）；没有图返回 nil。
 + (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode;
 // 卡片圆角（头卡、弹窗统一 16）

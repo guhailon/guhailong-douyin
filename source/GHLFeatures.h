@@ -301,6 +301,14 @@ void GHLApplyCleanMode(BOOL on);       // (6) 开：首页净化+清屏按钮；
 // 1.0.20：统一卡片——所有入口都开卡片（浮动钮、抖音设置行、双指长按、其他调用方），
 // 不再全屏推设置页。实现在 GHLFeatures.xm（卡片自己的 UIWindow 里嵌设置页导航栈）。
 void GHLShowFloatPanel(void);
+// 1.0.21：卡片首页（GHLFloatPanelHomeViewController）用的两个入口：关卡片、
+// 取卡片共用的设置页实例（通用设置推它、关于页拿它当配置三行的帮手）。
+void GHLCloseFloatPanel(void);
+@class DYYYSettingViewController;
+DYYYSettingViewController *GHLFloatPanelSharedSettingsViewController(void);
+// 1.0.21：第 7 项音频状态行用的抖音自己后台听视频 status（DYYY.xm 里 setListenVideoStatus
+// 钩子记下的改写后值；-1 表示还没见过）。
+NSInteger GHLCurrentListenVideoStatus(void);
 void GHLStartPiP(void);                // (2) 画中画
 // 1.0.16：画中画带调用方（网格点按 / 切后台），查找日志记调用方，判别触发路。
 void GHLStartPiPWithCaller(NSString * _Nullable caller);

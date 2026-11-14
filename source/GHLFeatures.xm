@@ -16,6 +16,7 @@
 #import "DYYYSettingsHelper.h"
 #import "DYYYSettingViewController.h"
 #import "GHLAboutViewController.h"
+#import "GHLFloatPanelHomeViewController.h"
 #import "GHLLogViewerViewController.h"
 #import "DYYYToast.h"
 #import <AVKit/AVKit.h>
@@ -37,6 +38,9 @@ static void GHLToggleFloatPanel(void);
 static void GHLHideFloatPanel(void);
 static void GHLFloatPanelHandleDimTap(UITapGestureRecognizer *gesture);
 static void GHLRefreshFloatPanelButton(void);
+
+// 前向声明（1.0.21 主线程卡住看门狗：定义在巡检定时器一节，%ctor 里先启动，要先声明）
+static void GHLStartMainThreadWatchdog(void);
 
 #pragma mark - 基础工具
 
@@ -70,6 +74,17 @@ static dispatch_queue_t GHLLogQueue(void) {
     return queue;
 }
 
+// 1.0.21：最近一条日志（主线程看门狗读来当“最近活动”；写在日志串行队列里，
+// 读也走同一队列，线程安全——看门狗在后台线程读，不能直接碰这个指针）。
+static NSString *ghlLastLogMessage = nil;
+static NSString *GHLLastLogMessage(void) {
+    __block NSString *message = nil;
+    dispatch_sync(GHLLogQueue(), ^{
+      message = ghlLastLogMessage;
+    });
+    return message;
+}
+
 // 1.0.6：诊断日志主路径（App 沙盒内 Documents/DYYY/，配置导出已证明能写）。
 NSString *GHLLogFilePath(void) {
     NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
@@ -86,6 +101,7 @@ void GHLLog(NSString *format, ...) {
     NSString *line = [NSString stringWithFormat:@"[%@] [GHL] %@\n", [[NSDate date] description], message];
     NSLog(@"%@", line);
     dispatch_async(GHLLogQueue(), ^{
+      ghlLastLogMessage = message; // 1.0.21：主线程看门狗的“最近活动”就从这里读。
       @try {
           // 1.0.6：主路径改到 App 自己的 Documents/DYYY/（沙盒内可写，配置导出已证明能写）；
           // 旧路径 /var/mobile/Library/Logs/ 在沙盒里写不出去，只作次选兜底。
@@ -240,7 +256,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.17：直播画中画：直播间没有普通视频的播放地址，D 路兜底加直播分支——进直播间/点画中画时探一次 room model 的拉流地址栏位（只记栏位名＋长度＋前 60 字），拿到 HLS（.m3u8）就走同一套自起播放器做画中画（从头播，接不上直播进度；拉流地址可能是短效签名；后台/锁屏/声音冲突待真机验证）；只有 FLV/RTMP 时如实记一行，不转封装；B 路探针遇到「键存在但值不是播放器/图层」时补记一行；画中画查找日志加一行是否在直播间。\n"
            @"1.0.18：视频页左上角加龙头浮动钮，点开快捷面板（深色毛玻璃卡：标题＋搜索框＋两列按钮＋完成；通用设置／首页／朋友／消息／我／播放互动／诊断反馈／关于；搜索只过滤面板按钮；播放互动里直接列画中画＋后台播放／记忆倍速／快进手势三个开关；设置页「悬浮按钮」分区可关）；直播探针下探一层（上次只探到 IESLiveRoomService 服务外壳，这次再探它里面的 roomModel 等容器键一层），探针改后台线程跑（画中画查找那路 5 秒超时，超时按拿不到地址处理）；另加计时日志（只记日志不改行为，用来定位画面冻住的原因：巡检每跳耗时＋上跳间隔、视频页布局钩子每秒次数＋耗时）；后台听视频日志降噪（status 真变了才记一行）。\n"
            @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。\n"
-           @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。";
+           @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。\n"
+           @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -281,12 +298,21 @@ static NSArray<UIWindow *> *GHLAllAppWindows(void) {
     return windows;
 }
 
+// 1.0.21：A 路排除自己的宿主图层——宿主 view 和合成图层的声明必须放在 finder 前面
+// （以前在 600 行以后，finder 看不到，自己的兜底图层会被当成系统播放器捡起来，
+// 8.log 18:21:26 实锤的竞态：前一次 D 路兜底还在 KVO 加载，A 路把它捡起来又调了一次 start）。
+static UIView *ghlPiPLayerHostView = nil; // 合成图层宿主 view（挂在窗口里，320x180）
+static AVPlayerLayer *ghlPiPSyntheticLayer = nil; // C/D 路新建的图层（控制器会留住，这里再强引用一份）
+
 // 递归收图层：AVPlayerLayer 直接收；AVSampleBufferDisplayLayer / Metal / GL 图层只计数
 // （诊断用：它们出现说明抖音在用自有播放器渲染，而不是 AVPlayerLayer）。
 static void GHLCollectPlayerLayersInLayer(CALayer *layer, NSMutableArray<AVPlayerLayer *> *out, NSInteger *sampleBufferLayerCount, NSInteger *metalLayerCount) {
     if (!layer) return;
     for (CALayer *sublayer in layer.sublayers ?: @[]) {
         if ([sublayer isKindOfClass:[AVPlayerLayer class]]) {
+            // 1.0.21：跳过自己的宿主图层——那是上次 D 路兜底自起播放器的图层，
+            // 不是抖音系统的播放器；捡起来再调 start 就是 8.log 里的竞态。
+            if (sublayer == (CALayer *)ghlPiPSyntheticLayer || sublayer.superlayer == ghlPiPLayerHostView.layer) continue;
             [out addObject:(AVPlayerLayer *)sublayer];
         } else if ([sublayer isKindOfClass:[AVSampleBufferDisplayLayer class]]) {
             if (sampleBufferLayerCount) (*sampleBufferLayerCount)++;
@@ -593,9 +619,7 @@ void GHLApplyNightMode(BOOL on) {
 #pragma mark - (2) 画中画
 
 static AVPictureInPictureController *ghlPiPController = nil;
-// 1.0.15：C 路新建的图层（有播放器没现成图层时，用播放器建一个再建 PiP 控制器）：
-// 控制器会留住它，这里再强引用一份保险。
-static AVPlayerLayer *ghlPiPSyntheticLayer = nil;
+// （1.0.21：ghlPiPSyntheticLayer 的声明挪到 finder 前面了，A 路排除自己图层要用。）
 
 // ===== 画中画兜底 D 路（1.0.16）=====
 // 抖音自有播放器（Metal 渲染）没有 AVPlayerLayer，A/B/C 全空时只能自起播放器。
@@ -609,18 +633,25 @@ static BOOL ghlPiPFallbackStarted = NO;
 static char kGHLPiPFallbackKVOContext;
 
 // 画中画 start 回调标记：didStart/失败任一到就置 YES；每次调 startPictureInPicture 前清掉。
-// 8 秒都没回调＝系统根本没接上（1.0.18 日志：8 次调用 0 成功、7 次没任何回调），
-// 看门狗就把兜底播放器停掉，别让它在后台一直出声。
+// 3 秒都没回调＝系统根本没接上（1.0.18 日志：8 次调用 0 成功、7 次没任何回调；
+// 8.log：没窗口的兜底一直响到会话结束），看门狗就把兜底播放器停掉，别让它在后台一直出声。
 static BOOL ghlPiPStartCallbackReceived = NO;
 static CFAbsoluteTime ghlPiPLastStartTime = 0;
-// 合成图层宿主：画中画的 AVPlayerLayer 必须挂在窗口里的 view 上才能启动，
-// 只建图层不挂＝start 调了也没回调（1.0.18 的 7 次无回调就是这么来的）。
-static UIView *ghlPiPLayerHostView = nil;
+// （1.0.21：ghlPiPLayerHostView 的声明挪到 finder 前面了，A 路排除自己图层要用。）
+// 1.0.21：第 7 项去重——上次切后台触发的时间（不管有没有调 start）；10 秒内重复触发直接丢弃。
+// （8.log：D 里 4 秒内重复触发 5 次，每次都重建兜底播放器，旧看门狗全被新播放器顶掉。
+//  旧的冷却只看上次 start，没调 start 时挡不住——通知中心下拉也会触发 WillResignActive，
+//  回来又 DidBecomeActive 清掉 guard，一拉一回就是一次新触发。）
+static CFAbsoluteTime ghlPiPLastTriggerTime = 0;
+// 1.0.21：兜底播放器建的时候 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）。
+// 建的时候在后台、就绪时已回前台＝用户回来了，别再启动画中画，直接停掉兜底（免得两个声音叠着响）。
+static BOOL ghlPiPFallbackCreatedWhileBackground = NO;
 
 // 前向声明（定义在下面 GHLStartPiP 前；GHLPiPDelegate 的 KVO 回调里先用到）。
 static void GHLCleanupFallbackPiPObserver(void);
 static void GHLCleanupFallbackPiPPlayer(void);
 static void GHLNotePiPStartAttempted(void);
+static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason); // 1.0.21：3 秒看门狗／后台任务结束时的共用停播
 
 // 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
 // ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
@@ -654,10 +685,16 @@ static void GHLBeginPiPBackgroundTaskIfNeeded(void) {
     if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
     if (ghlPiPBackgroundTask != UIBackgroundTaskInvalid) return;
     ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+      // 1.0.21：系统要收回后台时间了——画中画还没出来就先停兜底，别让它没窗口一直响。
+      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务到期");
       GHLEndPiPBackgroundTask();
     }];
+    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      GHLEndPiPBackgroundTask();
+      // 1.0.21：10 秒到了——没出来就停兜底，再结束这个任务（只结束自己这一份，
+      // 别动后来新开的任务；以前直接调 GHLEndPiPBackgroundTask，会误结束新任务）。
+      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务 10 秒到");
+      if (ghlPiPBackgroundTask == task) GHLEndPiPBackgroundTask();
     });
 }
 
@@ -685,9 +722,32 @@ static void GHLRemovePiPObservers(void) {
     }
 }
 
+// 1.0.21：第 7 项——音频状态一行（切后台触发／已进后台／将终止三处共用，格式统一才好对照）。
+// 两路会叠加：兜底播放器在播＋抖音自己的后台音频（status 2）同时响，日志里要分得清。
+// （status 是 setListenVideoStatus 钩子记下的改写后值；-1 表示还没见过。）
+static void GHLLogAudioState(NSString *when) {
+    GHLLog(@"%@：音频状态：兜底播放器%@（%@），抖音后台听视频 status=%ld（开关 %@／%@），PiP 回调%@／小窗%@",
+           when,
+           ghlPiPFallbackPlayer ? @"在" : @"不在",
+           (ghlPiPFallbackPlayer && ghlPiPFallbackPlayer.rate > 0) ? @"在播" : @"没播",
+           (long)GHLCurrentListenVideoStatus(),
+           GHLGetBool(GHL_KEY_BACKGROUND_LISTEN) ? @"开" : @"关",
+           [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableBackgroundListen"] ? @"开" : @"关",
+           ghlPiPStartCallbackReceived ? @"有" : @"无",
+           (ghlPiPController && ghlPiPController.pictureInPictureActive) ? @"已出" : @"没出");
+}
+
 // 切后台时触发一次画中画（开关关着就不触发；已触发过就跳过，等回到前台再重置）。
 static void GHLTriggerPiPForBackground(void) {
     if (ghlPiPTriggeredForCurrentBackground) return;
+    // 1.0.21：第 7 项去重——距上次触发不足 10 秒直接丢弃，不要重复建兜底播放器
+    // （8.log：D 里 4 秒内重复触发 5 次；旧冷却只看上次 start，没调 start 时挡不住——
+    //  通知中心下拉也会触发 WillResignActive，回来又 DidBecomeActive 清掉 guard，
+    //  一拉一回就是一次新触发，每次都重建兜底，旧看门狗全被新播放器顶掉）。
+    if (ghlPiPLastTriggerTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastTriggerTime < 10) {
+        GHLLog(@"画中画：距上次触发不足 10 秒，丢弃重复触发");
+        return;
+    }
     // 1.0.20：距上次 start 未满 10 秒直接忽略（6.log 17:18 七秒连触三次，
     // 第三次 start 才 1 秒就被切后台 3 秒重查误杀；冷却后同一次后台只会触发一次）。
     if (ghlPiPLastStartTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 10) {
@@ -696,6 +756,9 @@ static void GHLTriggerPiPForBackground(void) {
     }
     if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
     ghlPiPTriggeredForCurrentBackground = YES;
+    ghlPiPLastTriggerTime = CFAbsoluteTimeGetCurrent();
+    // 1.0.21：第 7 项——每次切后台触发记一行音频状态。
+    GHLLogAudioState(@"画中画：切后台触发");
     // 1.0.16：切后台触发也记调用方（判别是网格点按还是切后台）。
     GHLStartPiPWithCaller(@"切后台");
 }
@@ -749,10 +812,23 @@ static void GHLTriggerPiPForBackground(void) {
         if (item.status == AVPlayerItemStatusReadyToPlay) {
             if (!ghlPiPFallbackStarted) {
                 ghlPiPFallbackStarted = YES;
-                [ghlPiPFallbackPlayer play];
-                [ghlPiPController startPictureInPicture];
-                GHLNotePiPStartAttempted();
-                GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+                // 1.0.21：KVO 回调不在主线程跑（AVFoundation 内部线程），startPictureInPicture
+                // 必须回主线程调——后台线程调很可能系统根本不接（0 回调的嫌疑之一）。
+                // 兜底是切后台建的、就绪时已回前台＝用户回来了：别启动，直接停掉兜底
+                // （免得兜底和抖音自己的声音叠着响）。
+                GHLRunOnMain(^{
+                  if (!ghlPiPFallbackPlayer || !ghlPiPController) return; // 已经被停了（看门狗／3 秒检查）
+                  if (ghlPiPFallbackCreatedWhileBackground &&
+                      [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+                      GHLLog(@"画中画：兜底就绪时已回前台，不启动画中画，停掉兜底播放器");
+                      GHLCleanupFallbackPiPPlayer();
+                      return;
+                  }
+                  [ghlPiPFallbackPlayer play];
+                  [ghlPiPController startPictureInPicture];
+                  GHLNotePiPStartAttempted();
+                  GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+                });
             }
             GHLCleanupFallbackPiPObserver(); // 就绪了就不用再监听
         } else if (item.status == AVPlayerItemStatusFailed) {
@@ -1147,20 +1223,31 @@ static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
     [ghlPiPLayerHostView.layer addSublayer:layer];
 }
 
-// 每次调 startPictureInPicture 后都记一下：8 秒后还没回调（didStart/失败都没来），
+// 1.0.21：画中画没出来时的兜底停播（共用）：兜底在、没回调、小窗没起来，就停掉并记原因。
+// 调用点：3 秒看门狗、后台任务结束时、后台任务过期时——三处兜底，不只靠主线程定时器。
+// （8.log 实锤：8 秒看门狗有时根本没跑——start 调得晚，看门狗排到后台任务结束后，
+//  App 已挂起，主线程定时器不跑，兜底就一直响到会话结束。去重（第 7 项）修了重复建播放器
+//  顶掉看门狗的那一半；任务结束时停修了看门狗排到任务结束后的那一半。）
+static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason) {
+    if (!ghlPiPFallbackPlayer) return;
+    if (ghlPiPStartCallbackReceived) return;
+    if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
+    GHLLog(@"画中画没出来，已停兜底播放器（%@）", reason);
+    GHLCleanupFallbackPiPPlayer();
+}
+
+// 每次调 startPictureInPicture 后都记一下：3 秒后还没回调（didStart/失败都没来），
 // 当系统没接上，停掉兜底播放器（复用路/KVO 路/超时路都走这里）。
+// 1.0.21：8 秒改 3 秒——硬上限是「调 start 后 3 秒内没回调就必停」，别让没窗口的兜底多响 5 秒。
 static void GHLWatchPiPStartTimeout(void) {
     __block AVPictureInPictureController *controller = ghlPiPController;
     __block AVPlayer *player = ghlPiPFallbackPlayer;
     __block CFAbsoluteTime startTime = ghlPiPLastStartTime;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       if (ghlPiPStartCallbackReceived) return;
       if (controller != ghlPiPController || player != ghlPiPFallbackPlayer) return; // 已换过一轮，不管
       if (startTime != ghlPiPLastStartTime) return;                                 // 又调了一次 start，后面的看门狗会处理
-      if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
-      if (!ghlPiPFallbackPlayer) return;
-      GHLLog(@"画中画：等系统回调超时（8 秒没回），兜底播放器已停止");
-      GHLCleanupFallbackPiPPlayer();
+      GHLStopFallbackPlayerIfPiPNotStarted(@"调 start 后 3 秒没系统回调");
     });
 }
 
@@ -1209,6 +1296,9 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
     ghlPiPFallbackItem = item;
     ghlPiPFallbackPlayer = player;
     ghlPiPFallbackStarted = NO;
+    // 1.0.21：记下建兜底时 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）——
+    // 就绪时若已回前台就不启动（见上面 KVO 分支）。
+    ghlPiPFallbackCreatedWhileBackground = ([UIApplication sharedApplication].applicationState != UIApplicationStateActive);
     GHLPreparePiPAudioSession();
     AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
     ghlPiPSyntheticLayer = layer;
@@ -1242,6 +1332,14 @@ static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
           if (ghlPiPFallbackPlayer == player && !ghlPiPFallbackStarted && ghlPiPFallbackItem == item) {
               if (item.status == AVPlayerItemStatusReadyToPlay) return; // KVO 那边会处理
+              // 1.0.21：同 KVO 分支——兜底是切后台建的、8 秒后已回前台就别启动，直接停掉。
+              if (ghlPiPFallbackCreatedWhileBackground &&
+                  [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+                  GHLLog(@"画中画：兜底 8 秒未就绪且已回前台，不启动画中画，停掉兜底播放器");
+                  GHLCleanupFallbackPiPPlayer();
+                  return;
+              }
+              if (!ghlPiPController) return;
               GHLLog(@"画中画兜底：等播放器就绪超时，直接试一次 startPictureInPicture");
               [ghlPiPController startPictureInPicture];
               GHLNotePiPStartAttempted();
@@ -1287,6 +1385,10 @@ void GHLStartPiP(void) {
 void GHLStartPiPWithCaller(NSString *caller) {
     GHLRunOnMain(^{
       GHLLog(@"画中画：触发（%@）", caller.length > 0 ? caller : @"未知");
+      // 1.0.21：记下触发时 App 的状态——窗口还可见时调 start 才有意义，
+      // 切后台后才调（窗口已不可见）是 0 回调的嫌疑之一；WillResignActive 时是“不活跃”。
+      UIApplicationState appState = [UIApplication sharedApplication].applicationState;
+      GHLLog(@"画中画：触发时 App 状态：%@", appState == UIApplicationStateActive ? @"前台" : (appState == UIApplicationStateInactive ? @"不活跃（正在切后台）" : @"后台"));
       // 1.0.17：查找日志加一行是否在直播间（直播的查找现场跟普通视频不一样）。
       GHLLog(@"画中画查找：是否在直播间：%@", GHLIsInLiveRoom() ? @"是" : @"否");
       if (![AVPictureInPictureController isPictureInPictureSupported]) {
@@ -2492,7 +2594,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.20 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.21 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2523,6 +2625,8 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
+                          // 1.0.21：第 7 项——进后台时先记一行音频状态（和切后台触发那行对照）。
+                          GHLLogAudioState(@"应用已进后台");
                           // 兜底：开关开着、还没触发过时，先开个后台任务撑到系统回调
                           // （或 10 秒超时），再触发。
                           GHLBeginPiPBackgroundTaskIfNeeded();
@@ -2547,6 +2651,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                           ghlPiPTriggeredForCurrentBackground = NO;
                         }];
         GHLStartHousekeepingTimer();
+        GHLStartMainThreadWatchdog(); // 1.0.21：第 6 项——冻住看门狗（诊断用，只抓证据）
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
           if (GHLGetBool(GHL_KEY_NIGHT_MODE)) GHLApplyNightMode(YES);
           if (GHLGetBool(GHL_KEY_ANTI_RECALL)) GHLProbeAntiRecall();
@@ -2562,6 +2667,19 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 // 1.0.15：进程退出时移除 %ctor 里注册的监听（照 DYYY.xm 的 DYYYRemoveAppLifecycleObservers 写法）。
 %hook AppDelegate
 - (void)applicationWillTerminate:(UIApplication *)application {
+    // 1.0.21：第 7 项——进程要没了，尽力停兜底＋停画中画。先记一行音频状态（和切后台触发／
+    // 已进后台那两行对照），再停。诚实边界：彻底划掉是 SIGKILL，WillTerminate 未必跑得到；
+    // 跑到了就停，跑不到时声音若还在响，就是系统画中画会话在终止后存活，那是 iOS 行为，
+    // 不是咱们能停的——日志里要分得清（所以先记状态再停）。
+    GHLLogAudioState(@"应用将终止");
+    if (ghlPiPController && ghlPiPController.pictureInPictureActive) {
+        [ghlPiPController stopPictureInPicture];
+        GHLLog(@"应用将终止：画中画已停");
+    }
+    if (ghlPiPFallbackPlayer) {
+        GHLCleanupFallbackPiPPlayer(); // 里面会记「兜底播放器：已停止」
+        GHLLog(@"应用将终止：兜底播放器已停");
+    }
     GHLRemovePiPObservers();
     %orig;
 }
@@ -3771,8 +3889,12 @@ static UIView *ghlFloatPanelCard = nil;                // 圓角卡片
 static UINavigationController *ghlFloatPanelNav = nil; // 卡片內的導航棧（根＝設定頁）
 static BOOL ghlFloatPanelOpen = NO;
 static id ghlFloatPanelOrientationToken = nil; // 轉屏重排卡片（只註冊一次）
-static UIVisualEffectView *ghlFloatPanelBlurView = nil; // 卡片底：深色毛玻璃（1.0.20，影片做法）
-static UIButton *ghlFloatPanelDoneButton = nil;         // 卡片底部「完成」按钮（1.0.20）
+static UIVisualEffectView *ghlFloatPanelBlurView = nil; // 卡片底：浅色毛玻璃（1.0.21，照片里文件夹那种）
+static UIView *ghlFloatPanelTintView = nil;             // 毛玻璃上再盖一层淡白，让浅色玻璃更透亮
+static UIButton *ghlFloatPanelDoneButton = nil;         // 卡片底部「完成」按钮（1.0.21：金色 pill）
+// 1.0.21：卡片共用的设置页实例——通用设置推它、关于页拿它当配置三行的帮手。
+// 只建一份（设置页建起来不便宜）；推上去时若已在栈里就回到它，不重复推。
+static DYYYSettingViewController *ghlFloatPanelSharedSettingsVC = nil;
 
 // 1.0.20：卡片内边距（导航栈缩进 10pt，深色毛玻璃边框露出来）＋底部「完成」条高 64pt。
 static const CGFloat kGHLFloatPanelNavInset = 10;
@@ -3842,14 +3964,15 @@ static void GHLLayoutFloatPanel(void) {
     ghlFloatPanelCard.frame = GHLFloatPanelCardFrameForBounds(bounds);
     CGRect cardBounds = ghlFloatPanelCard.bounds;
     if (ghlFloatPanelBlurView) ghlFloatPanelBlurView.frame = cardBounds;
+    if (ghlFloatPanelTintView) ghlFloatPanelTintView.frame = cardBounds;
     if (ghlFloatPanelNav) {
         ghlFloatPanelNav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                                  cardBounds.size.width - kGHLFloatPanelNavInset * 2,
                                                  cardBounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
     }
     if (ghlFloatPanelDoneButton) {
-        ghlFloatPanelDoneButton.frame = CGRectMake(0, cardBounds.size.height - kGHLFloatPanelDoneBarHeight,
-                                                   cardBounds.size.width, kGHLFloatPanelDoneBarHeight);
+        ghlFloatPanelDoneButton.frame = CGRectMake(16, cardBounds.size.height - kGHLFloatPanelDoneBarHeight + 8,
+                                                   cardBounds.size.width - 32, kGHLFloatPanelDoneBarHeight - 16);
     }
 }
 
@@ -3883,30 +4006,41 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     hostVC.view = container;
     panelWindow.rootViewController = hostVC;
 
-    // 卡片：1.0.20 改成深色毛玻璃（影片做法）＋去掉金边；阴影不要——masksToBounds 会裁掉。
+// 卡片：1.0.21 改成浅色毛玻璃（照片里文件夹那种：背景透出来、浅色半透明、细亮边）＋
+// 金色 pill「完成」；导航栈缩进 10pt 露出毛玻璃边框。根页是卡片首页（按键页），
+// 设置列表是按键推进去的，不再是根页。
     UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
     card.backgroundColor = [UIColor clearColor];
     card.layer.cornerRadius = 24;
     card.layer.masksToBounds = YES;
-    card.layer.borderWidth = 0;
-    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
+    card.layer.borderWidth = 1.0;
+    card.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.6].CGColor;
+    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleLight]];
     blurView.frame = card.bounds;
     blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     blurView.layer.cornerRadius = 24;
     blurView.layer.masksToBounds = YES;
     blurView.userInteractionEnabled = NO;
     [card addSubview:blurView];
+    // 淡白 tint：浅色玻璃更透亮（照片里文件夹就是透亮的白，不是灰）。
+    UIView *tintView = [[UIView alloc] initWithFrame:card.bounds];
+    tintView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.18];
+    tintView.layer.cornerRadius = 24;
+    tintView.layer.masksToBounds = YES;
+    tintView.userInteractionEnabled = NO;
+    tintView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [card addSubview:tintView];
     // 居中不随尺寸变：四边留白自适应，转屏时靠下面的重排再算一次。
     card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin |
                             UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
     [container addSubview:card];
 
-    // 卡片里的导航栈：根就是真正的设置页（DYYYSettingViewController），
-    // 白卡头＋搜索框＋分区列表全是它自己的；分区行点进子页在卡片内推，不展开全屏。
-    // 1.0.20：导航栈缩进 10pt（深色毛玻璃边框露出来）＋圆角 16，底部留 64pt 给「完成」条。
-    DYYYSettingViewController *settingsVC = [[DYYYSettingViewController alloc] init];
-    settingsVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:settingsVC];
+    // 卡片里的导航栈：根是卡片首页（按键页：标题＋搜索框＋两列按键），
+    // 通用设置／播放互动／诊断反馈／关于都从首页按键推进去，不展开全屏。
+    // 1.0.21：导航栈缩进 10pt（浅色毛玻璃边框露出来）＋圆角 16，底部留 64pt 给「完成」条。
+    GHLFloatPanelHomeViewController *homeVC = [[GHLFloatPanelHomeViewController alloc] init];
+    homeVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:homeVC];
     nav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                 card.bounds.size.width - kGHLFloatPanelNavInset * 2,
                                 card.bounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
@@ -3916,13 +4050,17 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     [card addSubview:nav.view];
     [nav didMoveToParentViewController:hostVC];
 
-    // 1.0.20：底部「完成」按钮（点一下关卡片，影片里的做法）；放在卡片的深色毛玻璃上。
-    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    // 1.0.21：底部「完成」按钮改成金色 pill（浅色玻璃上金字太淡，金底深字才醒目）；
+    // 放在卡片的浅色毛玻璃上，左右留 16pt。
+    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
     [doneButton setTitle:@"完成" forState:UIControlStateNormal];
-    [doneButton setTitleColor:[DYYYUtils dYYYGoldAccentColor] forState:UIControlStateNormal];
+    [doneButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    doneButton.backgroundColor = [DYYYUtils dYYYGoldAccentColor];
     doneButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
-    doneButton.frame = CGRectMake(0, card.bounds.size.height - kGHLFloatPanelDoneBarHeight,
-                                  card.bounds.size.width, kGHLFloatPanelDoneBarHeight);
+    doneButton.layer.cornerRadius = 12;
+    doneButton.layer.masksToBounds = YES;
+    doneButton.frame = CGRectMake(16, card.bounds.size.height - kGHLFloatPanelDoneBarHeight + 8,
+                                  card.bounds.size.width - 32, kGHLFloatPanelDoneBarHeight - 16);
     [doneButton addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:doneButton];
 
@@ -3931,6 +4069,7 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     ghlFloatPanelCard = card;
     ghlFloatPanelNav = nav;
     ghlFloatPanelBlurView = blurView;
+    ghlFloatPanelTintView = tintView;
     ghlFloatPanelDoneButton = doneButton;
 
     // 转屏时重排卡片（只注册一次；进程内常驻，和巡检定时器一样不摘）。
@@ -3941,8 +4080,24 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     }
 }
 
+// 1.0.21：卡片共用的设置页实例（懒建一份；通用设置推它、关于页拿它当配置三行的帮手）。
+DYYYSettingViewController *GHLFloatPanelSharedSettingsViewController(void) {
+    if (!ghlFloatPanelSharedSettingsVC) {
+        ghlFloatPanelSharedSettingsVC = [[DYYYSettingViewController alloc] init];
+        ghlFloatPanelSharedSettingsVC.ghlInFloatPanel = YES;
+    }
+    return ghlFloatPanelSharedSettingsVC;
+}
+
+// 卡片首页「关闭」按钮／底栏切换成功后关卡片用的公开入口（GHLShowFloatPanel 的反向）。
+void GHLCloseFloatPanel(void) {
+    GHLRunOnMain(^{
+      GHLHideFloatPanel();
+    });
+}
+
 // 1.0.20：卡片记住上次停在哪一页——关卡片时把顶页标识记进偏好（root / section:N / about / log），
-// 下次打开恢复；标识对不上就回根。
+// 下次打开恢复；标识对不上就回根。1.0.21：存/恢复都记一行（日志里能验记页到底灵不灵）。
 static void GHLSaveFloatPanelLastPage(void) {
     if (!ghlFloatPanelNav) return;
     UIViewController *topVC = ghlFloatPanelNav.topViewController;
@@ -3956,34 +4111,49 @@ static void GHLSaveFloatPanelLastPage(void) {
         page = @"log";
     }
     [[NSUserDefaults standardUserDefaults] setObject:page forKey:kGHLFloatPanelLastPageKey];
+    GHLLog(@"卡片记页：已存「%@」", page);
 }
+
+static void GHLHideFloatPanel(void); // 定义在下面（GHLCloseFloatPanel 先用到）
 
 static void GHLRestoreFloatPanelLastPage(void) {
     if (!ghlFloatPanelNav) return;
     [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
     NSString *page = [[NSUserDefaults standardUserDefaults] stringForKey:kGHLFloatPanelLastPageKey];
-    if (!page || [page isEqualToString:@"root"]) return;
+    if (!page || [page isEqualToString:@"root"]) {
+        GHLLog(@"卡片记页：恢复到首页（%@）", page ?: @"没记过");
+        return;
+    }
     UIViewController *rootVC = ghlFloatPanelNav.viewControllers.firstObject;
+    (void)rootVC; // 1.0.21：根页是卡片首页，不再是设置页；关于页的帮手改用共用的设置页实例。
     @try {
         if ([page hasPrefix:@"section:"]) {
             NSInteger sectionIndex = [[page substringFromIndex:@"section:".length] integerValue];
             // 分区共 11 个（setupSectionTitles 与 settingSections 11/11 对齐）；越界就回根。
-            if (sectionIndex < 0 || sectionIndex >= 11) return;
+            if (sectionIndex < 0 || sectionIndex >= 11) {
+                GHLLog(@"卡片记页：分区 %@ 越界，回首页", page);
+                return;
+            }
             DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:sectionIndex];
+            subVC.ghlInFloatPanel = YES;
             [ghlFloatPanelNav pushViewController:subVC animated:NO];
+            GHLLog(@"卡片记页：恢复到分区 %ld", (long)sectionIndex);
         } else if ([page isEqualToString:@"about"]) {
             GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
-            if ([rootVC isKindOfClass:[DYYYSettingViewController class]]) {
-                aboutVC.settingsViewController = (DYYYSettingViewController *)rootVC;
-            }
+            aboutVC.settingsViewController = GHLFloatPanelSharedSettingsViewController();
             [ghlFloatPanelNav pushViewController:aboutVC animated:NO];
+            GHLLog(@"卡片记页：恢复到关于页");
         } else if ([page isEqualToString:@"log"]) {
             GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
             [ghlFloatPanelNav pushViewController:logVC animated:NO];
+            GHLLog(@"卡片记页：恢复到日志页");
+        } else {
+            GHLLog(@"卡片记页：标识「%@」对不上，回首页", page);
         }
     } @catch (__unused NSException *exception) {
         // 恢复失败就回根（顶页在旧版删了、分区变了，都不崩）。
         [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
+        GHLLog(@"卡片记页：恢复「%@」时异常，回首页", page);
     }
 }
 
@@ -4060,6 +4230,50 @@ static void GHLToggleFloatPanel(void) {
 }
 
 @end
+
+#pragma mark 主线程卡住看门狗（1.0.21，诊断用）
+
+// 冻住的证据收集器：后台线程每 500ms ping 一次主线程，3 秒没回应＝主线程卡住了。
+// （皇上 1.0.20：抖音整个不能动，只能杀掉重开；巡检最长 7.2ms、布局最长 3.7ms 都已排除，
+//  冻住的原因还没定死——这个看门狗只抓证据，不修冻住。日志写盘走 GHLLog 的串行队列，
+//  线程安全；“最近活动”读 GHLLastLogMessage（同样走日志队列，线程安全）。）
+static dispatch_source_t ghlMainThreadWatchdogTimer = nil;
+static CFAbsoluteTime ghlMainThreadStuckSince = 0;
+static CFAbsoluteTime ghlMainThreadWatchdogLastReminder = 0;
+
+static void GHLStartMainThreadWatchdog(void) {
+    if (ghlMainThreadWatchdogTimer) return;
+    dispatch_queue_t queue = dispatch_queue_create("com.guhailong.douyin.mainthreadwatchdog", DISPATCH_QUEUE_SERIAL);
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_MSEC)), 500 * NSEC_PER_MSEC, 100 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(timer, ^{
+      // 主线程回一个信号就放行；3 秒等不到＝卡住了（定时器在后台队列等，不占主线程）。
+      dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch_semaphore_signal(sema);
+      });
+      CFAbsoluteTime waitStart = CFAbsoluteTimeGetCurrent();
+      long result = dispatch_semaphore_wait(sema, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)));
+      CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+      if (result != 0) {
+          // 卡住了：第一次记一行，之后每 5 秒再记一行（别刷屏），恢复时记卡住时长。
+          if (ghlMainThreadStuckSince == 0) {
+              ghlMainThreadStuckSince = waitStart;
+              ghlMainThreadWatchdogLastReminder = now;
+              GHLLog(@"主线程卡住：已无响应 3 秒，最近活动：%@", GHLLastLogMessage() ?: @"（无）");
+          } else if (now - ghlMainThreadWatchdogLastReminder >= 5) {
+              ghlMainThreadWatchdogLastReminder = now;
+              GHLLog(@"主线程卡住：仍无响应，已卡 %.0f 秒，最近活动：%@", now - ghlMainThreadStuckSince, GHLLastLogMessage() ?: @"（无）");
+          }
+      } else if (ghlMainThreadStuckSince > 0) {
+          GHLLog(@"主线程恢复：卡住约 %.1f 秒，最近活动：%@", now - ghlMainThreadStuckSince, GHLLastLogMessage() ?: @"（无）");
+          ghlMainThreadStuckSince = 0;
+      }
+    });
+    dispatch_resume(timer);
+    ghlMainThreadWatchdogTimer = timer;
+    GHLLog(@"主线程看门狗：已启动（每 500ms 探一次，3 秒没回应就记「主线程卡住」）");
+}
 
 #pragma mark 巡检定时器（2 秒一次）
 

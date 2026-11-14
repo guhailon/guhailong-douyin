@@ -22,7 +22,7 @@
   - `DYYYSettingsBackup.(h/m)`：设置导入 / 导出 / 恢复默认（1.0.4）。
   - `DYYYDownloadManagerViewController.(h/m)`：下载管理页（1.0.4，已保存统计 + 缓存清理）。
   - `GHLLogViewerViewController.(h/m)`：顾海龙日志查看页（1.0.6，读 Documents/DYYY/GuHaiLongDouyin.log，只显示最后约 200KB）。
-  - `GHLAboutViewController.(h/m)`：关于深色品牌页（1.0.13，显式深色：雷鸣绿龙横幅＋金字标题，两张深色金边卡，声明在最下面；横幅图 base64 内嵌在 GHLLogo.m）。1.0.15：设置主页「关于」分类行直接进本页（不再经过只有一行的「关于」子页）；横幅换成展翅绿龙＋可自选横幅背景（Documents/DYYY/ghl-about-banner.jpg，标题对准：内置图按实测龙头中心，自选图按横幅中心）。
+  - `GHLAboutViewController.(h/m)`：关于浅色玻璃页（1.0.13 方案四；1.0.21 深色改浅色：半透明白卡、深色字、金色点缀，显式浅色不跟随系统；横幅仍是雷鸣绿龙图，标题按龙头中心对齐；行图标/文字/箭头/转圈共用同一套对齐常量，长标题自动缩字不截断）。1.0.15：设置主页「关于」分类行直接进本页（不再经过只有一行的「关于」子页）；横幅换成展翅绿龙＋可自选横幅背景（Documents/DYYY/ghl-about-banner.jpg，标题对准：内置图按实测龙头中心，自选图按横幅中心）。
 - **业务/下载**
   - `DYYYManager.(h/m)`：下载、合成、任务管理、授权。
   - `DYYYDownloadScheduler.(h/m)`：下载并发限制、等待队列与取消调度。
@@ -38,7 +38,7 @@
 - **浮窗与快捷操作**
   - 显示协调：`DYYYFloatingButtonCoordinator.(h/m)`，根据实际选中页面、评论、纯净模式与前后台状态统一管理两个悬浮按钮。
   - 漂浮按钮：`DYYYFloatSpeedButton.(h/m)`、`DYYYFloatClearButton.(h/xm)`。
-  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板）、`DYYYBottomAlertView.(h/m)`（复用提示）。
+  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃，和卡片首页／关于页同款）、`DYYYBottomAlertView.(h/m)`（复用提示）。
 - **辅助代理**
   - `DYYYImagePickerDelegate.(h/m)`、`DYYYBackupPickerDelegate.(h/m)`：统一封装系统 Picker 逻辑。
   - `DYYYCustomInputView.(h/m)`：文本输入。
@@ -94,7 +94,7 @@
 1. 所有弹窗、输入框、选择视图均继承自 `UIView` 或自定义控件，负责自己的布局和动画，控制器或 Hook 仅负责组装。
 2. 新的设置项请沿用 AWESetting 模型（`AWESettingSectionModel`、`AWESettingItemModel`）的构造方式，保持 icon/identifier/type 配置完整。
 3. Toast、提示统一调用 `DYYYToast` / `DYYYBottomAlertView`，不要直接 `UIAlertController`。
-4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。
+4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.21：卡片里的设置页强制浅色玻璃（`DYYYSettingViewController.ghlInFloatPanel`，table 透明、cell 半透明白、深色字，不铺自定义背景图），和卡片首页／关于页／长按面板同款。
 
 ### 7. 资源与缓存
 1. `DYYYCustomAssetsDirectory`、`NSCache` 等资源缓存均用 `dispatch_once` 初始化。新增缓存时务必限制容量或提供清理策略。
