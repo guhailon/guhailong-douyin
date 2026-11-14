@@ -1,6 +1,7 @@
 // GHLLogViewerViewController — 顾海龙日志查看页（1.0.6）
 // 读 GHLLogFilePath()（Documents/DYYY/GuHaiLongDouyin.log），只显示最后约 200KB；
 // 刷新、清空（先弹确认框）、分享（系统分享单，和配置导出同一套）。
+// 1.0.20：加「复制日志」文字按钮（整份日志拷到剪贴簿）＋搜索框（过滤日志行）。
 // 文件读在后台队列做，UI 回主线程；文件不存在或为空显示“暂无日志”，不崩。
 #import "GHLLogViewerViewController.h"
 #import "DYYYBottomAlertView.h"
@@ -10,11 +11,14 @@
 // 最多显示的字节数（超了只读最后这段，前面省略并在顶部注明）。
 static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
 
-@interface GHLLogViewerViewController ()
+@interface GHLLogViewerViewController () <UISearchBarDelegate>
 @property(nonatomic, strong) UITextView *textView;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
 @property(nonatomic, strong, nullable) UIView *backgroundView;
 @property(nonatomic, strong) UIBarButtonItem *shareItem;
+// 1.0.20：搜索框＋整份日志原文（过滤和复制都用它；textView 只负责显示）。
+@property(nonatomic, strong, nullable) UISearchBar *searchBar;
+@property(nonatomic, strong, nullable) NSString *fullLogText;
 @end
 
 @implementation GHLLogViewerViewController
@@ -27,6 +31,20 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     self.shareItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction target:self action:@selector(ghlShareLog)];
     self.navigationItem.rightBarButtonItems = @[ refreshItem, self.shareItem ];
 
+    // 1.0.20：搜索框（过滤日志行，搜「画中画」「错误」等；右上角图标可能被导航栏底色糊掉，
+    // 文字按钮不会——复制放到底部工具列，和清空放一起）。
+    UISearchBar *searchBar = [[UISearchBar alloc] init];
+    searchBar.placeholder = @"搜索日志，如：画中画、错误";
+    searchBar.delegate = self;
+    searchBar.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:searchBar];
+    [NSLayoutConstraint activateConstraints:@[
+        [searchBar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+        [searchBar.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor],
+        [searchBar.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor],
+    ]];
+    self.searchBar = searchBar;
+
     UITextView *textView = [[UITextView alloc] init];
     textView.editable = NO;
     textView.selectable = YES;
@@ -34,17 +52,18 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     textView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:textView];
     [NSLayoutConstraint activateConstraints:@[
-        [textView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+        [textView.topAnchor constraintEqualToAnchor:searchBar.bottomAnchor],
         [textView.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor],
         [textView.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor],
         [textView.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
     ]];
     self.textView = textView;
 
+    UIBarButtonItem *copyItem = [[UIBarButtonItem alloc] initWithTitle:@"复制日志" style:UIBarButtonItemStylePlain target:self action:@selector(ghlCopyLog)];
     UIBarButtonItem *clearItem = [[UIBarButtonItem alloc] initWithTitle:@"清空日志" style:UIBarButtonItemStylePlain target:self action:@selector(ghlConfirmClearLog)];
     clearItem.tintColor = [UIColor systemRedColor];
     UIBarButtonItem *flexible = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
-    self.toolbarItems = @[ flexible, clearItem, flexible ];
+    self.toolbarItems = @[ flexible, copyItem, flexible, clearItem, flexible ];
     [self ghlApplyAppearance];
 }
 
@@ -90,14 +109,59 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
       NSString *content = [self ghlReadCappedLogAtPath:GHLLogFilePath()];
       GHLRunOnMain(^{
         if (!content) {
+            self.fullLogText = nil;
             self.textView.text = @"暂无日志\n\n诊断日志还没生成。进抖音刷几个视频、动几个开关，日志就会写到 Documents/DYYY/GuHaiLongDouyin.log，再点右上角刷新查看。";
             return;
         }
-        self.textView.text = content;
-        // 滚到最后，看最新的一段。
-        [self.textView scrollRangeToVisible:NSMakeRange(self.textView.text.length, 0)];
+        self.fullLogText = content;
+        [self ghlApplyLogFilter];
       });
     });
+}
+
+// 1.0.20：按搜索框过滤日志行（大小写不敏感；没搜就显示整份，滚到最后看最新一段；
+// 有搜就只显示命中的行，滚到最上面看第一条命中）。
+- (void)ghlApplyLogFilter {
+    if (!self.fullLogText) return; // 还没读出来（正在加载或暂无日志），不动
+    NSString *query = [self.searchBar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (query.length == 0) {
+        self.textView.text = self.fullLogText;
+        [self.textView scrollRangeToVisible:NSMakeRange(self.textView.text.length, 0)];
+        return;
+    }
+    NSString *lowerQuery = query.lowercaseString;
+    NSMutableArray<NSString *> *matched = [NSMutableArray array];
+    for (NSString *line in [self.fullLogText componentsSeparatedByString:@"\n"]) {
+        if ([line.lowercaseString containsString:lowerQuery]) [matched addObject:line];
+    }
+    if (matched.count == 0) {
+        self.textView.text = [NSString stringWithFormat:@"没有匹配「%@」的行", query];
+    } else {
+        self.textView.text = [matched componentsJoinedByString:@"\n"];
+    }
+    [self.textView scrollRangeToVisible:NSMakeRange(0, 0)];
+}
+
+- (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+    (void)searchBar;
+    (void)searchText;
+    [self ghlApplyLogFilter];
+}
+
+- (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+    [searchBar resignFirstResponder];
+}
+
+// 1.0.20：复制整份日志到剪贴簿（不过滤——搜着的时候点的也是整份）。
+- (void)ghlCopyLog {
+    NSString *text = self.fullLogText;
+    if (!text || text.length == 0) {
+        [DYYYUtils showToast:@"暂无日志可复制"];
+        return;
+    }
+    [UIPasteboard generalPasteboard].string = text;
+    [DYYYUtils showToast:@"已复制日志"];
+    GHLLog(@"顾海龙日志：已复制日志（%lu 字节）", (unsigned long)text.length);
 }
 
 // 只读最后约 200KB；文件不存在、为空或读失败返回 nil（不崩）。

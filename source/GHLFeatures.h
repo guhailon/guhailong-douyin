@@ -16,7 +16,12 @@ extern "C" {
 // 睡眠定时 (1) — 值：@"关闭"/@"15分钟"/@"30分钟"/@"60分钟"
 #define GHL_KEY_SLEEP_TIMER @"GHLSleepTimer"
 // 画中画+后台播放 (2)
+// 1.0.20：拆成两个开关，各管各的——
+//   GHLBackgroundAudio = 切后台触发画中画；GHLBackgroundListen = 后台听视频
+//   （setListenVideoStatus 的改写跟后台听视频走，经 DYYYEnableBackgroundListen 镜像，
+//   上游「基本设置」里也有同一 key 的「启用后台播放」行，三处同写一个 key）。
 #define GHL_KEY_BACKGROUND_AUDIO @"GHLBackgroundAudio"
+#define GHL_KEY_BACKGROUND_LISTEN @"GHLBackgroundListen"
 // 快进手势 (3)：长按倍速 + 双击左右快进 10 秒
 #define GHL_KEY_SEEK_GESTURES @"GHLSeekGestures"
 // 记忆倍速 (4)：按作者记住倍速
@@ -293,6 +298,9 @@ void GHLRestartSleepTimer(void);        // (1) 按 GHLSleepTimer 的值重建/�
 void GHLApplyNightMode(BOOL on);       // (9)
 void GHLApplyLivePurification(BOOL on); // (12) 开：记下现有值并全开隐藏项；关：恢复
 void GHLApplyCleanMode(BOOL on);       // (6) 开：首页净化+清屏按钮；关：只关首页净化
+// 1.0.20：统一卡片——所有入口都开卡片（浮动钮、抖音设置行、双指长按、其他调用方），
+// 不再全屏推设置页。实现在 GHLFeatures.xm（卡片自己的 UIWindow 里嵌设置页导航栈）。
+void GHLShowFloatPanel(void);
 void GHLStartPiP(void);                // (2) 画中画
 // 1.0.16：画中画带调用方（网格点按 / 切后台），查找日志记调用方，判别触发路。
 void GHLStartPiPWithCaller(NSString * _Nullable caller);

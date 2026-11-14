@@ -18,6 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 // 模态弹出时导航栏左上角“关闭”按钮的动作（DYYYSettings.xm 的直接入口用）。
 - (void)ghlDismissSettings;
 
+// 1.0.20：卡片记住上次停在哪一页——当前页是主页返回 NSNotFound，是分类子页返回分区下标。
+- (NSInteger)ghlDisplaySectionIndex;
+
 // 1.0.13：关于页（GHLAboutViewController）复用配置三行的入口（key 与逻辑不动）。
 - (void)ghlExportAndShareFromIndexPath:(nullable NSIndexPath *)indexPath;
 - (void)ghlPresentImportPicker;

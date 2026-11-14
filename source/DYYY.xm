@@ -3330,8 +3330,11 @@ static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
     if (gesture.state == UIGestureRecognizerStateBegan) {
         UIViewController *rootViewController = self.rootViewController;
         if (rootViewController) {
-            // 1.0.2：直接进顾海龙抖音设置主页（白色卡片）。presentGHLSettingsHome 在无导航栈时
-            // 会包一层导航栏模态弹出（带关闭按钮），主页点分类才能 push 进子页。
+            // 1.0.2：双指长按直接进顾海龙抖音设置主页。
+            // 1.0.20：统一卡片——presentGHLSettingsHome 现在开卡片，不再全屏推设置页
+            // （皇上 01:43：「双指长按不是出现界面吗？」——对，本来就是这个手势开设置，
+            // 现在开的是卡片界面；不另外加手势，否则两个识别器会同时触发）。
+            GHLLog(@"快捷面板：双指长按已触发");
             [DYYYSettingsHelper presentGHLSettingsHomeWithViewController:rootViewController];
         }
     }
@@ -13303,15 +13306,21 @@ static void findTargetViewInView(UIView *view) {
     if (fullscreenCommentClass && [fullscreenCommentClass isSubclassOfClass:[UIViewController class]]) {
         %init(DYYYFullscreenCommentGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
+    // 1.0.20：后台听视频开关首次出现——没存过值时，沿用旧「画中画 + 后台播放」开关的值
+    // （皇上现在开着就继续开着，关着就继续关着）；从没存过旧值才默认开。
+    NSUserDefaults *ghlDefaults = [NSUserDefaults standardUserDefaults];
+    if (![ghlDefaults objectForKey:GHL_KEY_BACKGROUND_LISTEN]) {
+        id oldAudioValue = [ghlDefaults objectForKey:GHL_KEY_BACKGROUND_AUDIO];
+        [ghlDefaults setBool:oldAudioValue ? [oldAudioValue boolValue] : YES forKey:GHL_KEY_BACKGROUND_LISTEN];
+    }
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{
         @"DYYYDisableFeedNowPlayingInfo" : @YES,
         @"GHLLongPressGridPanel" : @YES, // 1.0.9：长按面板网格风格默认开
         // 1.0.11：长按项开关默认全开——之前只注册了网格开关本身，长按项开关一个都没注册，
         // 没动过就是 NO，所以网格只有开着的那 6 项（2 行），过滤/定时三项从来没出现过。
         // 只默认 12 个 DYYY 开关；7 个顾海龙长按开关（提取原声/无水印链接/画中画/语音包/
-        // 保存头像/复制个人资料/分享音频）不默认开——全开会变成 6 行 18 格，而且 BACKGROUND_AUDIO
-        // 默认开会在切后台时自动弹画中画。registerDefaults 只填没存过值的 key，皇上亲手关掉的
-        // 开关不会被覆盖。
+        // 保存头像/复制个人资料/分享音频）不默认开——全开会变成 6 行 18 格。
+        // registerDefaults 只填没存过值的 key，皇上亲手关掉的开关不会被覆盖。
         @"DYYYLongPressSaveVideo" : @YES,
         @"DYYYLongPressSaveCover" : @YES,
         @"DYYYLongPressSaveAudio" : @YES,
@@ -13325,7 +13334,12 @@ static void findTargetViewInView(UIView *view) {
         @"DYYYLongPressTimerClose" : @YES,
         @"DYYYLongPressCreateVideo" : @YES,
         // 1.0.18：视频页左上角龙头浮动钮默认开（设置页「悬浮按钮」分区可关；只填没存过值的 key）。
-        @"GHLFloatPanelButton" : @YES
+        @"GHLFloatPanelButton" : @YES,
+        // 1.0.20：切后台触发画中画／后台听视频两个开关默认都开（保持皇上现行行为）；
+        // DYYYEnableBackgroundListen 镜像也默认开（setListenVideoStatus 的改写跟它走）。
+        @"GHLBackgroundAudio" : @YES,
+        @"GHLBackgroundListen" : @YES,
+        @"DYYYEnableBackgroundListen" : @YES
     }];
 
     DYYYMigrateCombinedHDRModeIfNeeded();

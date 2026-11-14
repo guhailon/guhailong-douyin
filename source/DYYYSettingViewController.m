@@ -93,6 +93,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [self dismissViewControllerAnimated:YES completion:nil];
 }
 
+// 1.0.20：卡片记住上次停在哪一页（主页 NSNotFound，分类子页是分区下标）。
+- (NSInteger)ghlDisplaySectionIndex {
+    return self.displaySectionIndex;
+}
+
 - (BOOL)isHomeMode {
     return self.displaySectionIndex == NSNotFound;
 }
@@ -225,7 +230,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             // 顾海龙抖音新增功能（22 个，(31) 语音包：xuu 式管理器，内置本机音色 + Fish Audio 在线音色）
             [DYYYSettingItem itemWithTitle:@"睡眠定时" key:GHL_KEY_SLEEP_TIMER type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"画中画 + 后台播放" key:GHL_KEY_BACKGROUND_AUDIO type:DYYYSettingItemTypeSwitch],
+            // 1.0.20：旧的「画中画 + 后台播放」一键拆成两个——切后台触发画中画／后台听视频，
+            // 各管各的（以前一个开关同时管触发和听声，关了静音就没画中画触发）。
+            [DYYYSettingItem itemWithTitle:@"切后台触发画中画" key:GHL_KEY_BACKGROUND_AUDIO type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"后台听视频" key:GHL_KEY_BACKGROUND_LISTEN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"快进手势（长按倍速/双击左右快进10秒）" key:GHL_KEY_SEEK_GESTURES type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"记忆倍速（按作者）" key:GHL_KEY_REMEMBER_SPEED_PER_AUTHOR type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"关键词过滤总开关" key:GHL_KEY_KEYWORD_FILTER type:DYYYSettingItemTypeSwitch],
@@ -1425,7 +1433,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         if (sender.isOn) GHLProbeAntiRecall();
     } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE]) {
         if (sender.isOn) GHLProbeLiveVoiceSender();
-    } else if ([item.key isEqualToString:GHL_KEY_BACKGROUND_AUDIO]) {
+    } else if ([item.key isEqualToString:GHL_KEY_BACKGROUND_LISTEN]) {
+        // 1.0.20：后台听视频开关才写 DYYYEnableBackgroundListen 镜像
+        // （setListenVideoStatus 的改写跟它走；上游「基本设置」里也有同一 key 的行）。
         [defaults setBool:sender.isOn forKey:@"DYYYEnableBackgroundListen"];
     } else if ([item.key isEqualToString:GHL_KEY_DISABLE_VISIT_REPORT]) {
         [defaults setBool:sender.isOn forKey:@"DYYYDisableProfileVisitRecordUpload"];

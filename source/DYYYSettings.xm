@@ -1411,13 +1411,8 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
     ghlSettingItem.colorStyle = 0;
     ghlSettingItem.isEnable = YES;
     ghlSettingItem.cellTappedBlock = ^{
-      DYYYSettingViewController *ghlVC = [[DYYYSettingViewController alloc] init];
-      if (rootVC.navigationController) {
-          [rootVC.navigationController pushViewController:ghlVC animated:YES];
-      } else {
-          UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:ghlVC];
-          [rootVC presentViewController:nav animated:YES completion:nil];
-      }
+      // 1.0.20：统一卡片——点设置行也开卡片，不再全屏推设置页（皇上：任何出来就是卡片界面）。
+      GHLShowFloatPanel();
     };
     [mainItems addObject:ghlSettingItem];
 

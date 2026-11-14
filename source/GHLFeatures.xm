@@ -25,7 +25,7 @@
 
 @class GHLFeatures;
 
-@interface GHLFeatures : NSObject
+@interface GHLFeatures : NSObject <UIGestureRecognizerDelegate>
 @end
 
 // 前向声明（part 4 定义，part 2 的左滑返回要用）
@@ -239,7 +239,8 @@ NSString *GHLChangelogText(void) {
        @"1.0.16：长按网格原生项（倍速/清屏播放/投屏等）改走原生选中，不再直接调 action（点了没反应就是缺面板控制器上下文）；点按入口和成功分支补日志；原生项图标补关键字映射（倍速/清屏/投屏/定时等各有图标，不再全是下载箭头）；面板首屏露 5 行、滚动对齐行高、下滑收起只在列表顶端才认；画中画兜底：抖音自有播放器没有系统播放器可挂时，用当前视频链接自起一个 AVPlayer 做画中画（会从头播，接不上进度；链接可能是短效签名，过期播不了；后台/锁屏/与原视频声音冲突待真机验证）；画中画查找记调用方，B 路加运行时控制器类名 dump；顾海龙日志从设置页常用功能移到关于页第二张卡（检查更新之后、声明之前）；日志查看器截断处防半个中文字符。"
            @"1.0.17：直播画中画：直播间没有普通视频的播放地址，D 路兜底加直播分支——进直播间/点画中画时探一次 room model 的拉流地址栏位（只记栏位名＋长度＋前 60 字），拿到 HLS（.m3u8）就走同一套自起播放器做画中画（从头播，接不上直播进度；拉流地址可能是短效签名；后台/锁屏/声音冲突待真机验证）；只有 FLV/RTMP 时如实记一行，不转封装；B 路探针遇到「键存在但值不是播放器/图层」时补记一行；画中画查找日志加一行是否在直播间。\n"
            @"1.0.18：视频页左上角加龙头浮动钮，点开快捷面板（深色毛玻璃卡：标题＋搜索框＋两列按钮＋完成；通用设置／首页／朋友／消息／我／播放互动／诊断反馈／关于；搜索只过滤面板按钮；播放互动里直接列画中画＋后台播放／记忆倍速／快进手势三个开关；设置页「悬浮按钮」分区可关）；直播探针下探一层（上次只探到 IESLiveRoomService 服务外壳，这次再探它里面的 roomModel 等容器键一层），探针改后台线程跑（画中画查找那路 5 秒超时，超时按拿不到地址处理）；另加计时日志（只记日志不改行为，用来定位画面冻住的原因：巡检每跳耗时＋上跳间隔、视频页布局钩子每秒次数＋耗时）；后台听视频日志降噪（status 真变了才记一行）。\n"
-           @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。";
+           @"1.0.19：卡片面板换成设置页本身做成卡片（皇上确认：不要 1.0.18 那张深色导航卡片）——点龙头浮动钮打开一张浮动卡片，卡片里就是真正的设置页（白卡头＋搜索框＋分区列表全是设置页自己的，分区行点进子页在卡片内的导航栈上推，不展开全屏；点卡片外／点「关闭」关掉）；面板打开/关闭/点浮动钮都记日志，日志里能看到有没有点开过；画中画修两处实锤：合成图层以前只建不挂进窗口，系统根本不启动（1.0.18 日志 8 次调用 0 成功、7 次没回调），现在图层挂到窗口右下角 2×2 的小宿主上再启动；兜底播放器以前画中画失败/没回调后还留着继续放（退出抖音后声音一直讲的根因），现在失败就停、8 秒没回调看门狗停、切后台 3 秒没接上也停，并记「兜底播放器：已停止」；长按网格点「画中画播放」先把 sheet 收掉再找播放器（以前 sheet 盖着，查找看不到 feed 的播放器）。\n"
+           @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -645,6 +646,21 @@ static void GHLEndPiPBackgroundTask(void) {
     [[UIApplication sharedApplication] endBackgroundTask:task];
 }
 
+// 1.0.20：兜底画中画的后台任务——WillResignActive 和 DidEnterBackground 两条路都开
+// （以前只在 DidEnterBackground 的兜底分支开；正常流程 WillResignActive 先触发，
+// D 路等 item 就绪要几秒，App 已在后台，没任务撑着随时被挂起）。
+static void GHLBeginPiPBackgroundTaskIfNeeded(void) {
+    if (ghlPiPTriggeredForCurrentBackground) return;
+    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
+    if (ghlPiPBackgroundTask != UIBackgroundTaskInvalid) return;
+    ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+      GHLEndPiPBackgroundTask();
+    }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      GHLEndPiPBackgroundTask();
+    });
+}
+
 static void GHLRemovePiPObservers(void) {
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     if (ghlScreenshotObserverToken) {
@@ -672,6 +688,12 @@ static void GHLRemovePiPObservers(void) {
 // 切后台时触发一次画中画（开关关着就不触发；已触发过就跳过，等回到前台再重置）。
 static void GHLTriggerPiPForBackground(void) {
     if (ghlPiPTriggeredForCurrentBackground) return;
+    // 1.0.20：距上次 start 未满 10 秒直接忽略（6.log 17:18 七秒连触三次，
+    // 第三次 start 才 1 秒就被切后台 3 秒重查误杀；冷却后同一次后台只会触发一次）。
+    if (ghlPiPLastStartTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 10) {
+        GHLLog(@"画中画：距上次启动不足 10 秒，跳过这次切后台触发");
+        return;
+    }
     if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
     ghlPiPTriggeredForCurrentBackground = YES;
     // 1.0.16：切后台触发也记调用方（判别是网格点按还是切后台）。
@@ -1095,9 +1117,10 @@ static void GHLCleanupFallbackPiPPlayer(void) {
     ghlPiPController = nil;
 }
 
-// 合成图层挂到窗口里：2×2 的小宿主 view 放在当前窗口右下角（看不见，不挡操作），
-// 图层必须在窗口里，系统才肯启动画中画；只建图层不挂，start 调了也不会有回调
-// （1.0.18 的 7 次无回调就是这么来的——图层只存在内存里，没进过任何窗口）。
+// 合成图层挂到窗口里：1.0.20 改成正常可见尺寸（320×180，放在 feed 底部、底栏上方，
+// 不挡操作）再启动——1.0.19 的 2×2 小宿主 11 次调用 0 回调，系统很可能要求图层真正可见
+// （每次 start 系统都建了 hosted window，就是不显示、不回调）。这只是最可能的方向，
+// 真机测了才算；宿主尺寸记进日志。
 static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
     if (!layer) return;
     UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
@@ -1106,8 +1129,17 @@ static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
         ghlPiPLayerHostView = [[UIView alloc] init];
         ghlPiPLayerHostView.backgroundColor = [UIColor clearColor];
         ghlPiPLayerHostView.userInteractionEnabled = NO;
+        GHLLog(@"画中画：宿主改成可见尺寸 320x180（放在 feed 底部、底栏上方）");
     }
-    ghlPiPLayerHostView.frame = CGRectMake(window.bounds.size.width - 4, window.bounds.size.height - 4, 2, 2);
+    CGFloat hostW = 320;
+    CGFloat hostH = 180;
+    CGFloat safeBottom = 0;
+    if (@available(iOS 11.0, *)) safeBottom = window.safeAreaInsets.bottom;
+    CGFloat tabBarH = 83; // 底栏大约 83pt（含 Home Indicator 区）；宿主贴在底栏上方
+    CGFloat hostX = (window.bounds.size.width - hostW) / 2;
+    CGFloat hostY = window.bounds.size.height - safeBottom - tabBarH - hostH - 8;
+    if (hostY < 0) hostY = 0;
+    ghlPiPLayerHostView.frame = CGRectMake(hostX, hostY, hostW, hostH);
     if (ghlPiPLayerHostView.window != window) [window addSubview:ghlPiPLayerHostView];
     [window bringSubviewToFront:ghlPiPLayerHostView];
     [layer removeFromSuperlayer];
@@ -1289,6 +1321,9 @@ void GHLStartPiPWithCaller(NSString *caller) {
           ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
           ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
           [ghlPiPController startPictureInPicture];
+          // 1.0.20：A／C 路以前调完 start 没记时间戳——切后台 3 秒重查拿旧时间一算，
+          // 新 start 才 1 秒就被误杀（6.log 17:18:30 实锤）。三路统一记一笔。
+          GHLNotePiPStartAttempted();
           // 只表示已调用，不是小窗真的出来了——真出来/失败看 delegate 回调。
           GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
       } @catch (NSException *exception) {
@@ -2457,7 +2492,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.19 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.20 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2480,6 +2515,8 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
+                          // 1.0.20：先开后台任务再触发（D 路等 item 就绪要几秒，App 已在后台）。
+                          GHLBeginPiPBackgroundTaskIfNeeded();
                           GHLTriggerPiPForBackground();
                         }];
         ghlPiPDidEnterBackgroundToken = [center addObserverForName:UIApplicationDidEnterBackgroundNotification
@@ -2488,16 +2525,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                         usingBlock:^(NSNotification *note) {
                           // 兜底：开关开着、还没触发过时，先开个后台任务撑到系统回调
                           // （或 10 秒超时），再触发。
-                          if (!ghlPiPTriggeredForCurrentBackground && GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
-                              if (ghlPiPBackgroundTask == UIBackgroundTaskInvalid) {
-                                  ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-                                    GHLEndPiPBackgroundTask();
-                                  }];
-                                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                                    GHLEndPiPBackgroundTask();
-                                  });
-                              }
-                          }
+                          GHLBeginPiPBackgroundTaskIfNeeded();
                           GHLTriggerPiPForBackground();
                           // 1.0.19：切后台时画中画没接上，兜底播放器不能留着继续放
                           // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）。
@@ -3732,6 +3760,9 @@ void GHLProbeVoiceFeatures(void) {
 // 卡片放在自己的 UIWindow（level alert）裡，rootVC 是個空殼宿主 VC，
 // 子頁導航棧都在卡片內，不動 feed 的 VC 層級；點卡片外／點「關閉」關掉。
 // 點按回調掛在 GHLFeatures 的類方法上（見 @implementation GHLFeatures 的 ghl_floatPanel*）。
+// 1.0.20：遮罩手勢只認卡片外（delegate＋cancelsTouchesInView=NO），卡片改深色毛玻璃＋
+// 底部「完成」鈕（導航棧縮進 10pt 露出毛玻璃邊框）；所有入口都開卡片（見 GHLShowFloatPanel）；
+// 卡片記住上次停的那頁（GHLSave/RestoreFloatPanelLastPage）。
 
 static UIButton *ghlFloatPanelButton = nil;
 static UIWindow *ghlFloatPanelWindow = nil;            // 卡片自己的窗口（不搶 keyWindow）
@@ -3740,6 +3771,14 @@ static UIView *ghlFloatPanelCard = nil;                // 圓角卡片
 static UINavigationController *ghlFloatPanelNav = nil; // 卡片內的導航棧（根＝設定頁）
 static BOOL ghlFloatPanelOpen = NO;
 static id ghlFloatPanelOrientationToken = nil; // 轉屏重排卡片（只註冊一次）
+static UIVisualEffectView *ghlFloatPanelBlurView = nil; // 卡片底：深色毛玻璃（1.0.20，影片做法）
+static UIButton *ghlFloatPanelDoneButton = nil;         // 卡片底部「完成」按钮（1.0.20）
+
+// 1.0.20：卡片内边距（导航栈缩进 10pt，深色毛玻璃边框露出来）＋底部「完成」条高 64pt。
+static const CGFloat kGHLFloatPanelNavInset = 10;
+static const CGFloat kGHLFloatPanelDoneBarHeight = 64;
+// 1.0.20：卡片记住上次停在哪一页（偏好里记顶页标识；恢复失败就回根）。
+static NSString *const kGHLFloatPanelLastPageKey = @"GHLFloatPanelLastPage";
 
 static BOOL GHLFloatPanelButtonEnabled(void) {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_FLOAT_PANEL_BUTTON];
@@ -3801,7 +3840,17 @@ static void GHLLayoutFloatPanel(void) {
     if (!ghlFloatPanelWindow || !ghlFloatPanelCard) return;
     CGRect bounds = ghlFloatPanelWindow.bounds;
     ghlFloatPanelCard.frame = GHLFloatPanelCardFrameForBounds(bounds);
-    if (ghlFloatPanelNav) ghlFloatPanelNav.view.frame = ghlFloatPanelCard.bounds;
+    CGRect cardBounds = ghlFloatPanelCard.bounds;
+    if (ghlFloatPanelBlurView) ghlFloatPanelBlurView.frame = cardBounds;
+    if (ghlFloatPanelNav) {
+        ghlFloatPanelNav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
+                                                 cardBounds.size.width - kGHLFloatPanelNavInset * 2,
+                                                 cardBounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
+    }
+    if (ghlFloatPanelDoneButton) {
+        ghlFloatPanelDoneButton.frame = CGRectMake(0, cardBounds.size.height - kGHLFloatPanelDoneBarHeight,
+                                                   cardBounds.size.width, kGHLFloatPanelDoneBarHeight);
+    }
 }
 
 static void GHLBuildFloatPanelIfNeeded(void) {
@@ -3823,18 +3872,30 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     UIView *container = [[UIView alloc] initWithFrame:bounds];
     container.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
     container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    // 1.0.20：dimTap 只认卡片外的触摸（delegate 见下面 GHLFeatures 分类）；
+    // cancelsTouchesInView=NO 是第二道保险——手势认出来也不取消别的 view 的触摸。
+    // 以前两个都没做，卡片里所有轻点都被取消（touchesCancelled 代替 touchesEnded），
+    // 整个设置列表点不了（6.log：卡片开了 9 分钟，点半天没反应）。
     UITapGestureRecognizer *dimTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_floatPanelDimTapped:)];
+    dimTap.delegate = (id<UIGestureRecognizerDelegate>)[GHLFeatures class];
+    dimTap.cancelsTouchesInView = NO;
     [container addGestureRecognizer:dimTap];
     hostVC.view = container;
     panelWindow.rootViewController = hostVC;
 
-    // 卡片：圆角＋金边（和 1.0.18 旧卡片同款边）；阴影不要——masksToBounds 会裁掉。
+    // 卡片：1.0.20 改成深色毛玻璃（影片做法）＋去掉金边；阴影不要——masksToBounds 会裁掉。
     UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
-    card.backgroundColor = [UIColor systemGroupedBackgroundColor];
+    card.backgroundColor = [UIColor clearColor];
     card.layer.cornerRadius = 24;
     card.layer.masksToBounds = YES;
-    card.layer.borderWidth = 1;
-    card.layer.borderColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.45].CGColor;
+    card.layer.borderWidth = 0;
+    UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
+    blurView.frame = card.bounds;
+    blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    blurView.layer.cornerRadius = 24;
+    blurView.layer.masksToBounds = YES;
+    blurView.userInteractionEnabled = NO;
+    [card addSubview:blurView];
     // 居中不随尺寸变：四边留白自适应，转屏时靠下面的重排再算一次。
     card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin |
                             UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
@@ -3842,19 +3903,35 @@ static void GHLBuildFloatPanelIfNeeded(void) {
 
     // 卡片里的导航栈：根就是真正的设置页（DYYYSettingViewController），
     // 白卡头＋搜索框＋分区列表全是它自己的；分区行点进子页在卡片内推，不展开全屏。
+    // 1.0.20：导航栈缩进 10pt（深色毛玻璃边框露出来）＋圆角 16，底部留 64pt 给「完成」条。
     DYYYSettingViewController *settingsVC = [[DYYYSettingViewController alloc] init];
     settingsVC.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"关闭" style:UIBarButtonItemStylePlain target:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped)];
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:settingsVC];
-    nav.view.frame = card.bounds;
-    nav.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    nav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
+                                card.bounds.size.width - kGHLFloatPanelNavInset * 2,
+                                card.bounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
+    nav.view.layer.cornerRadius = 16;
+    nav.view.layer.masksToBounds = YES;
     [hostVC addChildViewController:nav];
     [card addSubview:nav.view];
     [nav didMoveToParentViewController:hostVC];
+
+    // 1.0.20：底部「完成」按钮（点一下关卡片，影片里的做法）；放在卡片的深色毛玻璃上。
+    UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [doneButton setTitle:@"完成" forState:UIControlStateNormal];
+    [doneButton setTitleColor:[DYYYUtils dYYYGoldAccentColor] forState:UIControlStateNormal];
+    doneButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    doneButton.frame = CGRectMake(0, card.bounds.size.height - kGHLFloatPanelDoneBarHeight,
+                                  card.bounds.size.width, kGHLFloatPanelDoneBarHeight);
+    [doneButton addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelCloseTapped) forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:doneButton];
 
     ghlFloatPanelWindow = panelWindow;
     ghlFloatPanelHostVC = hostVC;
     ghlFloatPanelCard = card;
     ghlFloatPanelNav = nav;
+    ghlFloatPanelBlurView = blurView;
+    ghlFloatPanelDoneButton = doneButton;
 
     // 转屏时重排卡片（只注册一次；进程内常驻，和巡检定时器一样不摘）。
     if (!ghlFloatPanelOrientationToken) {
@@ -3864,7 +3941,53 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     }
 }
 
-static void GHLShowFloatPanel(void) {
+// 1.0.20：卡片记住上次停在哪一页——关卡片时把顶页标识记进偏好（root / section:N / about / log），
+// 下次打开恢复；标识对不上就回根。
+static void GHLSaveFloatPanelLastPage(void) {
+    if (!ghlFloatPanelNav) return;
+    UIViewController *topVC = ghlFloatPanelNav.topViewController;
+    NSString *page = @"root";
+    if ([topVC isKindOfClass:[DYYYSettingViewController class]]) {
+        NSInteger sectionIndex = [(DYYYSettingViewController *)topVC ghlDisplaySectionIndex];
+        if (sectionIndex != NSNotFound) page = [NSString stringWithFormat:@"section:%ld", (long)sectionIndex];
+    } else if ([topVC isKindOfClass:[GHLAboutViewController class]]) {
+        page = @"about";
+    } else if ([topVC isKindOfClass:[GHLLogViewerViewController class]]) {
+        page = @"log";
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:page forKey:kGHLFloatPanelLastPageKey];
+}
+
+static void GHLRestoreFloatPanelLastPage(void) {
+    if (!ghlFloatPanelNav) return;
+    [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
+    NSString *page = [[NSUserDefaults standardUserDefaults] stringForKey:kGHLFloatPanelLastPageKey];
+    if (!page || [page isEqualToString:@"root"]) return;
+    UIViewController *rootVC = ghlFloatPanelNav.viewControllers.firstObject;
+    @try {
+        if ([page hasPrefix:@"section:"]) {
+            NSInteger sectionIndex = [[page substringFromIndex:@"section:".length] integerValue];
+            // 分区共 11 个（setupSectionTitles 与 settingSections 11/11 对齐）；越界就回根。
+            if (sectionIndex < 0 || sectionIndex >= 11) return;
+            DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:sectionIndex];
+            [ghlFloatPanelNav pushViewController:subVC animated:NO];
+        } else if ([page isEqualToString:@"about"]) {
+            GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
+            if ([rootVC isKindOfClass:[DYYYSettingViewController class]]) {
+                aboutVC.settingsViewController = (DYYYSettingViewController *)rootVC;
+            }
+            [ghlFloatPanelNav pushViewController:aboutVC animated:NO];
+        } else if ([page isEqualToString:@"log"]) {
+            GHLLogViewerViewController *logVC = [[GHLLogViewerViewController alloc] init];
+            [ghlFloatPanelNav pushViewController:logVC animated:NO];
+        }
+    } @catch (__unused NSException *exception) {
+        // 恢复失败就回根（顶页在旧版删了、分区变了，都不崩）。
+        [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
+    }
+}
+
+void GHLShowFloatPanel(void) {
     if (![NSThread isMainThread]) {
         GHLRunOnMain(^{
           GHLShowFloatPanel();
@@ -3875,8 +3998,8 @@ static void GHLShowFloatPanel(void) {
     if (!ghlFloatPanelWindow) return;
     // 每次打开都按当前屏幕尺寸重排（转屏后第一次打开也不会错位）。
     GHLLayoutFloatPanel();
-    // 回到根（上次可能停在某个分区子页里，下次打开从设置主页开始）。
-    if (ghlFloatPanelNav) [ghlFloatPanelNav popToRootViewControllerAnimated:NO];
+    // 1.0.20：不再每次回到根——恢复上次停的那页（恢复失败就回根）。
+    GHLRestoreFloatPanelLastPage();
     ghlFloatPanelWindow.hidden = NO;
     ghlFloatPanelOpen = YES;
     if (ghlFloatPanelButton) ghlFloatPanelButton.hidden = YES;
@@ -3891,6 +4014,8 @@ static void GHLShowFloatPanel(void) {
 
 static void GHLHideFloatPanel(void) {
     if (!ghlFloatPanelOpen || !ghlFloatPanelWindow) return;
+    // 1.0.20：关之前记下顶页，下次打开回到这里。
+    GHLSaveFloatPanelLastPage();
     ghlFloatPanelOpen = NO;
     [UIView animateWithDuration:0.15 animations:^{
       ghlFloatPanelWindow.alpha = 0;
@@ -3918,6 +4043,23 @@ static void GHLToggleFloatPanel(void) {
         GHLShowFloatPanel();
     }
 }
+
+// 1.0.20：dimTap 的手势代理——卡片里的触摸不交给 dimTap（行选中、开关、按钮都走正常触摸），
+// 只有卡片外的触摸才让手势认（点卡片外关掉）。没有这个，光靠 handler 里「点在卡片内就 return」
+// 救不回来——触摸在 handler 跑之前就已经被取消了（6.log 诊断实锤）。
+@implementation GHLFeatures (GHLFloatPanelGestureDelegate)
+
++ (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+    (void)gestureRecognizer;
+    if (!ghlFloatPanelCard || !ghlFloatPanelHostVC) return YES;
+    UIView *container = ghlFloatPanelHostVC.view;
+    if (!container) return YES;
+    CGPoint point = [touch locationInView:container];
+    if (CGRectContainsPoint(ghlFloatPanelCard.frame, point)) return NO;
+    return YES;
+}
+
+@end
 
 #pragma mark 巡检定时器（2 秒一次）
 
