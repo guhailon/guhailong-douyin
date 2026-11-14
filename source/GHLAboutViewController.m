@@ -1,4 +1,6 @@
 // GHLAboutViewController — 关于深色品牌页（1.0.13，方案四）
+// 1.0.14：标题/版本行按横幅里龙头中心对齐；QQ 行标签改成「QQ：QQ群交流：」+ 号码；
+// 原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。
 // 显式深色，不跟随系统：顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
 // 标题金字＋灰字版本叠在横幅下半部）＋两张深色金边卡＋页底小灰字声明摘要。
 // 第一张卡：关于/联系（基于 DYYY、原作者、源码、越狱源、QQ交流、QQ群）＋金色加群大按钮；
@@ -21,6 +23,7 @@
 typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowDYYY = 100,         // 基于 DYYY
     GHLAboutRowAuthor = 101,       // 原作者 huami（只展示）
+    GHLAboutRowCurrentAuthor = 106, // 现作者（顾海龙总监，只展示）
     GHLAboutRowSource = 102,       // 源码 Wtrwx / DYYY
     GHLAboutRowRepo = 103,         // 顾海龙集团越狱源
     GHLAboutRowQQContact = 104,    // QQ交流
@@ -47,6 +50,11 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
 @property(nonatomic, weak, nullable) UIActivityIndicatorView *checkRowSpinner;
 
 @end
+
+// 横幅里龙头中心（实测）：两只红眼睛的中点在 640x360 横幅图的 x=280（280/640），
+ // 不在图正中心（320）。标题/版本行按龙头中心对齐，不要按横幅 view 居中——
+ // 否则字看起来相对龙头偏右（1.0.13 真机反馈「没对准好」）。换横幅图时要重测这个值。
+static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
 
 @implementation GHLAboutViewController
 
@@ -96,10 +104,12 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
     // 第一张卡：关于/联系＋金色加群大按钮。
     UIView *card1 = [self ghlBuildCardWithRows:@[
         [self ghlRowSpecWithTitle:@"基于 DYYY (MIT 协议）" icon:@"gearshape" tag:GHLAboutRowDYYY chevron:NO],
-        [self ghlRowSpecWithTitle:@"原作者 huami" icon:@"person" tag:GHLAboutRowAuthor chevron:NO],
+        [self ghlRowSpecWithTitle:@"原作者（huami）" icon:@"person" tag:GHLAboutRowAuthor chevron:NO],
+        [self ghlRowSpecWithTitle:@"现作者（顾海龙总监）" icon:@"person.fill" tag:GHLAboutRowCurrentAuthor chevron:NO],
         [self ghlRowSpecWithTitle:@"源码 Wtrwx / DYYY" icon:@"arrow.branch" tag:GHLAboutRowSource chevron:NO],
         [self ghlRowSpecWithTitle:@"顾海龙集团越狱源" icon:@"link" tag:GHLAboutRowRepo chevron:NO],
-        [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ交流 %@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
+        // 1.0.14：QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变。
+        [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ：QQ群交流：%@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ群 %@", GHL_QQ_GROUP_NUMBER] icon:@"person.2" tag:GHLAboutRowQQGroup chevron:NO],
     ]
                                                joinButton:YES
@@ -192,8 +202,14 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
     if (!titleLabel || !versionLabel) return;
     CGFloat bannerWidth = banner.bounds.size.width;
     CGFloat bannerHeight = banner.bounds.size.height;
-    titleLabel.frame = CGRectMake(16, bannerHeight - 66, bannerWidth - 32, 38);
-    versionLabel.frame = CGRectMake(16, bannerHeight - 28, bannerWidth - 32, 20);
+    // 标题/版本行以横幅里龙头中心为中心（不是横幅 view 的中心）——
+    // 龙头在 640x360 图里偏左，字按 view 居中会相对龙头偏右（1.0.13 真机反馈）。
+    // label 宽取龙头中心到横幅两边最小距离的两倍，保证不超出横幅。
+    CGFloat headCenterX = bannerWidth * kGHLBannerDragonHeadCenterXFraction;
+    CGFloat labelWidth = 2.0 * MIN(headCenterX, bannerWidth - headCenterX);
+    CGFloat labelX = headCenterX - labelWidth / 2.0;
+    titleLabel.frame = CGRectMake(labelX, bannerHeight - 66, labelWidth, 38);
+    versionLabel.frame = CGRectMake(labelX, bannerHeight - 28, labelWidth, 20);
     for (CALayer *layer in banner.layer.sublayers) {
         if ([layer isKindOfClass:[CAGradientLayer class]]) layer.frame = banner.bounds;
     }
@@ -307,6 +323,8 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
             break;
         case GHLAboutRowAuthor:
             break;  // 原作者 huami 只是展示，没有动作。
+        case GHLAboutRowCurrentAuthor:
+            break;  // 现作者（顾海龙总监）只是展示，没有动作。
         case GHLAboutRowRepo:
             [self ghlShowRepoSourceOptionsFromView:sender];
             break;

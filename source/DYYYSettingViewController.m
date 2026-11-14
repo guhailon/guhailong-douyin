@@ -617,8 +617,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker]
         ],
         @[
-            // 1.0.13 关于分区：只剩单一入口行「关于顾海龙抖音」，点进深色品牌页
-            // （1.0.12 的关于弹窗、声明行和配置三行废弃：配置三行搬进极简页的配置管理区，逻辑不动）
+            // 1.0.14 关于分区：只剩单一入口行「关于顾海龙抖音」，点整行直接进深色品牌页
+            // （右边的「查看关于」附属文字已拿掉，只留右箭头；1.0.12 的关于弹窗、声明行和
+            // 配置三行废弃：配置三行搬进关于页的配置管理区，逻辑不动）
             [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker]
         ]
     ];
@@ -770,8 +771,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         // 1.0.11 长按面板头像：从相册选图换头像，或恢复默认龙头
         return @[ @"从相册选图", @"恢复默认龙头" ];
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
-        // 1.0.12 关于顾海龙抖音：点开看合并后的关于对话框
-        return @[ @"查看关于" ];
+        // 1.0.14：关于入口行直接进关于页，不弹选择框，没有候选项。
+        return @[];
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：点一套就把现有颜色类 key 一次设好
         return @[ @"无", @"金龙", @"冰蓝", @"樱粉", @"暗夜" ];
@@ -827,7 +828,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         if ([value isKindOfClass:[NSString class]] && ([value isEqualToString:@"从相册选图"] || [value isEqualToString:@"恢复默认龙头"])) return value;
         return GHLHasCustomLogo() ? @"已换自选图" : @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
-        return @"查看关于";
+        // 1.0.14：关于入口行不显示附属值。
+        return @"";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：没选过就是无
         return value ?: @"无";
@@ -877,7 +879,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
         return @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
-        return @"查看关于";
+        // 1.0.14：关于入口行没有默认值（值无意义，直接进关于页）。
+        return nil;
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         return @"无";
     } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
@@ -1025,6 +1028,37 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     return [self itemCellForIndexPath:indexPath tableView:tableView];
 }
 
+// 选择器行的右端附属值（当前值文字，右对齐 13pt；关于入口行不走这里）。
+- (void)ghlConfigurePickerAccessoryForCell:(UITableViewCell *)cell item:(DYYYSettingItem *)item dark:(BOOL)dark tag:(NSInteger)tag {
+    UILabel *pickerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
+    // 获取当前值
+    id currentValue = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
+    if (!currentValue) {
+        currentValue = [self defaultValueForKey:item.key];
+    }
+
+    pickerLabel.text = [self displayValueForKey:item.key value:currentValue];
+    pickerLabel.font = [UIFont systemFontOfSize:13];
+    pickerLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
+    pickerLabel.textAlignment = NSTextAlignmentRight;
+    pickerLabel.tag = tag;
+    // 值太长（例如音色名“李牧 (z…)”）时自动缩小字号显示，不截断
+    pickerLabel.adjustsFontSizeToFitWidth = YES;
+    pickerLabel.minimumScaleFactor = 0.7;
+
+    // 添加垂直居中约束
+    pickerLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
+    [containerView addSubview:pickerLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [pickerLabel.centerYAnchor constraintEqualToAnchor:containerView.centerYAnchor], [pickerLabel.leadingAnchor constraintEqualToAnchor:containerView.leadingAnchor],
+        [pickerLabel.trailingAnchor constraintEqualToAnchor:containerView.trailingAnchor]
+    ]];
+
+    cell.accessoryView = containerView;
+}
+
 // 子页/搜索里某一项的白底行（开关/输入框/选择器），与 1.0.1 同一套交互。
 - (UITableViewCell *)itemCellForIndexPath:(NSIndexPath *)indexPath tableView:(UITableView *)tableView {
     DYYYSettingItem *item = [self itemForIndexPath:indexPath];
@@ -1131,33 +1165,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if (item.type == DYYYSettingItemTypePicker) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
 
-        UILabel *pickerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
-        // 获取当前值
-        id currentValue = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
-        if (!currentValue) {
-            currentValue = [self defaultValueForKey:item.key];
+        // 1.0.14：关于入口行不要右边的「查看关于」附属文字，整行可点直接进关于页
+        // （点行在 didSelectRowAtIndexPath 里直接 push GHLAboutViewController，不弹选择框）；
+        // 只留标准右箭头。复用的 cell 要把旧 accessoryView 清掉，不然会留着别行的附属控件。
+        if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+            cell.accessoryView = nil;
+        } else {
+            [self ghlConfigurePickerAccessoryForCell:cell item:item dark:dark tag:tag];
         }
-
-        pickerLabel.text = [self displayValueForKey:item.key value:currentValue];
-        pickerLabel.font = [UIFont systemFontOfSize:13];
-        pickerLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
-        pickerLabel.textAlignment = NSTextAlignmentRight;
-        pickerLabel.tag = tag;
-        // 值太长（例如音色名“李牧 (z…)”）时自动缩小字号显示，不截断
-        pickerLabel.adjustsFontSizeToFitWidth = YES;
-        pickerLabel.minimumScaleFactor = 0.7;
-
-        // 添加垂直居中约束
-        pickerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
-        [containerView addSubview:pickerLabel];
-
-        [NSLayoutConstraint activateConstraints:@[
-            [pickerLabel.centerYAnchor constraintEqualToAnchor:containerView.centerYAnchor], [pickerLabel.leadingAnchor constraintEqualToAnchor:containerView.leadingAnchor],
-            [pickerLabel.trailingAnchor constraintEqualToAnchor:containerView.trailingAnchor]
-        ]];
-
-        cell.accessoryView = containerView;
     }
 
     return cell;
@@ -1214,7 +1229,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return;
     }
     DYYYSettingItem *item = [self itemForIndexPath:indexPath];
-    // 1.0.13：关于入口行直接推进极简页，不弹选择框（主页分类行和搜索结果都走这里）。
+    // 1.0.14：关于入口行直接推进深色品牌页，不弹选择框（主页分类行和搜索结果都走这里）。
     if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
         aboutVC.settingsViewController = self;

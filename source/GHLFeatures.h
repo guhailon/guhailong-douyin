@@ -188,7 +188,7 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_LONG_PRESS_DOWNLOAD @"GHLLongPressDownload" // 长按下载（接上游）
 #define GHL_KEY_LONG_PRESS_GRID_PANEL @"GHLLongPressGridPanel" // 长按面板网格风格（龙头，1.0.9；默认开，%ctor 里 registerDefaults）
 #define GHL_KEY_GRID_PANEL_AVATAR @"GHLGridPanelAvatar"     // 长按面板头像（1.0.11；Picker 入口，值无意义）
-#define GHL_KEY_ABOUT_PAGE @"GHLAboutPage"                 // 关于顾海龙抖音（1.0.13；极简页入口，值无意义）
+#define GHL_KEY_ABOUT_PAGE @"GHLAboutPage"                 // 关于顾海龙抖音（1.0.14；深色品牌页入口，值无意义）
 #define GHL_KEY_DOWNLOAD_PROGRESS @"GHLDownloadProgress"   // 下载进度日志+提示
 #define GHL_KEY_SAVE_AVATAR @"GHLSaveAvatar"               // 保存头像（长按面板）
 #define GHL_KEY_COPY_PROFILE @"GHLCOPYProfile"             // 复制个人资料（长按面板）
