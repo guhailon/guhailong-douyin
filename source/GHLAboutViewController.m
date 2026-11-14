@@ -1,6 +1,9 @@
 // GHLAboutViewController — 关于深色品牌页（1.0.13，方案四）
 // 1.0.14：标题/版本行按横幅里龙头中心对齐；QQ 行标签改成「QQ：QQ群交流：」+ 号码；
 // 原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。
+// 1.0.15：横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按重测的龙头中心 x=358 对齐）；
+// 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）和
+// 「恢复默认横幅」（删自选图回内置展翅龙；自选图时标题按横幅中心对齐）。
 // 显式深色，不跟随系统：顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
 // 标题金字＋灰字版本叠在横幅下半部）＋两张深色金边卡＋页底小灰字声明摘要。
 // 第一张卡：关于/联系（基于 DYYY、原作者、源码、越狱源、QQ交流、QQ群）＋金色加群大按钮；
@@ -9,11 +12,13 @@
 // 首次打开弹声明不要做（皇上没批）；Fish Audio、reference-xuu/ 一律不动。
 #import "GHLAboutViewController.h"
 
+#import <Photos/Photos.h>
 #import <stdlib.h>
 #import <sys/sysctl.h>
 
 #import "DYYYBottomAlertView.h"
 #import "DYYYConstants.h"
+#import "DYYYImagePickerDelegate.h"
 #import "DYYYSettingViewController.h"
 #import "DYYYSettingsHelper.h"
 #import "DYYYUtils.h"
@@ -35,6 +40,8 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowChangelog = 204,    // 更新日志
     GHLAboutRowCheckUpdate = 205,  // 检查更新
     GHLAboutRowDisclaimer = 206,   // 声明（放在最后）
+    GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
+    GHLAboutRowResetBanner = 208,  // 恢复默认横幅（1.0.15）
 };
 
 // 1.0.12 的声明全文（措辞不动，皇上可改）。
@@ -48,13 +55,18 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
 @property(nonatomic, weak, nullable) UILabel *checkRowTitleLabel;
 @property(nonatomic, weak, nullable) UIImageView *checkRowChevron;
 @property(nonatomic, weak, nullable) UIActivityIndicatorView *checkRowSpinner;
+// 1.0.15：换横幅背景的相册选择器 delegate（要强引用留着，等回调）。
+@property(nonatomic, strong, nullable) DYYYImagePickerDelegate *imagePickerDelegate;
 
 @end
 
-// 横幅里龙头中心（实测）：两只红眼睛的中点在 640x360 横幅图的 x=280（280/640），
- // 不在图正中心（320）。标题/版本行按龙头中心对齐，不要按横幅 view 居中——
- // 否则字看起来相对龙头偏右（1.0.13 真机反馈「没对准好」）。换横幅图时要重测这个值。
-static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
+// 横幅里龙头中心（实测）：展翅龙图里两只红眼睛的中点在 640x360 横幅图的 x=358（358/640），
+// 不在图正中心（320）。标题/版本行按龙头中心对齐，不要按横幅 view 居中——
+// 否则字看起来相对龙头偏右（1.0.13 真机反馈「没对准好」）。换横幅图时要重测这个值。
+// （1.0.14 的旧图是 280/640；1.0.15 换成展翅龙后重测为 358/640。
+//  测法：原图 2736x912 里两只红眼睛在 x=1387 和 x=1538，中点 1463；
+//  16:9 居中裁切（x0=557）再缩到 640 宽，龙头中心落在 x=358。）
+static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 
 @implementation GHLAboutViewController
 
@@ -124,6 +136,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
         [self ghlRowSpecWithTitle:@"导入配置" icon:@"square.and.arrow.up" tag:GHLAboutRowImport chevron:YES],
         [self ghlRowSpecWithTitle:@"恢复默认配置" icon:@"arrow.counterclockwise" tag:GHLAboutRowReset chevron:YES],
         [self ghlRowSpecWithTitle:@"重启抖音" icon:@"power" tag:GHLAboutRowRestart chevron:YES],
+        // 1.0.15：横幅背景可自己换（相册选图）/恢复默认横幅（回内置展翅龙）。
+        [self ghlRowSpecWithTitle:@"更换横幅背景" icon:@"photo" tag:GHLAboutRowChangeBanner chevron:YES],
+        [self ghlRowSpecWithTitle:@"恢复默认横幅" icon:@"arrow.uturn.backward" tag:GHLAboutRowResetBanner chevron:YES],
         [self ghlRowSpecWithTitle:@"更新日志" icon:@"list.clipboard" tag:GHLAboutRowChangelog chevron:YES],
         [self ghlRowSpecWithTitle:@"检查更新" icon:@"sparkles" tag:GHLAboutRowCheckUpdate chevron:YES],
         [self ghlRowSpecWithTitle:@"声明" icon:@"doc.text" tag:GHLAboutRowDisclaimer chevron:YES],
@@ -160,6 +175,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
     imageView.image = GHLAboutBannerImage() ?: GHLLogoImage();
     imageView.contentMode = UIViewContentModeScaleAspectFill;
     imageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    imageView.tag = 1003; // 1.0.15：换横幅/恢复默认后按 tag 找到它刷新图。
     [banner addSubview:imageView];
 
     CAGradientLayer *fade = [CAGradientLayer layer];
@@ -204,8 +220,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
     CGFloat bannerHeight = banner.bounds.size.height;
     // 标题/版本行以横幅里龙头中心为中心（不是横幅 view 的中心）——
     // 龙头在 640x360 图里偏左，字按 view 居中会相对龙头偏右（1.0.13 真机反馈）。
+    // 自选横幅图龙头位置未知，改按横幅中心对齐（见 ghlBannerTitleCenterXFraction）。
     // label 宽取龙头中心到横幅两边最小距离的两倍，保证不超出横幅。
-    CGFloat headCenterX = bannerWidth * kGHLBannerDragonHeadCenterXFraction;
+    CGFloat headCenterX = bannerWidth * [self ghlBannerTitleCenterXFraction];
     CGFloat labelWidth = 2.0 * MIN(headCenterX, bannerWidth - headCenterX);
     CGFloat labelX = headCenterX - labelWidth / 2.0;
     titleLabel.frame = CGRectMake(labelX, bannerHeight - 66, labelWidth, 38);
@@ -213,6 +230,21 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
     for (CALayer *layer in banner.layer.sublayers) {
         if ([layer isKindOfClass:[CAGradientLayer class]]) layer.frame = banner.bounds;
     }
+}
+
+// 横幅标题对准的中心：内置展翅龙按实测龙头中心；自选图龙头位置未知，按横幅中心对齐。
+- (CGFloat)ghlBannerTitleCenterXFraction {
+    if (GHLHasCustomAboutBanner()) return 0.5;
+    return kGHLBannerDragonHeadCenterXFraction;
+}
+
+// 换横幅/恢复默认后刷新横幅图（标题对准跟着换：自选图按横幅中心，内置图按龙头中心）。
+- (void)ghlRefreshBannerImage {
+    UIView *banner = [self.scrollView viewWithTag:1000];
+    UIImageView *imageView = (UIImageView *)[banner viewWithTag:1003];
+    if (!imageView) return;
+    imageView.image = GHLAboutBannerImage() ?: GHLLogoImage();
+    [self.view setNeedsLayout];
 }
 
 #pragma mark - 卡片与行
@@ -350,6 +382,12 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
             break;
         case GHLAboutRowRestart:
             [self ghlConfirmRestartDouyin];
+            break;
+        case GHLAboutRowChangeBanner:
+            [self ghlPresentBannerImagePicker];
+            break;
+        case GHLAboutRowResetBanner:
+            [self ghlResetBanner];
             break;
         case GHLAboutRowChangelog:
             [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
@@ -535,6 +573,51 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 280.0 / 640.0;
         if (va > vb) return NSOrderedDescending;
     }
     return NSOrderedSame;
+}
+
+#pragma mark - 更换横幅背景 / 恢复默认横幅
+
+// 更换横幅背景：相册选图（照设置主页换龙头/换背景的做法：拒绝了相册权限就提示，不硬打开；
+// 存图放后台线程，存完回主线程刷新横幅；自选图按 16:9 居中裁成 640x360 再存）。
+- (void)ghlPresentBannerImagePicker {
+    PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
+    if (status == PHAuthorizationStatusDenied || status == PHAuthorizationStatusRestricted) {
+        [DYYYUtils showToast:@"需要相册权限才能换图"];
+        return;
+    }
+    self.imagePickerDelegate = [[DYYYImagePickerDelegate alloc] init];
+    __weak typeof(self) weakSelf = self;
+    self.imagePickerDelegate.completionBlock = ^(NSDictionary *info) {
+      __strong typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      UIImage *image = info[UIImagePickerControllerOriginalImage];
+      if (!image) {
+          [DYYYUtils showToast:@"选图失败"];
+          return;
+      }
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        BOOL ok = GHLSaveCustomAboutBannerImage(image);
+        GHLRunOnMain(^{
+          if (!ok) {
+              [DYYYUtils showToast:@"保存失败，换图没成功"];
+              return;
+          }
+          [strongSelf ghlRefreshBannerImage];
+          [DYYYUtils showToast:@"横幅背景已更换"];
+        });
+      });
+    };
+    UIImagePickerController *picker = [[UIImagePickerController alloc] init];
+    picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+    picker.delegate = self.imagePickerDelegate;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+// 恢复默认横幅：删掉自选图，横幅回到内置展翅龙（标题对准也回到龙头中心）。
+- (void)ghlResetBanner {
+    GHLClearCustomAboutBanner();
+    [self ghlRefreshBannerImage];
+    [DYYYUtils showToast:@"已恢复默认横幅"];
 }
 
 #pragma mark - 重启抖音

@@ -15,6 +15,7 @@
 #import "DYYYFloatClearButton.h"
 #import "DYYYToast.h"
 #import <AVKit/AVKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <ReplayKit/ReplayKit.h>
 #import <objc/runtime.h>
 
@@ -222,37 +223,111 @@ NSString *GHLChangelogText(void) {
            @"1.0.11：长按项开关默认全开（12 个 DYYY 开关，没存过值时才默认开，亲手关掉的不会被覆盖），普通视频的网格从 2 行（6 项）变成 4 行（9 项+更多；格子收小到 92pt，下面还有时显示滚动条）；面板设置里加「长按面板头像」，能从相册任意换头像或恢复默认龙头，换完下一次长按就生效，不用重启抖音；网格盖上时的日志补上各项标题。\n"
            @"1.0.12：导出/导入/恢复默认配置三行从功能设置搬到新增的「关于」分区（逻辑不动）；「关于」和「基于DYYY」合并成「关于顾海龙抖音」一行；新增「声明」，措辞是草稿（皇上可改）；底部按钮只剩 MIT 声明和更新日志。\n"
            @"1.0.13：关于改成深色品牌页（雷鸣绿龙横幅＋金字标题，两张深色金边卡：关于/联系/QQ群＋配置管理/更新日志/检查更新/声明，声明在最下面，页底小灰字声明摘要）；检查更新联网比对源里的版本号；点版本行复制版本/机型/iOS 版本；配置管理加重启抖音；关于弹窗和底部 MIT/更新日志按钮废弃。\n"
-           @"1.0.14：关于入口行拿掉右边的「查看关于」，点整行直接进关于页（只留右箭头）；关于页标题/版本行按横幅里龙头中心对齐（龙头在图里偏左，之前字相对龙头偏右）；QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变；原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。";
+           @"1.0.14：关于入口行拿掉右边的「查看关于」，点整行直接进关于页（只留右箭头）；关于页标题/版本行按横幅里龙头中心对齐（龙头在图里偏左，之前字相对龙头偏右）；QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变；原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。\n"
+           @"1.0.15：关于入口一层直达（设置主页点「关于」直接进品牌页，中间那个只有一行的「关于」子页拿掉）；关于页横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按实测龙头中心 x=358 对齐），横幅背景能自己换（相册选图存到 Documents/DYYY/ghl-about-banner.jpg，也能恢复默认）；修画中画＋后台播放（监听 token 存下来不再立刻失效，触发改到切后台前一刻 WillResignActive，进后台兜底一次，系统回调如实记日志；播放器查找放宽到全部窗口递归找图层＋播放器控制器 KVC 探针，没图层时用播放器新建图层再建画中画，查找经过写进顾海龙日志）；长按网格去掉「更多」，原生项也进网格，长按只出网格（超 4 行可上下滑）。";
 }
 
-static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
-    if (!view) return;
-    for (CALayer *sublayer in view.layer.sublayers ?: @[]) {
-        if ([sublayer isKindOfClass:[AVPlayerLayer class]]) {
-            [out addObject:(AVPlayerLayer *)sublayer];
+// ===== 画中画查找（1.0.15 重写）=====
+// 皇上 20:14：点「画中画播放」一直报“没找到播放的视频”，哪怕视频正在播——
+// 旧 finder 只在 keyWindow 里找一层 AVPlayerLayer，他那版抖音的播放器根本不在那儿。
+// 新 finder 分三路，按顺序试（详细日志只在画中画要用的那次记，平时调用不记，
+// 免得 2 秒巡检（直播静音开着时）把日志刷爆）：
+//   A. 全部窗口（所有 scene 的窗口，不只 keyWindow）里递归找 AVPlayerLayer
+//      （图层树也递归——旧代码只查 view.layer.sublayers 一层，包在容器图层里的就漏了）；
+//   B. 播放器控制器（AWEAwemePlayVideoViewController 等）里 KVC 探针找 AVPlayer / AVPlayerLayer
+//      （键名按惯例猜，每个键都 try/catch，拿不到就记一行，不崩）；
+//   C. 有 AVPlayer 没图层时，用播放器新建一个 AVPlayerLayer 再建 PiP 控制器（见 GHLStartPiP）。
+// 什么都没找到时，日志写明现场（窗口数、各类图层数、探针结果），方便下一步判断——
+// 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
+// 系统画中画挂不上现有播放器，得另想办法（比如用视频链接自己起一个 AVPlayer）。
+
+// 前向声明（实现在下面“记忆倍速”一节）。
+static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out);
+
+// 全部窗口（去重）：sharedApplication.windows 再加每个 UIWindowScene 的 windows。
+static NSArray<UIWindow *> *GHLAllAppWindows(void) {
+    NSMutableArray<UIWindow *> *windows = [NSMutableArray array];
+    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+        if (window && ![windows containsObject:window]) [windows addObject:window];
+    }
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+            for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+                if (window && ![windows containsObject:window]) [windows addObject:window];
+            }
         }
     }
-    for (UIView *subview in view.subviews) {
-        GHLCollectPlayerLayersInView(subview, out);
+    return windows;
+}
+
+// 递归收图层：AVPlayerLayer 直接收；AVSampleBufferDisplayLayer / Metal / GL 图层只计数
+// （诊断用：它们出现说明抖音在用自有播放器渲染，而不是 AVPlayerLayer）。
+static void GHLCollectPlayerLayersInLayer(CALayer *layer, NSMutableArray<AVPlayerLayer *> *out, NSInteger *sampleBufferLayerCount, NSInteger *metalLayerCount) {
+    if (!layer) return;
+    for (CALayer *sublayer in layer.sublayers ?: @[]) {
+        if ([sublayer isKindOfClass:[AVPlayerLayer class]]) {
+            [out addObject:(AVPlayerLayer *)sublayer];
+        } else if ([sublayer isKindOfClass:[AVSampleBufferDisplayLayer class]]) {
+            if (sampleBufferLayerCount) (*sampleBufferLayerCount)++;
+        } else if ([sublayer isKindOfClass:[CAMetalLayer class]] || [sublayer isKindOfClass:[CAEAGLLayer class]]) {
+            if (metalLayerCount) (*metalLayerCount)++;
+        }
+        GHLCollectPlayerLayersInLayer(sublayer, out, sampleBufferLayerCount, metalLayerCount);
     }
 }
 
-AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
+static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out, NSInteger *sampleBufferLayerCount, NSInteger *metalLayerCount) {
+    if (!view) return;
+    GHLCollectPlayerLayersInLayer(view.layer, out, sampleBufferLayerCount, metalLayerCount);
+    for (UIView *subview in view.subviews) {
+        GHLCollectPlayerLayersInView(subview, out, sampleBufferLayerCount, metalLayerCount);
+    }
+}
+
+// A 路：在全部窗口里找 AVPlayerLayer（verbose 时记详细日志）。
+// 优先正在播的（rate > 0），其次带播放器的，最后任意一个。
+static AVPlayerLayer *GHLFindPlayingAVPlayerLayerVerbose(BOOL verbose, NSInteger *outSampleBufferLayerCount, NSInteger *outMetalLayerCount) {
     __block AVPlayerLayer *found = nil;
+    __block AVPlayerLayer *firstWithPlayer = nil;
+    __block AVPlayerLayer *firstLayer = nil;
+    __block NSInteger windowCount = 0;
+    __block NSInteger withPlayerCount = 0;
+    __block NSInteger sampleBufferCount = 0;
+    __block NSInteger metalCount = 0;
     void (^collect)(void) = ^{
       @try {
-          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+          NSArray<UIWindow *> *windows = GHLAllAppWindows();
+          windowCount = (NSInteger)windows.count;
           NSMutableArray<AVPlayerLayer *> *layers = [NSMutableArray array];
-          GHLCollectPlayerLayersInView(window, layers);
+          NSMutableArray<NSString *> *windowClasses = [NSMutableArray array];
+          for (UIWindow *window in windows) {
+              if (!window) continue;
+              [windowClasses addObject:NSStringFromClass([window class])];
+              GHLCollectPlayerLayersInView(window, layers, &sampleBufferCount, &metalCount);
+          }
           for (AVPlayerLayer *layer in layers) {
               AVPlayer *player = layer.player;
-              if (player && player.rate > 0) {
-                  found = layer;
-                  break;
+              if (!firstLayer) firstLayer = layer;
+              if (player) {
+                  withPlayerCount++;
+                  if (!firstWithPlayer) firstWithPlayer = layer;
+                  if (player.rate > 0) {
+                      found = layer;
+                      break;
+                  }
               }
           }
-          if (!found && layers.count > 0) found = layers.firstObject;
+          if (!found) found = firstWithPlayer ?: firstLayer;
+          if (verbose) {
+              GHLLog(@"画中画查找 A 路：扫了 %ld 个窗口（%@），AVPlayerLayer %lu 个（带播放器 %ld 个）/ AVSampleBufferDisplayLayer %ld 个 / Metal 或 GL 图层 %ld 个，结论：%@",
+                     (long)windowCount, [windowClasses componentsJoinedByString:@"、"],
+                     (unsigned long)layers.count, (long)withPlayerCount,
+                     (long)sampleBufferCount, (long)metalCount,
+                     found ? (found.player && found.player.rate > 0 ? @"找到正在播的图层" : @"找到图层（没在播或没挂播放器）") : @"一个 AVPlayerLayer 都没有");
+          }
       } @catch (__unused NSException *exception) {
+          if (verbose) GHLLog(@"画中画查找 A 路：遍历窗口时异常");
       }
     };
     if ([NSThread isMainThread]) {
@@ -260,7 +335,112 @@ AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
     } else {
         dispatch_sync(dispatch_get_main_queue(), collect);
     }
+    if (outSampleBufferLayerCount) *outSampleBufferLayerCount = sampleBufferCount;
+    if (outMetalLayerCount) *outMetalLayerCount = metalCount;
     return found;
+}
+
+AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
+    return GHLFindPlayingAVPlayerLayerVerbose(NO, NULL, NULL);
+}
+
+// B 路：在播放器控制器上 KVC 探针找 AVPlayer / AVPlayerLayer（verbose 时记结果）。
+// 键名是按惯例猜的：拿不到就记一行，不崩；拿到了先验类再用。
+static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLayer) {
+    static NSArray<NSString *> *playerKeys = nil;
+    static NSArray<NSString *> *layerKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      playerKeys = @[@"player", @"avPlayer", @"videoPlayer", @"currentPlayer", @"playerController", @"videoController", @"mediaPlayer", @"enginePlayer"];
+      layerKeys = @[@"playerLayer", @"videoLayer", @"avPlayerLayer"];
+    });
+    __block AVPlayer *foundPlayer = nil;
+    __block AVPlayerLayer *foundLayer = nil;
+    void (^probe)(void) = ^{
+      @try {
+          NSArray<UIWindow *> *windows = GHLAllAppWindows();
+          NSMutableArray *playerVCs = [NSMutableArray array];
+          NSMutableArray<NSString *> *vcClasses = [NSMutableArray array];
+          for (UIWindow *window in windows) {
+              UIViewController *root = window.rootViewController;
+              while (root.presentedViewController) root = root.presentedViewController;
+              GHLFindPlayerViewControllersInVC(root, playerVCs);
+          }
+          for (UIViewController *vc in playerVCs) {
+              [vcClasses addObject:NSStringFromClass([vc class])];
+          }
+          if (verbose) {
+              GHLLog(@"画中画查找 B 路：播放器控制器 %lu 个（%@）", (unsigned long)playerVCs.count, playerVCs.count > 0 ? [vcClasses componentsJoinedByString:@"、"] : @"无");
+          }
+          for (UIViewController *vc in playerVCs) {
+              if (foundPlayer || foundLayer) break;
+              for (NSString *key in layerKeys) {
+                  @try {
+                      id value = [vc valueForKey:key];
+                      if ([value isKindOfClass:[AVPlayerLayer class]]) {
+                          foundLayer = (AVPlayerLayer *)value;
+                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayerLayer", NSStringFromClass([vc class]), key);
+                          break;
+                      }
+                  } @catch (__unused NSException *exception) {
+                  }
+              }
+              if (foundLayer) break;
+              for (NSString *key in playerKeys) {
+                  @try {
+                      id value = [vc valueForKey:key];
+                      if ([value isKindOfClass:[AVPlayer class]]) {
+                          foundPlayer = (AVPlayer *)value;
+                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayer", NSStringFromClass([vc class]), key);
+                          break;
+                      }
+                  } @catch (__unused NSException *exception) {
+                  }
+              }
+          }
+          if (verbose && !foundPlayer && !foundLayer) {
+              GHLLog(@"画中画查找 B 路：KVC 探针什么都没拿到");
+          }
+      } @catch (__unused NSException *exception) {
+          if (verbose) GHLLog(@"画中画查找 B 路：遍历控制器时异常");
+      }
+    };
+    if ([NSThread isMainThread]) {
+        probe();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), probe);
+    }
+    if (outLayer) *outLayer = foundLayer;
+    return foundPlayer;
+}
+
+// 画中画专用：A 路（图层）→ B 路（控制器探针），返回 AVPlayer；
+// 有图层时通过 outLayer 一起返回（没有时 outLayer 置 nil，调用方用播放器新建图层）。
+// 详细日志只在这里记（平时快进/静音/截图调用的安静版不记，免得刷屏）。
+static AVPlayer *GHLFindPlayingAVPlayerForPiP(AVPlayerLayer **outLayer) {
+    AVPlayerLayer *layer = GHLFindPlayingAVPlayerLayerVerbose(YES, NULL, NULL);
+    AVPlayer *player = layer.player;
+    if (player) {
+        if (outLayer) *outLayer = layer;
+        return player;
+    }
+    if (layer) {
+        // 图层找到了但上面没挂播放器：记一笔，再走 B 路。
+        GHLLog(@"画中画查找：找到 AVPlayerLayer 但 player 是 nil，继续 B 路探针");
+    }
+    AVPlayerLayer *probeLayer = nil;
+    AVPlayer *probePlayer = GHLProbePlayerFromPlayerVCs(YES, &probeLayer);
+    if (probeLayer) {
+        if (outLayer) *outLayer = probeLayer;
+        return probeLayer.player;
+    }
+    if (probePlayer) {
+        if (outLayer) *outLayer = nil;
+        return probePlayer;
+    }
+    if (outLayer) *outLayer = nil;
+    GHLLog(@"画中画查找：A 路 B 路都没找到播放器（图层和 KVC 探针都是空）");
+    return nil;
 }
 
 AVPlayer *GHLFindPlayingAVPlayer(void) {
@@ -361,6 +541,99 @@ void GHLApplyNightMode(BOOL on) {
 #pragma mark - (2) 画中画
 
 static AVPictureInPictureController *ghlPiPController = nil;
+// 1.0.15：C 路新建的图层（有播放器没现成图层时，用播放器建一个再建 PiP 控制器）：
+// 控制器会留住它，这里再强引用一份保险。
+static AVPlayerLayer *ghlPiPSyntheticLayer = nil;
+
+// 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
+// ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
+// GHLStartPiP() 一次都没跑过（皇上 19:53「滑出抖音没有小窗」的根因）。
+// 现在把 token 存进 file-static 变量（照 DYYY.xm 的 dyyy*Token 写法），
+// applicationWillTerminate 时移除（见 %ctor 后面的 %hook AppDelegate）。
+static id ghlScreenshotObserverToken = nil;
+static id ghlVolumeObserverToken = nil;
+static id ghlPiPWillResignActiveToken = nil;
+static id ghlPiPDidEnterBackgroundToken = nil;
+static id ghlPiPDidBecomeActiveToken = nil;
+// 一次后台只触发一次画中画：WillResignActive 先触发，DidEnterBackground 兜底时
+// 靠它跳过；回到前台（DidBecomeActive）再清掉，下次切后台重新触发。
+static BOOL ghlPiPTriggeredForCurrentBackground = NO;
+// 兜底路径的后台任务：DidEnterBackground 里起画中画时 App 随时被挂起，
+// 开一个后台任务撑到系统回调（didStart/失败）或 10 秒超时。
+static UIBackgroundTaskIdentifier ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
+
+static void GHLEndPiPBackgroundTask(void) {
+    if (ghlPiPBackgroundTask == UIBackgroundTaskInvalid) return;
+    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
+    ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
+    [[UIApplication sharedApplication] endBackgroundTask:task];
+}
+
+static void GHLRemovePiPObservers(void) {
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    if (ghlScreenshotObserverToken) {
+        [center removeObserver:ghlScreenshotObserverToken];
+        ghlScreenshotObserverToken = nil;
+    }
+    if (ghlVolumeObserverToken) {
+        [center removeObserver:ghlVolumeObserverToken];
+        ghlVolumeObserverToken = nil;
+    }
+    if (ghlPiPWillResignActiveToken) {
+        [center removeObserver:ghlPiPWillResignActiveToken];
+        ghlPiPWillResignActiveToken = nil;
+    }
+    if (ghlPiPDidEnterBackgroundToken) {
+        [center removeObserver:ghlPiPDidEnterBackgroundToken];
+        ghlPiPDidEnterBackgroundToken = nil;
+    }
+    if (ghlPiPDidBecomeActiveToken) {
+        [center removeObserver:ghlPiPDidBecomeActiveToken];
+        ghlPiPDidBecomeActiveToken = nil;
+    }
+}
+
+// 切后台时触发一次画中画（开关关着就不触发；已触发过就跳过，等回到前台再重置）。
+static void GHLTriggerPiPForBackground(void) {
+    if (ghlPiPTriggeredForCurrentBackground) return;
+    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
+    ghlPiPTriggeredForCurrentBackground = YES;
+    GHLStartPiP();
+}
+
+// 画中画 delegate：系统回调如实记日志（startPictureInPicture 只表示已调用，
+// 小窗真出来要等 didStart；失败也只在这里才知道）。
+@interface GHLPiPDelegate : NSObject <AVPictureInPictureControllerDelegate>
++ (instancetype)sharedDelegate;
+@end
+
+@implementation GHLPiPDelegate
+
++ (instancetype)sharedDelegate {
+    static GHLPiPDelegate *shared = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      shared = [[self alloc] init];
+    });
+    return shared;
+}
+
+- (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    GHLLog(@"画中画：系统已开始画中画");
+    GHLEndPiPBackgroundTask();
+}
+
+- (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
+    GHLLog(@"画中画：系统启动失败：%@", error.localizedDescription ?: @"未知错误");
+    GHLEndPiPBackgroundTask();
+}
+
+- (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    GHLLog(@"画中画：已退出画中画");
+    GHLEndPiPBackgroundTask();
+}
+
+@end
 
 void GHLStartPiP(void) {
     GHLRunOnMain(^{
@@ -369,16 +642,49 @@ void GHLStartPiP(void) {
           GHLLog(@"画中画：设备不支持");
           return;
       }
-      AVPlayerLayer *layer = GHLFindPlayingAVPlayerLayer();
-      if (!layer || !layer.player) {
-          [DYYYUtils showToast:@"没找到正在播放的视频"];
-          GHLLog(@"画中画：没找到播放器图层");
+      if (ghlPiPController.pictureInPictureActive) {
+          GHLLog(@"画中画：已经在画中画里了");
           return;
       }
+      // 1.0.15：找播放器（A 路图层 → B 路控制器探针，详细日志见“画中画查找”）；
+      // 有播放器没图层时，用播放器新建一个图层再建 PiP 控制器。
+      AVPlayerLayer *realLayer = nil;
+      AVPlayer *player = GHLFindPlayingAVPlayerForPiP(&realLayer);
+      if (!player) {
+          [DYYYUtils showToast:@"没找到播放的视频"];
+          GHLLog(@"画中画：没找到播放器（查找经过见上面“画中画查找”的日志）");
+          return;
+      }
+      AVPlayerLayer *layer = realLayer;
+      if (!layer) {
+          layer = [AVPlayerLayer playerLayerWithPlayer:player];
+          ghlPiPSyntheticLayer = layer;
+          GHLLog(@"画中画：没找到现成图层，用播放器新建了一个图层再建 PiP 控制器");
+      }
       @try {
+          // 画中画要音频会话处于 playback：抖音播视频时一般已经是 playback，
+          // 不是时才改（只改类别、不动别的设置；失败如实记日志，不硬来）。
+          AVAudioSession *session = [AVAudioSession sharedInstance];
+          if (![session.category isEqualToString:AVAudioSessionCategoryPlayback]) {
+              NSString *oldCategory = session.category ?: @"未知";
+              NSError *categoryError = nil;
+              [session setCategory:AVAudioSessionCategoryPlayback error:&categoryError];
+              if (categoryError) {
+                  GHLLog(@"画中画：音频会话改 playback 失败：%@", categoryError.localizedDescription);
+              } else {
+                  GHLLog(@"画中画：音频会话已改成 playback（原来 %@）", oldCategory);
+              }
+          }
+          NSError *activeError = nil;
+          [session setActive:YES error:&activeError];
+          if (activeError) {
+              GHLLog(@"画中画：音频会话激活失败：%@", activeError.localizedDescription);
+          }
           ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+          ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
           [ghlPiPController startPictureInPicture];
-          GHLLog(@"画中画：已启动");
+          // 只表示已调用，不是小窗真的出来了——真出来/失败看 delegate 回调。
+          GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
       } @catch (NSException *exception) {
           [DYYYUtils showToast:@"画中画启动失败"];
           GHLLog(@"画中画启动失败：%@", exception.reason);
@@ -1506,27 +1812,54 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.14 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.15 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-        [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
+        // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
+        // 画中画/截屏/音量监听全是死的）。
+        ghlScreenshotObserverToken = [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
                           GHLHandleScreenshotTaken(note);
                         }];
-        [center addObserverForName:@"AVSystemController_SystemVolumeDidChangeNotification"
+        ghlVolumeObserverToken = [center addObserverForName:@"AVSystemController_SystemVolumeDidChangeNotification"
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
                           GHLHandleVolumeChange(note);
                         }];
-        [center addObserverForName:UIApplicationDidEnterBackgroundNotification
+        // 画中画：主触发改到 WillResignActive（还在前台时启动；DidEnterBackground
+        // 再调 startPictureInPicture 就太晚了）；DidEnterBackground 留作兜底，
+        // 一次后台只触发一次（GHLTriggerPiPForBackground 里的 guard）；回到前台重置。
+        ghlPiPWillResignActiveToken = [center addObserverForName:UIApplicationWillResignActiveNotification
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
-                          if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
-                              GHLStartPiP();
+                          GHLTriggerPiPForBackground();
+                        }];
+        ghlPiPDidEnterBackgroundToken = [center addObserverForName:UIApplicationDidEnterBackgroundNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          // 兜底：开关开着、还没触发过时，先开个后台任务撑到系统回调
+                          // （或 10 秒超时），再触发。
+                          if (!ghlPiPTriggeredForCurrentBackground && GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
+                              if (ghlPiPBackgroundTask == UIBackgroundTaskInvalid) {
+                                  ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+                                    GHLEndPiPBackgroundTask();
+                                  }];
+                                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                                    GHLEndPiPBackgroundTask();
+                                  });
+                              }
                           }
+                          GHLTriggerPiPForBackground();
+                        }];
+        ghlPiPDidBecomeActiveToken = [center addObserverForName:UIApplicationDidBecomeActiveNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          ghlPiPTriggeredForCurrentBackground = NO;
                         }];
         GHLStartHousekeepingTimer();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -1540,6 +1873,14 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
         });
     }
 }
+
+// 1.0.15：进程退出时移除 %ctor 里注册的监听（照 DYYY.xm 的 DYYYRemoveAppLifecycleObservers 写法）。
+%hook AppDelegate
+- (void)applicationWillTerminate:(UIApplication *)application {
+    GHLRemovePiPObservers();
+    %orig;
+}
+%end
 
 #pragma mark - (31) 语音包（xuu 式管理器，代码全部自己写）
 // 行为参考（只学流程，不碰对方代码）：语音包列表（按文件夹/分类、按名字搜）→ 选一个

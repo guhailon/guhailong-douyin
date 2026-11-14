@@ -619,7 +619,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             // 1.0.14 关于分区：只剩单一入口行「关于顾海龙抖音」，点整行直接进深色品牌页
             // （右边的「查看关于」附属文字已拿掉，只留右箭头；1.0.12 的关于弹窗、声明行和
-            // 配置三行废弃：配置三行搬进关于页的配置管理区，逻辑不动）
+            // 配置三行废弃：配置三行搬进关于页的配置管理区，逻辑不动）。
+            // 1.0.15：主页点「关于」分类行时不再进这个子页（didSelectRowAtIndexPath 里
+            // 直接 push GHLAboutViewController），这个分区只剩搜索结果的兜底入口。
             [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker]
         ]
     ];
@@ -1223,6 +1225,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     // 主页分类行：直接进该分类的子页，不再中转旧深色页。
     if ([self isHomeMode] && ![self isSearching]) {
+        // 1.0.15：关于分类行直接进深色品牌页，不再进「关于」子页中转——
+        // 子页里只有一行「关于顾海龙抖音」，多一层没有意义（皇上 20:02–20:05
+        // 明确不要这个页面：「我不要点关于，又要点关于顾海龙抖音」）。
+        // 判断不写死下标：关于分区就是那个只有一行、且那行 key 是 GHL_KEY_ABOUT_PAGE 的分区。
+        if (indexPath.row < (NSInteger)self.settingSections.count) {
+            NSArray<DYYYSettingItem *> *sectionItems = self.settingSections[indexPath.row];
+            if (sectionItems.count == 1 && [sectionItems[0].key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
+                GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
+                aboutVC.settingsViewController = self;
+                [self.navigationController pushViewController:aboutVC animated:YES];
+                [tableView deselectRowAtIndexPath:indexPath animated:YES];
+                return;
+            }
+        }
         DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:indexPath.row];
         [self.navigationController pushViewController:subVC animated:YES];
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
@@ -1230,6 +1246,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     }
     DYYYSettingItem *item = [self itemForIndexPath:indexPath];
     // 1.0.14：关于入口行直接推进深色品牌页，不弹选择框（主页分类行和搜索结果都走这里）。
+    // 1.0.15：主页分类行已在上面直接拦截，这里只剩搜索结果的兜底入口。
     if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
         aboutVC.settingsViewController = self;

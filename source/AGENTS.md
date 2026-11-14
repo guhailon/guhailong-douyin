@@ -22,7 +22,7 @@
   - `DYYYSettingsBackup.(h/m)`：设置导入 / 导出 / 恢复默认（1.0.4）。
   - `DYYYDownloadManagerViewController.(h/m)`：下载管理页（1.0.4，已保存统计 + 缓存清理）。
   - `GHLLogViewerViewController.(h/m)`：顾海龙日志查看页（1.0.6，读 Documents/DYYY/GuHaiLongDouyin.log，只显示最后约 200KB）。
-  - `GHLAboutViewController.(h/m)`：关于深色品牌页（1.0.13，显式深色：雷鸣绿龙横幅＋金字标题，两张深色金边卡，声明在最下面；横幅图 base64 内嵌在 GHLLogo.m）。
+  - `GHLAboutViewController.(h/m)`：关于深色品牌页（1.0.13，显式深色：雷鸣绿龙横幅＋金字标题，两张深色金边卡，声明在最下面；横幅图 base64 内嵌在 GHLLogo.m）。1.0.15：设置主页「关于」分类行直接进本页（不再经过只有一行的「关于」子页）；横幅换成展翅绿龙＋可自选横幅背景（Documents/DYYY/ghl-about-banner.jpg，标题对准：内置图按实测龙头中心，自选图按横幅中心）。
 - **业务/下载**
   - `DYYYManager.(h/m)`：下载、合成、任务管理、授权。
   - `DYYYDownloadScheduler.(h/m)`：下载并发限制、等待队列与取消调度。

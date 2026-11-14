@@ -9655,10 +9655,16 @@ static NSHashTable *processedParentViews = nil;
 
 %hook AWEAwemeStatusModel
 - (void)setListenVideoStatus:(NSInteger)status {
+    NSInteger newStatus = status;
     if (status == 1 && DYYYGetBool(@"DYYYEnableBackgroundListen")) {
-        status = 2;
+        newStatus = 2;
     }
-    %orig(status);
+    // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
+    // 写进顾海龙日志（只在后台播放开关开着时记，避免刷屏）。
+    if (DYYYGetBool(@"DYYYEnableBackgroundListen")) {
+        GHLLog(@"后台听视频：setListenVideoStatus 进来了，原 status=%ld，改写后 status=%ld", (long)status, (long)newStatus);
+    }
+    %orig(newStatus);
 }
 %end
 

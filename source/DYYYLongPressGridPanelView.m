@@ -2,6 +2,7 @@
 // 深色毛玻璃底板 + 三列金色图标网格 + 顶部金色龙头（复用 GHLLogoImage()，圆形金边，和设置页头卡同一套）。
 // 效果图：workspace/imagine_media/media-generation-download-menu-grid-dragon-0-168c78e9-fb05-4e57-8b23-f8476d304c10.webp
 // 与效果图的一处差别：龙头没有探出面板顶边（贴边 10pt 放在毛玻璃里），避免 sheet 容器裁切导致龙头被切一半。
+// 1.0.15：没有「更多」了——自定义项和抖音原生项全在网格里，长按只出网格，不再回到原生列表页。
 #import "DYYYLongPressGridPanelView.h"
 #import "DYYYUtils.h"
 #import "GHLFeatures.h"
@@ -17,9 +18,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 @interface DYYYLongPressGridPanelView ()
 
 @property(nonatomic, copy) NSArray<NSDictionary *> *items;
-@property(nonatomic, assign) BOOL hasNativeItems;
-@property(nonatomic, copy) void (^itemActionHandler)(NSInteger actionType);
-@property(nonatomic, copy, nullable) void (^revealNativeHandler)(void);
+@property(nonatomic, copy) void (^itemActionHandler)(NSInteger actionType, NSString *title);
 @property(nonatomic, copy, nullable) void (^dismissHandler)(void);
 @property(nonatomic, assign) BOOL didDismiss;
 
@@ -34,9 +33,11 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 
 #pragma mark - 图标
 
-// 按 actionType 找 SF Symbol（金色线条图标，和效果图一致）；找不到就逐个回退，最后兜底下载图标。
+// 按 actionType 找 SF Symbol（金色线条图标，和效果图一致）；找不到就按标题关键字兜底
+// （1.0.15 起原生项也进网格，原生项没有约定的 actionType，按标题认图标）；
+// 最后兜底下载图标。
 // actionType 见 DYYYLongPressPanel.xm：666-679 是 DYYY 长按项，686-693 是顾海龙长按项。
-+ (nullable UIImage *)ghl_iconForActionType:(NSInteger)actionType {
++ (nullable UIImage *)ghl_iconForActionType:(NSInteger)actionType title:(nullable NSString *)title {
     NSArray<NSString *> *names = nil;
     switch (actionType) {
         case 666: names = @[ @"arrow.down.to.line", @"square.and.arrow.down" ]; break; // 保存视频
@@ -60,7 +61,16 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         case 691: names = @[ @"person.crop.circle", @"person" ]; break; // 保存头像
         case 692: names = @[ @"person.text.rectangle", @"person.crop.rectangle", @"person" ]; break; // 复制个人资料
         case 693: names = @[ @"square.and.arrow.up", @"music.note" ]; break; // 分享音频
-        default: names = @[ @"square.and.arrow.down" ]; break;
+        default:
+            // 未知 actionType（多半是抖音原生项）：按标题关键字认图标，认不出再兜底下载图标。
+            if ([title containsString:@"不感兴趣"] || [title containsString:@"不喜欢"]) names = @[ @"eye.slash", @"hand.thumbsdown" ];
+            else if ([title containsString:@"举报"]) names = @[ @"flag", @"exclamationmark.triangle" ];
+            else if ([title containsString:@"收藏"]) names = @[ @"star", @"star.fill" ];
+            else if ([title containsString:@"分享"]) names = @[ @"square.and.arrow.up" ];
+            else if ([title containsString:@"屏蔽"] || [title containsString:@"拉黑"] || [title containsString:@"黑名单"]) names = @[ @"person.slash", @"nosign" ];
+            else if ([title containsString:@"壁纸"]) names = @[ @"photo", @"image" ];
+            else names = @[ @"square.and.arrow.down" ];
+            break;
     }
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightRegular];
     for (NSString *name in names) {
@@ -73,16 +83,12 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 #pragma mark - 初始化
 
 - (instancetype)initWithItems:(NSArray<NSDictionary *> *)items
-               hasNativeItems:(BOOL)hasNativeItems
-            itemActionHandler:(void (^)(NSInteger actionType))itemActionHandler
-           revealNativeHandler:(nullable void (^)(void))revealNativeHandler
+            itemActionHandler:(void (^)(NSInteger actionType, NSString *title))itemActionHandler
                dismissHandler:(nullable void (^)(void))dismissHandler {
     self = [super initWithFrame:CGRectZero];
     if (!self) return nil;
     _items = [items copy];
-    _hasNativeItems = hasNativeItems;
     _itemActionHandler = [itemActionHandler copy];
-    _revealNativeHandler = [revealNativeHandler copy];
     _dismissHandler = [dismissHandler copy];
     _cells = [NSMutableArray array];
 
@@ -114,37 +120,26 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     [self addSubview:_gridScrollView];
 
     // 网格格子：每格一个圆角半透明底 + 金色图标 + 白字标题。
+    // 1.0.15：没有「更多」格了——items 里就是全部项（自定义＋原生），有几项就出几格；
+    // 超出 4 行时纵向滚动（scrollView 带滚动条），不截断。
     UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
-    NSInteger totalCells = (NSInteger)items.count + (hasNativeItems ? 1 : 0);
+    NSInteger totalCells = (NSInteger)items.count;
     for (NSInteger i = 0; i < totalCells; i++) {
-        NSString *title = nil;
-        NSInteger actionType = 0;
-        BOOL isMore = NO;
-        if (i < (NSInteger)items.count) {
-            title = items[i][@"title"];
-            actionType = [items[i][@"actionType"] integerValue];
-        } else {
-            title = @"更多";
-            isMore = YES;
-        }
-        if (!title || title.length == 0) title = @"更多";
+        NSString *title = items[i][@"title"];
+        NSInteger actionType = [items[i][@"actionType"] integerValue];
+        if (!title || title.length == 0) title = @"未命名";
 
         UIButton *cell = [UIButton buttonWithType:UIButtonTypeCustom];
         cell.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.09];
         cell.layer.cornerRadius = 16;
         cell.layer.masksToBounds = YES;
         cell.accessibilityLabel = title;
-        cell.tag = isMore ? -1 : actionType;
+        cell.tag = i; // 格子序号：点按时按序号找回 items 里的标题和 actionType。
 
         UIImageView *iconView = [[UIImageView alloc] init];
         iconView.contentMode = UIViewContentModeScaleAspectFit;
         iconView.tintColor = gold;
-        if (isMore) {
-            UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightRegular];
-            iconView.image = [UIImage systemImageNamed:@"ellipsis" withConfiguration:config];
-        } else {
-            iconView.image = [[self class] ghl_iconForActionType:actionType];
-        }
+        iconView.image = [[self class] ghl_iconForActionType:actionType title:title];
         iconView.tag = 1001;
         [cell addSubview:iconView];
 
@@ -157,11 +152,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         label.tag = 1002;
         [cell addSubview:label];
 
-        if (isMore) {
-            [cell addTarget:self action:@selector(ghl_moreTapped:) forControlEvents:UIControlEventTouchUpInside];
-        } else {
-            [cell addTarget:self action:@selector(ghl_cellTapped:) forControlEvents:UIControlEventTouchUpInside];
-        }
+        [cell addTarget:self action:@selector(ghl_cellTapped:) forControlEvents:UIControlEventTouchUpInside];
         [_gridScrollView addSubview:cell];
         [_cells addObject:cell];
     }
@@ -216,17 +207,12 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 #pragma mark - 交互
 
 - (void)ghl_cellTapped:(UIButton *)sender {
+    if (sender.tag < 0 || sender.tag >= (NSInteger)self.items.count) return;
+    NSDictionary *item = self.items[sender.tag];
     if (self.itemActionHandler) {
-        self.itemActionHandler(sender.tag);
-    }
-}
-
-- (void)ghl_moreTapped:(UIButton *)sender {
-    // 回到原生面板：把自己拿掉，底下就是抖音原来的长按面板（自定义行 + 原生行都在）。
-    GHLLog(@"长按面板：网格→原生面板");
-    [self removeFromSuperview];
-    if (self.revealNativeHandler) {
-        self.revealNativeHandler();
+        // 标题和 actionType 一起交出去：Hook 方按两个条件找回原 viewModel，
+        // 原生项和自定义项 actionType 万一撞号也不会点错。
+        self.itemActionHandler([item[@"actionType"] integerValue], item[@"title"]);
     }
 }
 

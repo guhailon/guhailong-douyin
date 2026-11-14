@@ -15,13 +15,13 @@
 // 结果就是皇上真机上网格一次都没盖上、日志里连一行“长按面板”都没有（1.0.10 之前
 // 所有失败分支都是静默 return）。1.0.10 改成强引用，持有到面板收起。
 // 强引用经 viewModel 的 action block（block 捕获了面板控制器）会留住控制器，
-// 所以收起时必须放掉：viewDidDisappear 判定已收起 / dealloc / 点“更多” / 下滑收起
+// 所以收起时必须放掉：viewDidDisappear 判定已收起 / dealloc / 下滑收起
 // 都会清缓存；同一时间只可能有一个长按面板，用全局变量没问题。
+// 1.0.15：没有「更多」了——长按只出网格，原生面板不再出现；「已回原生不再重盖」的
+// 标记（gDYYYLongPressGridPanelNativeVC）随之删掉。
 static NSArray *gDYYYLongPressPanelData = nil;
 // 当前盖在面板上的网格视图（弱引用：它由面板控制器的 view 持有，收起后自动释放）。
 static __weak DYYYLongPressGridPanelView *gDYYYLongPressGridPanel = nil;
-// 这次点了“更多”回到原生面板的控制器（弱引用）：同一次展示里不再盖网格，避免转屏后又盖回来。
-static __weak UIViewController *gDYYYLongPressGridPanelNativeVC = nil;
 // 1.0.10：诊断日志去重用的状态——同一控制器、同一原因只记一行（viewDidLayoutSubviews
 // 每轮布局都会调盖网格函数，不去重会刷屏；控制器换了或原因变了就再记一行）。
 static __weak UIViewController *gDYYYLongPressGridDiagVC = nil;
@@ -967,8 +967,7 @@ static BOOL DYYYLongPressItemHiddenByHideList(NSString *desc, NSSet<NSString *> 
     return NO;
 }
 
-// 只放数据缓存（点“更多”/下滑收起时用：网格没了，但“已回原生”的标记要留着，
-// 否则同一次展示里 dataArray 一重跑就会把网格又盖回来）。
+// 只放数据缓存（下滑收起时用；面板彻底收起走下面的 ClearAll）。
 static void DYYYLongPressGridPanelClearData(void) {
     gDYYYLongPressPanelData = nil;
 }
@@ -976,7 +975,6 @@ static void DYYYLongPressGridPanelClearData(void) {
 // 面板彻底收起时放掉全部状态（viewDidDisappear 判定已收起 / dealloc 时调）。
 static void DYYYLongPressGridPanelClearAll(void) {
     gDYYYLongPressPanelData = nil;
-    gDYYYLongPressGridPanelNativeVC = nil;
     gDYYYLongPressGridDiagVC = nil;
     gDYYYLongPressGridDiagReason = nil;
 }
@@ -1001,7 +999,7 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc) {
 }
 
 // 在面板控制器上盖网格（viewDidLoad / viewWillAppear / viewDidLayoutSubviews 里都调一次，
-// dataArray 可能在 viewDidLoad 之后才跑，靠后几次补上；已经盖上或点过“更多”的直接返回）。
+// dataArray 可能在 viewDidLoad 之后才跑，靠后几次补上；已经盖上的直接返回）。
 // 1.0.10：每个失败分支都记一行诊断（去重后每控制器每原因只记一次），下次网格没盖上，
 // 日志里直接写明是哪一关没过，不再静默。
 static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
@@ -1014,10 +1012,6 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     BOOL gridSwitchOn = GHLGetBool(GHL_KEY_LONG_PRESS_GRID_PANEL);
     if (!gridSwitchOn) {
         DYYYLongPressGridLogDiag(vc, @"未盖网格（开关关）");
-        return;
-    }
-    if (gDYYYLongPressGridPanelNativeVC == vc) {
-        DYYYLongPressGridLogDiag(vc, @"未盖网格（已点更多回原生）");
         return;
     }
     if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) return; // 已盖上，成功状态，不记日志
@@ -1038,51 +1032,45 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         }
     }
 
-    // 收集自定义项（保持 dataArray 里的顺序），同时记有没有原生项。
+    // 1.0.15：收集全部项（自定义＋原生，保持 dataArray 里的顺序）——没有「更多」了，
+    // 原生项也进网格，长按只出网格。隐藏列表对全部项生效（dataArray 钩子里已经对
+    // 原生组滤过一次，这里再统一滤一次，行为一致）。
     NSMutableArray<NSDictionary *> *gridItems = [NSMutableArray array];
-    BOOL hasNativeItems = NO;
+    NSInteger nativeItemCount = 0;
     for (id groupObj in data) {
         if (![groupObj isKindOfClass:%c(AWELongPressPanelViewGroupModel)]) continue;
         AWELongPressPanelViewGroupModel *group = (AWELongPressPanelViewGroupModel *)groupObj;
-        BOOL groupHasCustom = NO;
         for (id itemObj in group.groupArr) {
             if (![itemObj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) continue;
             AWELongPressPanelBaseViewModel *item = (AWELongPressPanelBaseViewModel *)itemObj;
-            if (DYYYLongPressItemIsCustom(item, group)) {
-                groupHasCustom = YES;
-                if (DYYYLongPressItemHiddenByHideList(item.describeString, hideSet)) continue;
-                if (item.describeString.length == 0) continue;
-                [gridItems addObject:@{@"title": item.describeString, @"actionType": @(item.actionType)}];
-            }
+            if (item.describeString.length == 0) continue;
+            if (DYYYLongPressItemHiddenByHideList(item.describeString, hideSet)) continue;
+            if (!DYYYLongPressItemIsCustom(item, group)) nativeItemCount++;
+            [gridItems addObject:@{@"title": item.describeString, @"actionType": @(item.actionType)}];
         }
-        if (!groupHasCustom && group.groupArr.count > 0) hasNativeItems = YES;
     }
-    if (gridItems.count == 0) { // 一个自定义项都没开，原生面板就是对的，不盖网格
-        DYYYLongPressGridLogDiag(vc, [NSString stringWithFormat:@"未盖网格（开关开，数据%lu组，自定义0项，原生项%@）", (unsigned long)data.count, hasNativeItems ? @"有" : @"无"]);
+    if (gridItems.count == 0) { // 一项都没有（自定义全关、原生组也是空），没东西可盖
+        DYYYLongPressGridLogDiag(vc, [NSString stringWithFormat:@"未盖网格（开关开，数据%lu组，0项）", (unsigned long)data.count]);
         return;
     }
 
-    __weak UIViewController *weakVC = vc;
     DYYYLongPressGridPanelView *panel = [[DYYYLongPressGridPanelView alloc] initWithItems:gridItems
-                                                                           hasNativeItems:hasNativeItems
-                                                                        itemActionHandler:^(NSInteger actionType) {
-        // 点按时按 actionType 找回原 viewModel 执行它的 action（下载/复制/过滤/定时等逻辑一点没改）。
+                                                                        itemActionHandler:^(NSInteger actionType, NSString *title) {
+        // 点按时按 actionType + 标题找回原 viewModel 执行它的 action（下载/复制/过滤/定时等逻辑一点没改）。
+        // 标题一起比：原生项和自定义项 actionType 万一撞号也不会点错。
         NSArray *currentData = gDYYYLongPressPanelData;
         for (id groupObj in currentData) {
             if (![groupObj isKindOfClass:%c(AWELongPressPanelViewGroupModel)]) continue;
             for (id itemObj in ((AWELongPressPanelViewGroupModel *)groupObj).groupArr) {
                 if (![itemObj isKindOfClass:%c(AWELongPressPanelBaseViewModel)]) continue;
                 AWELongPressPanelBaseViewModel *item = (AWELongPressPanelBaseViewModel *)itemObj;
-                if (item.actionType == actionType && item.action) {
+                if (item.actionType == actionType && [item.describeString isEqualToString:title] && item.action) {
                     item.action();
                     return;
                 }
             }
         }
-        GHLLog(@"长按面板：网格点按 actionType %ld 没找到对应项", (long)actionType);
-    } revealNativeHandler:^{
-        gDYYYLongPressGridPanelNativeVC = weakVC;
-        DYYYLongPressGridPanelClearData(); // 回原生面板：数据缓存放掉（标记留着，同一次展示不再重盖）
+        GHLLog(@"长按面板：网格点按 actionType %ld「%@」没找到对应项", (long)actionType, title);
     } dismissHandler:^{
         DYYYLongPressGridPanelClearData(); // 下滑收起：数据缓存放掉，viewDidDisappear 还会再清一次
         AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
@@ -1092,7 +1080,7 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     [vc.view addSubview:panel];
     [panel setNeedsLayout];
     gDYYYLongPressGridPanel = panel;
-    GHLLog(@"长按面板：网格已盖上（%lu 项，原生项%@）：%@", (unsigned long)gridItems.count, hasNativeItems ? @"有" : @"无", [[gridItems valueForKey:@"title"] componentsJoinedByString:@"、"]);
+    GHLLog(@"长按面板：网格已盖上（%lu 项，其中原生 %ld 项）：%@", (unsigned long)gridItems.count, (long)nativeItemCount, [[gridItems valueForKey:@"title"] componentsJoinedByString:@"、"]);
 }
 
 static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {

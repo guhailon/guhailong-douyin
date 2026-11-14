@@ -272,9 +272,10 @@ NSString *GHLLogFilePath(void);
 void GHLLog(NSString *format, ...);
 
 // MARK: - 播放器
-// 找到当前正在播放的 AVPlayer（遍历 keyWindow 的 AVPlayerLayer）
+// 找到当前正在播放的 AVPlayer（1.0.15：全部窗口递归找 AVPlayerLayer，不只 keyWindow；
+// 画中画专用查找另见 GHLFeatures.xm 里的 GHLFindPlayingAVPlayerForPiP，会多走一路控制器 KVC 探针）
 AVPlayer *GHLFindPlayingAVPlayer(void);
-// 找到当前播放视频的 AVPlayerLayer
+// 找到当前播放视频的 AVPlayerLayer（1.0.15：全部窗口递归找，不只 keyWindow）
 AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void);
 // 当前播放进度（秒），找不到返回 -1
 double GHLCurrentPlayerTime(void);
@@ -305,6 +306,12 @@ void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
 UIImage *GHLLogoImage(void);
 // 关于深色品牌页横幅（1.0.13；base64 内嵌的 640x360 雷鸣绿龙横幅，裁自公司 logo 海报）
 UIImage *GHLAboutBannerImage(void);
+// 1.0.15 关于横幅可换：自选横幅（存在 Documents/DYYY/ghl-about-banner.jpg，不进仓库；
+// 读不到、损坏一律回退内置展翅龙）
+UIImage *GHLCustomAboutBannerImage(void);
+BOOL GHLSaveCustomAboutBannerImage(UIImage *image); // 居中裁 16:9 → 640x360 → JPEG q85
+void GHLClearCustomAboutBanner(void);
+BOOL GHLHasCustomAboutBanner(void);
 // 1.0.4 自选龙头 / 自定义背景（存在 Documents/DYYY/ 里，不进仓库；读不到、损坏一律回退内置/默认）
 UIImage *GHLCustomLogoImage(void);
 BOOL GHLSaveCustomLogoImage(UIImage *image);     // 居中裁正方形 → 256x256 → JPEG q88
