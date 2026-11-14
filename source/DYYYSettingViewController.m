@@ -662,26 +662,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    switch (section) {
-        case 0:
-            return @"基本设置";
-        case 1:
-            return @"界面设置";
-        case 2:
-            return @"隐藏设置";
-        case 3:
-            return @"顶栏移除";
-        case 4:
-            return @"隐藏面板";
-        case 5:
-            return @"面板设置";
-        case 6:
-            return @"功能设置";
-        case 7:
-            return @"悬浮按钮";
-        default:
-            return @"";
+    // 分区标题以 setupSectionTitles 的 10 个为准。顾海龙抖音在前面加了两个分区
+    // （顾海龙抖音、顾海龙抖音（二）），旧的 8 分区 switch 全错位：前面 8 个标题
+    // 串位，最后两个分区（功能设置、悬浮按钮）落到 default，标题是空字符串，
+    // 真机上就是照片里悬浮按钮下面的两行空白。
+    if (section >= 0 && section < (NSInteger)self.sectionTitles.count) {
+        return self.sectionTitles[section];
     }
+    return @"";
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
@@ -728,22 +716,57 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:sender.tag] withRowAnimation:UITableViewRowAnimationFade];
 }
 
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    // 带括号标注的行用两行显示（主标题 + 第二行小字标注），行高要够放两行
+    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
+    NSRange noteRange = [item.title rangeOfString:@"（"];
+    return (noteRange.location != NSNotFound && noteRange.location > 0) ? 60 : 44;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
 
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"SettingCell"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"SettingCell"];
-        cell.textLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        [cell.textLabel.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:16].active = YES;
-        [cell.textLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor].active = YES;
-
-        UIView *selectedBackgroundView = [[UIView alloc] init];
-        selectedBackgroundView.backgroundColor = [UIColor colorWithRed:84 / 255.0 green:84 / 255.0 blue:84 / 255.0 alpha:1.0];
-        cell.selectedBackgroundView = selectedBackgroundView;
+    // 括号里的标注太长会被截断：把“（...）”拆出来放第二行 12pt 小字显示，
+    // 主标题只留名称。没标注的行保持原来单行样式。
+    NSString *mainTitle = item.title;
+    NSString *noteTitle = nil;
+    NSRange noteRange = [item.title rangeOfString:@"（"];
+    if (noteRange.location != NSNotFound && noteRange.location > 0) {
+        mainTitle = [item.title substringToIndex:noteRange.location];
+        noteTitle = [item.title substringFromIndex:noteRange.location];
     }
 
-    cell.textLabel.text = item.title;
+    UITableViewCell *cell = nil;
+    if (noteTitle) {
+        cell = [tableView dequeueReusableCellWithIdentifier:@"SettingCellNote"];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"SettingCellNote"];
+            cell.textLabel.font = [UIFont systemFontOfSize:17];
+            cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
+            cell.detailTextLabel.textColor = [UIColor lightGrayColor];
+            cell.detailTextLabel.numberOfLines = 2;
+
+            UIView *selectedBackgroundView = [[UIView alloc] init];
+            selectedBackgroundView.backgroundColor = [UIColor colorWithRed:84 / 255.0 green:84 / 255.0 blue:84 / 255.0 alpha:1.0];
+            cell.selectedBackgroundView = selectedBackgroundView;
+        }
+        cell.textLabel.text = mainTitle;
+        cell.detailTextLabel.text = noteTitle;
+    } else {
+        cell = [tableView dequeueReusableCellWithIdentifier:@"SettingCell"];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"SettingCell"];
+            cell.textLabel.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell.textLabel.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor constant:16].active = YES;
+            [cell.textLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor].active = YES;
+
+            UIView *selectedBackgroundView = [[UIView alloc] init];
+            selectedBackgroundView.backgroundColor = [UIColor colorWithRed:84 / 255.0 green:84 / 255.0 blue:84 / 255.0 alpha:1.0];
+            cell.selectedBackgroundView = selectedBackgroundView;
+        }
+        cell.textLabel.text = item.title;
+    }
+
     cell.textLabel.textColor = [UIColor whiteColor];
     cell.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];
 
@@ -765,8 +788,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         switchView.tag = indexPath.section * 1000 + indexPath.row;
         cell.accessoryView = switchView;
     } else if (item.type == DYYYSettingItemTypeTextField) {
-        UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 100, 30)];
+        UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 120, 30)];
         textField.borderStyle = UITextBorderStyleRoundedRect;
+        textField.font = [UIFont systemFontOfSize:14];
         textField.placeholder = item.placeholder;
         textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:item.placeholder attributes:@{NSForegroundColorAttributeName : [UIColor lightGrayColor]}];
         textField.text = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
@@ -780,7 +804,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if (item.type == DYYYSettingItemTypePicker) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
 
-        UILabel *pickerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 80, 44)];
+        UILabel *pickerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
         // 获取当前值
         id currentValue = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
         if (!currentValue) {
@@ -788,13 +812,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         }
 
         pickerLabel.text = [self displayValueForKey:item.key value:currentValue];
+        pickerLabel.font = [UIFont systemFontOfSize:13];
         pickerLabel.textColor = [UIColor whiteColor];
         pickerLabel.textAlignment = NSTextAlignmentRight;
         pickerLabel.tag = indexPath.section * 1000 + indexPath.row;
+        // 值太长（例如音色名“李牧 (z…)”）时自动缩小字号显示，不截断
+        pickerLabel.adjustsFontSizeToFitWidth = YES;
+        pickerLabel.minimumScaleFactor = 0.7;
 
         // 添加垂直居中约束
         pickerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 44)];
+        UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 140, 44)];
         [containerView addSubview:pickerLabel];
 
         [NSLayoutConstraint activateConstraints:@[
