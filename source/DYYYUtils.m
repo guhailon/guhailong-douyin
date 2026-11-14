@@ -1152,6 +1152,25 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return 16;
 }
 
+// 1.0.5 头卡毛玻璃：标题/副标题用系统动态色（浅色深字、深色浅字，深浅切换自动跟）。
++ (UIColor *)dYYYSettingsHeaderTitleColor {
+    return [UIColor labelColor];
+}
+
++ (UIColor *)dYYYSettingsHeaderSubtitleColor {
+    return [UIColor secondaryLabelColor];
+}
+
+// 1.0.5 头卡毛玻璃内一层淡色 tint：浅色白 0.12 / 深色黑 0.12，动态色跟着系统深浅自动换，不用手动刷。
++ (UIColor *)dYYYSettingsHeaderCardTintColor {
+    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
+        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
+            return [UIColor colorWithWhite:0 alpha:0.12];
+        }
+        return [UIColor colorWithWhite:1 alpha:0.12];
+    }];
+}
+
 #pragma mark - Public File Management (公共文件管理)
 
 + (NSURL *)uniqueTemporaryFileURLWithFileName:(NSString *)fileName {

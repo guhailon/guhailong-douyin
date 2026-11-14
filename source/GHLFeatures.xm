@@ -165,12 +165,40 @@ BOOL GHLPerformFloatButtonAction(NSString *action) {
     return YES;
 }
 
-// 更新日志文本（1.0.1–1.0.4 各一行真实改动，以 git log 为准）。
+// 1.0.5 手势自定义：执行一个手势动作；返回 YES 表示已处理。
+// 动作候选只给已经存在的功能（前 5 个复用悬浮按钮那套）+ 静音开关 + 下一个视频。
+// 前向声明（实现在下面“手势”一节，切下一个视频和边缘滑动共用）。
+static void GHLScrollFeedToNextVideo(void);
+
+BOOL GHLPerformGestureAction(NSString *action) {
+    if (!action || [action isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) return NO;
+    if (GHLPerformFloatButtonAction(action)) return YES;
+    if ([action isEqualToString:GHL_GESTURE_ACTION_MUTE]) {
+        // 静音开关：抖音头文件里没有静音接口，直接开关已定位的 AVPlayer 的 muted（公开 API，
+        // 快进/截图用的就是这个播放器）。只管当前视频，切视频后新播放器默认有声，要再按一次。
+        AVPlayer *player = GHLFindPlayingAVPlayer();
+        if (!player) {
+            [DYYYUtils showToast:@"当前没有视频"];
+            return YES;
+        }
+        player.muted = !player.muted;
+        [DYYYUtils showToast:player.muted ? @"已静音" : @"已取消静音"];
+        return YES;
+    }
+    if ([action isEqualToString:GHL_GESTURE_ACTION_NEXT]) {
+        GHLScrollFeedToNextVideo();
+        return YES;
+    }
+    return NO;
+}
+
+// 更新日志文本（1.0.1–1.0.5 各一行真实改动，以 git log 为准）。
 NSString *GHLChangelogText(void) {
     return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
            @"1.0.2：设置主页改白色单步直达，龙头招牌，语音四项探针。\n"
            @"1.0.3：龙头重裁居中，分区改名常用功能/自动功能，关于加 QQ 号和 QQ 群。\n"
-           @"1.0.4：导入/导出配置、恢复默认配置、下载管理、语音包收藏、深色模式、悬浮按钮自定义、更新日志、加群按钮、龙头和背景可换、界面视觉统一。";
+           @"1.0.4：导入/导出配置、恢复默认配置、下载管理、语音包收藏、深色模式、悬浮按钮自定义、更新日志、加群按钮、龙头和背景可换、界面视觉统一。\n"
+           @"1.0.5：设置主页头卡改成毛玻璃，背景图从头卡里透出来；手势自定义（三击/双指双击/左滑/右滑）。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -707,13 +735,34 @@ static void GHLHandleTripleTapClear(UITapGestureRecognizer *gesture) {
     }
 }
 
-static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateEnded) return;
-    if (!GHLGetBool(GHL_KEY_EDGE_SWIPE_NEXT)) return;
+// 1.0.5 手势自定义：三击 / 双指双击 / 左滑 / 右滑，处理时读 live 设置（没配动作就是“默认”，直接返回）。
+static void GHLHandleCustomTripleTap(UITapGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_TRIPLE_TAP));
+}
+
+static void GHLHandleTwoFingerDoubleTap(UITapGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP));
+}
+
+static void GHLHandleSwipeLeft(UISwipeGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_SWIPE_LEFT));
+}
+
+static void GHLHandleSwipeRight(UISwipeGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_SWIPE_RIGHT));
+}
+
+// 切到下一个视频（找 Feed 列表，滚到下一行；边缘滑动和手势自定义共用）。
+static void GHLScrollFeedToNextVideo(void) {
     GHLRunOnMain(^{
       @try {
-          UIView *rootView = gesture.view;
-          NSMutableArray *stack = [NSMutableArray arrayWithObject:rootView];
+          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+          if (!window) return;
+          NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
           UITableView *feedTable = nil;
           while (stack.count > 0 && !feedTable) {
               UIView *view = stack.lastObject;
@@ -725,7 +774,7 @@ static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
               [stack addObjectsFromArray:view.subviews];
           }
           if (!feedTable) {
-              for (UIView *subview in rootView.subviews) {
+              for (UIView *subview in window.subviews) {
                   if ([subview isKindOfClass:[UITableView class]]) {
                       feedTable = (UITableView *)subview;
                       break;
@@ -733,7 +782,7 @@ static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
               }
           }
           if (!feedTable) {
-              GHLLog(@"边缘滑动：没找到 Feed 列表");
+              GHLLog(@"切下一个视频：没找到 Feed 列表");
               return;
           }
           NSArray<NSIndexPath *> *visible = [feedTable indexPathsForVisibleRows];
@@ -743,11 +792,17 @@ static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
           if (last.row + 1 < rows) {
               NSIndexPath *next = [NSIndexPath indexPathForRow:last.row + 1 inSection:last.section];
               [feedTable scrollToRowAtIndexPath:next atScrollPosition:UITableViewScrollPositionTop animated:YES];
-              GHLLog(@"边缘滑动：切到下一个视频");
+              GHLLog(@"切下一个视频：已切到下一个");
           }
       } @catch (__unused NSException *exception) {
       }
     });
+}
+
+static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
+    if (gesture.state != UIGestureRecognizerStateEnded) return;
+    if (!GHLGetBool(GHL_KEY_EDGE_SWIPE_NEXT)) return;
+    GHLScrollFeedToNextVideo();
 }
 
 static void GHLInstallFeedGesturesOnView(UIView *view) {
@@ -774,6 +829,53 @@ static void GHLInstallFeedGesturesOnView(UIView *view) {
     UIScreenEdgePanGestureRecognizer *leftSwipe = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleLeftSwipeBack:)];
     leftSwipe.edges = UIRectEdgeLeft;
     [view addGestureRecognizer:leftSwipe];
+
+    // 1.0.5 手势自定义：三击、双指双击、左滑、右滑。
+    // 三击：只在配了动作时装（不配就不装，双击点赞一点都不拖慢）；装了以后，让这个视频页里
+    // 已有的双击识别器（自己的 + 抖音原生的）等三击失败再认，否则三击会先触发点赞/快进。
+    // 三击改完切个视频生效（每个视频的视图装一次）；另外三个处理时读 live 设置，改完立即生效。
+    NSString *tripleTapAction = GHLGetString(GHL_KEY_GESTURE_TRIPLE_TAP);
+    if (tripleTapAction.length > 0 && ![tripleTapAction isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) {
+        UITapGestureRecognizer *customTripleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleCustomTripleTap:)];
+        customTripleTap.numberOfTapsRequired = 3;
+        customTripleTap.numberOfTouchesRequired = 1;
+        customTripleTap.cancelsTouchesInView = NO;
+        [view addGestureRecognizer:customTripleTap];
+        // 这个视频页（view + 父视图，即当前视频 cell）里的双击识别器等三击失败。
+        NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+        if (view.superview) [stack addObject:view.superview];
+        while (stack.count > 0) {
+            UIView *v = stack.lastObject;
+            [stack removeLastObject];
+            for (UIGestureRecognizer *gr in v.gestureRecognizers ?: @[]) {
+                if (gr == customTripleTap) continue;
+                if ([gr isKindOfClass:[UITapGestureRecognizer class]]) {
+                    UITapGestureRecognizer *tap = (UITapGestureRecognizer *)gr;
+                    if (tap.numberOfTapsRequired == 2 && tap.numberOfTouchesRequired == 1) {
+                        [tap requireGestureRecognizerToFail:customTripleTap];
+                    }
+                }
+            }
+            [stack addObjectsFromArray:v.subviews];
+        }
+    }
+
+    // 双指双击：抖音没有双指点按，不跟任何手势打架；常驻，处理时读 live 设置。
+    UITapGestureRecognizer *twoFingerDoubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleTwoFingerDoubleTap:)];
+    twoFingerDoubleTap.numberOfTapsRequired = 2;
+    twoFingerDoubleTap.numberOfTouchesRequired = 2;
+    twoFingerDoubleTap.cancelsTouchesInView = NO;
+    [view addGestureRecognizer:twoFingerDoubleTap];
+
+    // 左滑 / 右滑：Feed 是竖滑列表，视频区没有横滑手势；cancelsTouchesInView=NO，竖滑照常。
+    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleSwipeLeft:)];
+    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
+    swipeLeft.cancelsTouchesInView = NO;
+    [view addGestureRecognizer:swipeLeft];
+    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleSwipeRight:)];
+    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
+    swipeRight.cancelsTouchesInView = NO;
+    [view addGestureRecognizer:swipeRight];
 }
 
 static void GHLHandleLeftSwipeBack(UIScreenEdgePanGestureRecognizer *gesture) {
@@ -1037,6 +1139,23 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     GHLHandleLeftSwipeBack(gesture);
 }
 
+// 1.0.5 手势自定义
++ (void)ghl_handleCustomTripleTap:(UITapGestureRecognizer *)gesture {
+    GHLHandleCustomTripleTap(gesture);
+}
+
++ (void)ghl_handleTwoFingerDoubleTap:(UITapGestureRecognizer *)gesture {
+    GHLHandleTwoFingerDoubleTap(gesture);
+}
+
++ (void)ghl_handleSwipeLeft:(UISwipeGestureRecognizer *)gesture {
+    GHLHandleSwipeLeft(gesture);
+}
+
++ (void)ghl_handleSwipeRight:(UISwipeGestureRecognizer *)gesture {
+    GHLHandleSwipeRight(gesture);
+}
+
 @end
 
 #pragma mark - Hooks
@@ -1196,7 +1315,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.4 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.5 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil

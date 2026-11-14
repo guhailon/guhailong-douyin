@@ -240,6 +240,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"三指双击清屏" key:GHL_KEY_TRIPLE_TAP_CLEAR type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"边缘滑动切下一个视频" key:GHL_KEY_EDGE_SWIPE_NEXT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"音量键调进度" key:GHL_KEY_VOLUME_SEEK type:DYYYSettingItemTypeSwitch],
+            // 1.0.5 手势自定义：每个手势选一个动作（默认 = 不做任何事；三击默认不开识别器，不拖慢双击点赞）
+            [DYYYSettingItem itemWithTitle:@"三击" key:GHL_KEY_GESTURE_TRIPLE_TAP type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"双指双击" key:GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"左滑" key:GHL_KEY_GESTURE_SWIPE_LEFT type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"右滑" key:GHL_KEY_GESTURE_SWIPE_RIGHT type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"直播间净化" key:GHL_KEY_LIVE_PURIFY type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"BGM 一键保存" key:GHL_KEY_BGM_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"自动跳过开屏广告" key:GHL_KEY_NO_SPLASH_AD type:DYYYSettingItemTypeSwitch],
@@ -603,18 +608,33 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 172)];
     header.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
-    // 头卡：白底圆角卡片（1.0.4 统一视觉：深色跟随系统，圆角 16）
-    UIView *card = [[UIView alloc] initWithFrame:CGRectMake(16, 12, width - 32, 96)];
-    card.backgroundColor = [DYYYUtils dYYYSettingsCardColorDarkMode:[self ghlDarkModeActive]];
+    // 头卡：毛玻璃（1.0.5）：系统材质模糊，背景图从卡片里透出来、是糊的；
+    // 圆角 16、金边保留；没有自定义背景时糊在白底上，看起来跟原来差不多。
+    // 外层容器扛阴影（毛玻璃自己 masksToBounds 会把阴影裁掉）。
+    UIView *cardContainer = [[UIView alloc] initWithFrame:CGRectMake(16, 12, width - 32, 96)];
+    cardContainer.backgroundColor = [UIColor clearColor];
+    cardContainer.layer.cornerRadius = [DYYYUtils dYYYSettingsCardCornerRadius];
+    cardContainer.layer.shadowColor = [UIColor blackColor].CGColor;
+    cardContainer.layer.shadowOpacity = 0.08;
+    cardContainer.layer.shadowOffset = CGSizeMake(0, 2);
+    cardContainer.layer.shadowRadius = 8;
+    cardContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [header addSubview:cardContainer];
+
+    UIVisualEffectView *card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]];
+    card.frame = cardContainer.bounds;
+    card.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     card.layer.cornerRadius = [DYYYUtils dYYYSettingsCardCornerRadius];
+    card.layer.masksToBounds = YES;
     card.layer.borderWidth = 0.5;
-    card.layer.borderColor = [UIColor colorWithWhite:0 alpha:0.08].CGColor;
-    card.layer.shadowColor = [UIColor blackColor].CGColor;
-    card.layer.shadowOpacity = 0.08;
-    card.layer.shadowOffset = CGSizeMake(0, 2);
-    card.layer.shadowRadius = 8;
-    card.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [header addSubview:card];
+    card.layer.borderColor = [[DYYYUtils dYYYGoldAccentColor] colorWithAlphaComponent:0.35].CGColor;
+    [cardContainer addSubview:card];
+
+    // 淡色 tint：背景图太花时也保证对比度（浅色白、深色黑，动态色自动跟深浅）。
+    UIView *tintView = [[UIView alloc] initWithFrame:card.bounds];
+    tintView.backgroundColor = [DYYYUtils dYYYSettingsHeaderCardTintColor];
+    tintView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [card.contentView addSubview:tintView];
 
     // 招牌：我们自己的龙头 logo，64pt 圆形 + 金边（一眼认出是顾海龙抖音）
     // 1.0.4：点一下换图（相册选图），长按恢复默认龙头。
@@ -628,7 +648,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     logoView.userInteractionEnabled = YES;
     [logoView addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ghlLogoTapped)]];
     [logoView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlLogoLongPressed:)]];
-    [card addSubview:logoView];
+    [card.contentView addSubview:logoView];
     self.logoImageView = logoView;
 
     CGFloat textX = 92;
@@ -636,22 +656,22 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 14, textW, 24)];
     nameLabel.text = @"顾海龙抖音";
     nameLabel.font = [UIFont boldSystemFontOfSize:20];
-    nameLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:[self ghlDarkModeActive]];
+    nameLabel.textColor = [DYYYUtils dYYYSettingsHeaderTitleColor];
     nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [card addSubview:nameLabel];
+    [card.contentView addSubview:nameLabel];
 
     UILabel *versionLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 40, textW, 18)];
     versionLabel.text = [NSString stringWithFormat:@"Version: %@", DYYY_VERSION];
     versionLabel.font = [UIFont systemFontOfSize:13];
-    versionLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
+    versionLabel.textColor = [DYYYUtils dYYYSettingsHeaderSubtitleColor];
     versionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [card addSubview:versionLabel];
+    [card.contentView addSubview:versionLabel];
 
     self.statsLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 60, textW, 18)];
     self.statsLabel.font = [UIFont systemFontOfSize:13];
-    self.statsLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
+    self.statsLabel.textColor = [DYYYUtils dYYYSettingsHeaderSubtitleColor];
     self.statsLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [card addSubview:self.statsLabel];
+    [card.contentView addSubview:self.statsLabel];
 
     // 搜索框
     UISearchBar *searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(16, 116, width - 32, 44)];
@@ -789,6 +809,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
         // 1.0.4 悬浮按钮自定义：动作候选只给已经存在的功能
         return @[ GHL_FLOAT_ACTION_DEFAULT, GHL_FLOAT_ACTION_DOWNLOAD, GHL_FLOAT_ACTION_CLEAR, GHL_FLOAT_ACTION_SPEED, GHL_FLOAT_ACTION_DANMAKU, GHL_FLOAT_ACTION_SCREENSHOT ];
+    } else if ([key isEqualToString:GHL_KEY_GESTURE_TRIPLE_TAP] || [key isEqualToString:GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP] ||
+               [key isEqualToString:GHL_KEY_GESTURE_SWIPE_LEFT] || [key isEqualToString:GHL_KEY_GESTURE_SWIPE_RIGHT]) {
+        // 1.0.5 手势自定义：动作候选只给已经存在的功能（前 5 个跟悬浮按钮一样 + 静音开关 + 下一个视频）
+        return @[ GHL_FLOAT_ACTION_DEFAULT, GHL_FLOAT_ACTION_DOWNLOAD, GHL_FLOAT_ACTION_CLEAR, GHL_FLOAT_ACTION_SPEED, GHL_FLOAT_ACTION_DANMAKU, GHL_FLOAT_ACTION_SCREENSHOT, GHL_GESTURE_ACTION_MUTE, GHL_GESTURE_ACTION_NEXT ];
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         // 直播清晰度选项
         return @[ @"蓝光帧彩", @"蓝光", @"超清", @"高清", @"标清", @"自动" ];
@@ -827,6 +851,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
         // 悬浮按钮动作：没配过就是默认
         return value ?: GHL_FLOAT_ACTION_DEFAULT;
+    } else if ([key isEqualToString:GHL_KEY_GESTURE_TRIPLE_TAP] || [key isEqualToString:GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP] ||
+               [key isEqualToString:GHL_KEY_GESTURE_SWIPE_LEFT] || [key isEqualToString:GHL_KEY_GESTURE_SWIPE_RIGHT]) {
+        // 1.0.5 手势动作：没配过就是默认
+        return value ?: GHL_FLOAT_ACTION_DEFAULT;
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return value ?: @"关闭";
@@ -859,6 +887,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认龙头";
     } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
+        return GHL_FLOAT_ACTION_DEFAULT;
+    } else if ([key isEqualToString:GHL_KEY_GESTURE_TRIPLE_TAP] || [key isEqualToString:GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP] ||
+               [key isEqualToString:GHL_KEY_GESTURE_SWIPE_LEFT] || [key isEqualToString:GHL_KEY_GESTURE_SWIPE_RIGHT]) {
         return GHL_FLOAT_ACTION_DEFAULT;
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         return @"自动";

@@ -123,6 +123,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode;
 // 卡片圆角（头卡、弹窗统一 16）
 + (CGFloat)dYYYSettingsCardCornerRadius;
+// 1.0.5 头卡毛玻璃：标题/副标题用系统动态色（浅色深字、深色浅字，深浅切换自动跟）；卡片内一层淡色 tint（浅色白、深色黑），背景图太花时也看得清。
++ (UIColor *)dYYYSettingsHeaderTitleColor;
++ (UIColor *)dYYYSettingsHeaderSubtitleColor;
++ (UIColor *)dYYYSettingsHeaderCardTintColor;
 
 /**
  * 检查当前抖音背景设置是否为浅色

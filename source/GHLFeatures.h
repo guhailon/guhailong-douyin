@@ -109,6 +109,16 @@ extern "C" {
 // 下载管理：经本插件成功保存的媒体数量（自 1.0.4 起统计；1.0.4 之前没有记录，做不出历史数）
 #define GHL_KEY_DOWNLOAD_SAVED_COUNT @"GHLDownloadSavedCount"
 
+// MARK: - 1.0.5 新增（手势自定义）
+// 手势自定义：每个手势选一个动作，值见下面的 GHL_GESTURE_ACTION_*（@"默认" = 不做任何事）。
+// 三击默认不开识别器（不拖慢双击点赞）；双指双击、左滑、右滑识别器常驻，处理时读 live 设置。
+#define GHL_KEY_GESTURE_TRIPLE_TAP @"GHLGestureTripleTap"                       // 三击
+#define GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP @"GHLGestureTwoFingerDoubleTap"   // 双指双击
+#define GHL_KEY_GESTURE_SWIPE_LEFT @"GHLGestureSwipeLeft"                       // 左滑
+#define GHL_KEY_GESTURE_SWIPE_RIGHT @"GHLGestureSwipeRight"                     // 右滑
+#define GHL_GESTURE_ACTION_MUTE @"静音开关"
+#define GHL_GESTURE_ACTION_NEXT @"下一个视频"
+
 // MARK: - 语音包 (31)
 typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
     GHLVoicePackageSourceBuiltIn = 0,   // 内置：iOS 自带 TTS 语音
@@ -283,7 +293,9 @@ BOOL GHLHasCustomBackground(void);
 // MARK: - 1.0.4 悬浮按钮自定义 / 更新日志 / 语音包收藏
 // 执行一个悬浮按钮动作（下载/清屏/倍速/弹幕/截图）；返回 YES 表示已处理，调用方跳过默认行为
 BOOL GHLPerformFloatButtonAction(NSString *action);
-// 更新日志文本（1.0.1–1.0.4 各一行真实改动）
+// 1.0.5 手势自定义：执行一个手势动作（前 5 个复用悬浮按钮那套 + 静音开关 + 下一个视频）；返回 YES 表示已处理
+BOOL GHLPerformGestureAction(NSString *action);
+// 更新日志文本（1.0.1–1.0.5 各一行真实改动）
 NSString *GHLChangelogText(void);
 // 语音包收藏
 BOOL GHLIsVoiceFavorite(NSString *voiceId);
