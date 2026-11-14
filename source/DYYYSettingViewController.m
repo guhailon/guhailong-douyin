@@ -1,10 +1,18 @@
 #import "DYYYSettingViewController.h"
 #import <Foundation/Foundation.h>
+#import <Photos/Photos.h>
 #import <UIKit/UIKit.h>
+#import "DYYYBackupPickerDelegate.h"
+#import "DYYYBottomAlertView.h"
 #import "DYYYConstants.h"
+#import "DYYYDownloadManagerViewController.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
+#import "DYYYFloatingButtonCoordinator.h"
+#import "DYYYImagePickerDelegate.h"
+#import "DYYYSettingsBackup.h"
 #import "DYYYSettingsHelper.h"
+#import "DYYYUtils.h"
 #import "GHLFeatures.h"
 
 typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYYYSettingItemTypeTextField, DYYYSettingItemTypePicker };
@@ -51,6 +59,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 @property(nonatomic, strong, nullable) NSArray<NSDictionary *> *searchResults;
 @property(nonatomic, strong, nullable) UISearchBar *searchBar;
 @property(nonatomic, strong, nullable) UILabel *statsLabel;
+// 1.0.4：头卡龙头（点一下换图、长按恢复默认）、相册/文件选择器的 delegate（要强引用留着，等回调）。
+@property(nonatomic, strong, nullable) UIImageView *logoImageView;
+@property(nonatomic, strong, nullable) UIImage *backgroundImage;
+@property(nonatomic, strong, nullable) DYYYImagePickerDelegate *imagePickerDelegate;
+@property(nonatomic, strong, nullable) DYYYBackupPickerDelegate *backupPickerDelegate;
+@property(nonatomic, assign) NSInteger pendingImagePickerKind; // 0 = 换龙头，1 = 换背景图
 
 @end
 
@@ -97,6 +111,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [self setupFooterButtons];
         [self refreshHeaderStats];
     }
+    // 1.0.4：深色跟随 + 自定义背景（主页和子页都走同一套）。
+    [self ghlApplySettingsAppearance];
+    [self ghlApplySettingsBackground];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -104,7 +121,41 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     // 从子页返回时刷新头卡统计（已开启数可能变了）。
     if ([self isHomeMode]) {
         [self refreshHeaderStats];
+        // 龙头可能在子页里换过（恢复默认龙头行），回来刷新。
+        self.logoImageView.image = GHLLogoImage();
     }
+    [self ghlApplySettingsAppearance];
+    [self ghlApplySettingsBackground];
+}
+
+// 系统深浅变了（跟随系统深色开着时），重刷颜色和背景遮罩。
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (GHLFollowSystemDarkEnabled()) {
+        [self ghlApplySettingsAppearance];
+        [self ghlApplySettingsBackground];
+    }
+}
+
+// 1.0.4：当前是不是深色（跟随系统深色开着、且系统/抖音是深色）。
+- (BOOL)ghlDarkModeActive {
+    return GHLFollowSystemDarkEnabled() && [DYYYUtils isDarkMode];
+}
+
+// 1.0.4：统一视觉——深色跟随（关了就强制浅色：overrideUserInterfaceStyle 让系统颜色也跟着浅）。
+- (void)ghlApplySettingsAppearance {
+    self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
+    BOOL dark = [self ghlDarkModeActive];
+    self.view.backgroundColor = dark ? [UIColor colorWithRed:28 / 255.0 green:28 / 255.0 blue:30 / 255.0 alpha:1.0] : [UIColor systemGroupedBackgroundColor];
+}
+
+// 1.0.4：自定义背景铺底（有自选图就铺图 + 遮罩，没有就回默认分组底色）。
+- (void)ghlApplySettingsBackground {
+    BOOL dark = [self ghlDarkModeActive];
+    self.backgroundImage = GHLCustomBackgroundImage();
+    self.tableView.backgroundView = [DYYYUtils dYYYSettingsBackgroundViewForImage:self.backgroundImage darkMode:dark];
+    self.tableView.backgroundColor = self.backgroundImage ? [UIColor clearColor] : [UIColor systemGroupedBackgroundColor];
+    [self.tableView reloadData];
 }
 
 - (void)setupDefaultValues {
@@ -120,6 +171,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [defaults setFloat:32.0 forKey:@"DYYYSpeedButtonSize"];
     }
 
+    // 1.0.4：跟随系统深色默认开
+    if (![defaults objectForKey:GHL_KEY_FOLLOW_SYSTEM_DARK]) {
+        [defaults setBool:YES forKey:GHL_KEY_FOLLOW_SYSTEM_DARK];
+    }
+
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -129,6 +185,21 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [self checkFirstLaunch];
         self.isAgreementShown = YES;
     }
+
+    // 1.0.4 更新日志：版本号变了，进设置主页时弹一次（只在主页、且已同意过协议时弹）。
+    if ([self isHomeMode]) {
+        [self ghlShowChangelogIfNeeded];
+    }
+}
+
+// 1.0.4：版本号变了就弹一次更新日志（记录上次见过的版本号，下次不再弹）。
+- (void)ghlShowChangelogIfNeeded {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (![defaults boolForKey:@"DYYYUserAgreementAccepted"]) return;
+    NSString *lastSeen = [defaults stringForKey:GHL_KEY_LAST_SEEN_VERSION];
+    if ([lastSeen isEqualToString:DYYY_VERSION]) return;
+    [defaults setObject:DYYY_VERSION forKey:GHL_KEY_LAST_SEEN_VERSION];
+    [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
 }
 
 - (void)setupAppearance {
@@ -192,7 +263,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"设置语音秒数（实验，需真机日志验证）" key:GHL_KEY_VOICE_DURATION type:DYYYSettingItemTypeTextField placeholder:@"默认60"],
             [DYYYSettingItem itemWithTitle:@"替换语音评论（实验，需真机日志验证）" key:GHL_KEY_VOICE_REPLACE_COMMENT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"]
+            [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
+            // 1.0.4 下载管理页入口
+            [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker]
         ],
         @[
             // 顾海龙抖音（二）：32-43（xuu 行为参考，代码自己写）
@@ -298,7 +371,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"设置首页标题" key:@"DYYYIndexTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置朋友标题" key:@"DYYYFriendsTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置消息标题" key:@"DYYYMsgTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
-            [DYYYSettingItem itemWithTitle:@"设置我的标题" key:@"DYYYSelfTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"]
+            [DYYYSettingItem itemWithTitle:@"设置我的标题" key:@"DYYYSelfTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
+            // 1.0.4 深色模式 + 换背景图 + 恢复默认龙头
+            [DYYYSettingItem itemWithTitle:@"跟随系统深色" key:GHL_KEY_FOLLOW_SYSTEM_DARK type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"更换背景图" key:GHL_KEY_CHANGE_BACKGROUND type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"恢复默认背景" key:GHL_KEY_RESET_BACKGROUND type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"恢复默认龙头" key:GHL_KEY_RESET_LOGO type:DYYYSettingItemTypePicker]
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"隐藏全屏观看" key:@"DYYYHideEntry" type:DYYYSettingItemTypeSwitch],
@@ -483,7 +561,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"长按评论复制评论" key:@"DYYYCommentCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按简介复制简介" key:@"DYYYBioCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按文案复制文案" key:@"DYYYLongPressCopyTextEnabled" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"下载完成震动反馈" key:@"DYYYHapticFeedbackEnabled" type:DYYYSettingItemTypeSwitch]
+            [DYYYSettingItem itemWithTitle:@"下载完成震动反馈" key:@"DYYYHapticFeedbackEnabled" type:DYYYSettingItemTypeSwitch],
+            // 1.0.4 备份/恢复：导入 + 导出 + 恢复默认配置（同一套，别另做）
+            [DYYYSettingItem itemWithTitle:@"导入配置" key:GHL_KEY_IMPORT_SETTINGS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"导出配置" key:GHL_KEY_EXPORT_SETTINGS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"恢复默认配置" key:GHL_KEY_RESET_SETTINGS type:DYYYSettingItemTypePicker]
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"启用快捷倍速按钮" key:@"DYYYEnableFloatSpeedButton" type:DYYYSettingItemTypeSwitch],
@@ -500,7 +582,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏隐藏时间进度" key:@"DYYYHideTimeProgress" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏滑条" key:@"DYYYHideSlider" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏底栏" key:@"DYYYHideTabBar" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"清屏隐藏倍速按钮" key:@"DYYYHideSpeed" type:DYYYSettingItemTypeSwitch]
+            [DYYYSettingItem itemWithTitle:@"清屏隐藏倍速按钮" key:@"DYYYHideSpeed" type:DYYYSettingItemTypeSwitch],
+            // 1.0.4 悬浮按钮自定义：每个按钮点一下/长按各选一个动作
+            [DYYYSettingItem itemWithTitle:@"倍速按钮点一下" key:GHL_KEY_SPEED_BUTTON_TAP type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"倍速按钮长按" key:GHL_KEY_SPEED_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"清屏按钮点一下" key:GHL_KEY_CLEAR_BUTTON_TAP type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker]
         ]
     ];
 }
@@ -516,10 +603,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 172)];
     header.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
-    // 头卡：白底圆角卡片
+    // 头卡：白底圆角卡片（1.0.4 统一视觉：深色跟随系统，圆角 16）
     UIView *card = [[UIView alloc] initWithFrame:CGRectMake(16, 12, width - 32, 96)];
-    card.backgroundColor = [UIColor whiteColor];
-    card.layer.cornerRadius = 16;
+    card.backgroundColor = [DYYYUtils dYYYSettingsCardColorDarkMode:[self ghlDarkModeActive]];
+    card.layer.cornerRadius = [DYYYUtils dYYYSettingsCardCornerRadius];
     card.layer.borderWidth = 0.5;
     card.layer.borderColor = [UIColor colorWithWhite:0 alpha:0.08].CGColor;
     card.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -530,6 +617,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [header addSubview:card];
 
     // 招牌：我们自己的龙头 logo，64pt 圆形 + 金边（一眼认出是顾海龙抖音）
+    // 1.0.4：点一下换图（相册选图），长按恢复默认龙头。
     UIImageView *logoView = [[UIImageView alloc] initWithFrame:CGRectMake(16, 16, 64, 64)];
     logoView.image = GHLLogoImage();
     logoView.layer.cornerRadius = 32;
@@ -537,27 +625,31 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     logoView.layer.borderWidth = 1.5;
     logoView.layer.borderColor = [UIColor colorWithRed:212 / 255.0 green:175 / 255.0 blue:55 / 255.0 alpha:1.0].CGColor;
     logoView.contentMode = UIViewContentModeScaleAspectFill;
+    logoView.userInteractionEnabled = YES;
+    [logoView addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ghlLogoTapped)]];
+    [logoView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlLogoLongPressed:)]];
     [card addSubview:logoView];
+    self.logoImageView = logoView;
 
     CGFloat textX = 92;
     CGFloat textW = card.bounds.size.width - textX - 16;
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 14, textW, 24)];
     nameLabel.text = @"顾海龙抖音";
     nameLabel.font = [UIFont boldSystemFontOfSize:20];
-    nameLabel.textColor = [UIColor blackColor];
+    nameLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:[self ghlDarkModeActive]];
     nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [card addSubview:nameLabel];
 
     UILabel *versionLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 40, textW, 18)];
     versionLabel.text = [NSString stringWithFormat:@"Version: %@", DYYY_VERSION];
     versionLabel.font = [UIFont systemFontOfSize:13];
-    versionLabel.textColor = [UIColor grayColor];
+    versionLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
     versionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [card addSubview:versionLabel];
 
     self.statsLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 60, textW, 18)];
     self.statsLabel.font = [UIFont systemFontOfSize:13];
-    self.statsLabel.textColor = [UIColor grayColor];
+    self.statsLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
     self.statsLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [card addSubview:self.statsLabel];
 
@@ -588,21 +680,21 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     self.statsLabel.text = [NSString stringWithFormat:@"%ld 项设置 · %ld 项已开启", (long)total, (long)enabled];
 }
 
-// 底部一排按钮：关于 / 基于DYYY / MIT 声明（照 xuu 卡片底部三个按钮的样子）。
+// 底部一排按钮：关于 / 基于DYYY / MIT 声明 / 更新日志（照 xuu 卡片底部按钮的样子，1.0.4 加了更新日志）。
 - (void)setupFooterButtons {
     CGFloat width = self.view.bounds.size.width;
     UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 116)];
     footer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
-    NSArray<NSString *> *titles = @[ @"关于", @"基于DYYY", @"MIT 声明" ];
-    CGFloat buttonWidth = (width - 32 - 16) / 3.0;
-    for (NSInteger i = 0; i < 3; i++) {
+    NSArray<NSString *> *titles = @[ @"关于", @"基于DYYY", @"MIT 声明", @"更新日志" ];
+    CGFloat buttonWidth = (width - 32 - 24) / 4.0;
+    for (NSInteger i = 0; i < 4; i++) {
         UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
         button.frame = CGRectMake(16 + i * (buttonWidth + 8), 12, buttonWidth, 44);
         [button setTitle:titles[i] forState:UIControlStateNormal];
         button.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-        [button setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-        button.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1.0];
+        [button setTitleColor:[DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:[self ghlDarkModeActive]] forState:UIControlStateNormal];
+        button.backgroundColor = [self ghlDarkModeActive] ? [UIColor colorWithWhite:1 alpha:0.08] : [UIColor colorWithWhite:0.93 alpha:1.0];
         button.layer.cornerRadius = 12;
         button.tag = i;
         [button addTarget:self action:@selector(footerButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -613,7 +705,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     UILabel *attributionLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 68, width - 32, 16)];
     attributionLabel.text = @"基于 DYYY (MIT, Copyright (c) 2024 huami)，仅自用";
     attributionLabel.font = [UIFont systemFontOfSize:12];
-    attributionLabel.textColor = [UIColor grayColor];
+    attributionLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:[self ghlDarkModeActive]];
     attributionLabel.textAlignment = NSTextAlignmentCenter;
     attributionLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [footer addSubview:attributionLabel];
@@ -623,14 +715,16 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 - (void)footerButtonTapped:(UIButton *)sender {
     if (sender.tag == 0) {
+        // 1.0.4：长串加群链接不贴了，改成“加入QQ群”按钮；群号留在文字里，点一下复制。
         [DYYYSettingsHelper showAboutDialog:@"关于顾海龙抖音"
-                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548\nQQ群：1130823454\n加群链接：https://qun.qq.com/universal-share/share?ac=1&authKey=1jedvqhgrhj4mHm9Sn3c2xEkV3wYRdGeXsFSXn8hHJsRBfOUByIchAevdyEfS5zF&busi_data=eyJncm91cENvZGUiOiIxMTMwODIzNDU0IiwidG9rZW4iOiJxOE5XZTRWSi85emU0RjdNZXNyd2k2Y0lMYmw4MmtnNWVjNjRCeE56SnpNMWRYditLaFJFSU5iV2xoYzViNEl5IiwidWluIjoiMjMwOTEwMzU0OCJ9&data=nYcdCBHCI0lOt1ACENZWO6AfqrZ-Ha1TSfx7CBzkhHazin64W38fmSNXGIU0a9oPEvGgEk8ggiqR2imYH4J-pg&svctype=4&tempid=h5_group_info", DYYY_VERSION]
-                                  onConfirm:nil];
+                                    message:[NSString stringWithFormat:@"版本：%@\n\n顾海龙抖音是基于 DYYY (MIT, Copyright (c) 2024 huami) 的个人二创，仅自用，不对外发布。\n\n感谢 huami 开源 DYYY。\n\nQQ交流：2309103548\nQQ群：1130823454", DYYY_VERSION]
+                                  onConfirm:nil
+                               joinGroupURL:GHL_QQ_GROUP_JOIN_URL];
     } else if (sender.tag == 1) {
         [DYYYSettingsHelper showAboutDialog:@"基于 DYYY"
                                     message:@"本插件基于 DYYY (MIT, Copyright (c) 2024 huami) 二次开发，原作者 huami，源码仓库 Wtrwx/DYYY。\n\n顾海龙抖音只做个人二创，不对外发布；原作者版权声明保留在 LICENSE 中。"
                                   onConfirm:nil];
-    } else {
+    } else if (sender.tag == 2) {
         [DYYYSettingsHelper showAboutDialog:@"MIT License"
                                     message:@"Copyright (c) 2024 huami.\n\n"
                                             @"Permission is hereby granted, free of charge, to any person obtaining a copy "
@@ -649,6 +743,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                             @"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
                                             @"SOFTWARE."
                                   onConfirm:nil];
+    } else if (sender.tag == 3) {
+        // 1.0.4：更新日志入口，随时重看。
+        [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
     }
 }
 
@@ -667,6 +764,31 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
         // 语音包管理器入口（点开进列表页，值本身无意义）
         return @[ @"打开语音包管理器" ];
+    } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
+        // 1.0.4 下载管理页入口
+        return @[ @"打开下载管理" ];
+    } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
+        // 1.0.4 导入配置
+        return @[ @"选择配置文件导入" ];
+    } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
+        // 1.0.4 导出配置
+        return @[ @"分享导出配置文件" ];
+    } else if ([key isEqualToString:GHL_KEY_RESET_SETTINGS]) {
+        // 1.0.4 恢复默认配置（选完先弹确认框）
+        return @[ @"恢复默认配置" ];
+    } else if ([key isEqualToString:GHL_KEY_CHANGE_BACKGROUND]) {
+        // 1.0.4 更换背景图
+        return @[ @"从相册选图" ];
+    } else if ([key isEqualToString:GHL_KEY_RESET_BACKGROUND]) {
+        // 1.0.4 恢复默认背景
+        return @[ @"恢复默认背景" ];
+    } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
+        // 1.0.4 恢复默认龙头
+        return @[ @"恢复默认龙头" ];
+    } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
+               [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
+        // 1.0.4 悬浮按钮自定义：动作候选只给已经存在的功能
+        return @[ GHL_FLOAT_ACTION_DEFAULT, GHL_FLOAT_ACTION_DOWNLOAD, GHL_FLOAT_ACTION_CLEAR, GHL_FLOAT_ACTION_SPEED, GHL_FLOAT_ACTION_DANMAKU, GHL_FLOAT_ACTION_SCREENSHOT ];
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         // 直播清晰度选项
         return @[ @"蓝光帧彩", @"蓝光", @"超清", @"高清", @"标清", @"自动" ];
@@ -687,6 +809,24 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return GHLVoicePackageDisplayNameForID(value) ?: @"未选择";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
         return @"打开语音包管理器";
+    } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
+        return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
+        return @"选择配置文件导入";
+    } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
+        return @"分享导出配置文件";
+    } else if ([key isEqualToString:GHL_KEY_RESET_SETTINGS]) {
+        return @"恢复默认配置";
+    } else if ([key isEqualToString:GHL_KEY_CHANGE_BACKGROUND]) {
+        return @"从相册选图";
+    } else if ([key isEqualToString:GHL_KEY_RESET_BACKGROUND]) {
+        return @"恢复默认背景";
+    } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
+        return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
+               [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
+        // 悬浮按钮动作：没配过就是默认
+        return value ?: GHL_FLOAT_ACTION_DEFAULT;
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return value ?: @"关闭";
@@ -703,6 +843,23 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return GHLVoicePackageIDs().firstObject ?: @"sys:default-zh-CN";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
         return @"打开语音包管理器";
+    } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
+        return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
+        return @"选择配置文件导入";
+    } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
+        return @"分享导出配置文件";
+    } else if ([key isEqualToString:GHL_KEY_RESET_SETTINGS]) {
+        return @"恢复默认配置";
+    } else if ([key isEqualToString:GHL_KEY_CHANGE_BACKGROUND]) {
+        return @"从相册选图";
+    } else if ([key isEqualToString:GHL_KEY_RESET_BACKGROUND]) {
+        return @"恢复默认背景";
+    } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
+        return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
+               [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
+        return GHL_FLOAT_ACTION_DEFAULT;
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
         return @"自动";
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
@@ -824,9 +981,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:@"GHLCategoryCell"];
             cell.textLabel.font = [UIFont systemFontOfSize:17];
             cell.detailTextLabel.font = [UIFont systemFontOfSize:15];
-            cell.detailTextLabel.textColor = [UIColor grayColor];
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         }
+        // 1.0.4 统一视觉：颜色跟随深色/自定义背景（每次配行时都算，别只在创建时设一次）。
+        BOOL dark = [self ghlDarkModeActive];
+        cell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+        cell.textLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
+        cell.detailTextLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark];
+        if (!cell.selectedBackgroundView) cell.selectedBackgroundView = [[UIView alloc] init];
+        cell.selectedBackgroundView.backgroundColor = dark ? [UIColor colorWithWhite:1 alpha:0.12] : [UIColor colorWithWhite:0.9 alpha:1.0];
         cell.textLabel.text = self.sectionTitles[indexPath.row];
         cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld", (long)self.settingSections[indexPath.row].count];
         return cell;
@@ -860,11 +1023,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"SettingCellNote"];
             cell.textLabel.font = [UIFont systemFontOfSize:17];
             cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
-            cell.detailTextLabel.textColor = [UIColor grayColor];
             cell.detailTextLabel.numberOfLines = 2;
 
             UIView *selectedBackgroundView = [[UIView alloc] init];
-            selectedBackgroundView.backgroundColor = [UIColor colorWithWhite:0.9 alpha:1.0];
             cell.selectedBackgroundView = selectedBackgroundView;
         }
         cell.textLabel.text = mainTitle;
@@ -878,18 +1039,23 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [cell.textLabel.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor].active = YES;
 
             UIView *selectedBackgroundView = [[UIView alloc] init];
-            selectedBackgroundView.backgroundColor = [UIColor colorWithWhite:0.9 alpha:1.0];
             cell.selectedBackgroundView = selectedBackgroundView;
         }
         cell.textLabel.text = item.title;
     }
 
-    cell.textLabel.textColor = [UIColor blackColor];
-    cell.backgroundColor = [UIColor whiteColor];
+    // 1.0.4 统一视觉：颜色跟随深色/自定义背景（每次配行时都算，别只在创建时设一次）。
+    BOOL dark = [self ghlDarkModeActive];
+    cell.textLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
+    cell.detailTextLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark];
+    cell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+    cell.selectedBackgroundView.backgroundColor = dark ? [UIColor colorWithWhite:1 alpha:0.12] : [UIColor colorWithWhite:0.9 alpha:1.0];
 
     if (item.type == DYYYSettingItemTypeSwitch) {
         UISwitch *switchView = [[UISwitch alloc] init];
         [switchView setOn:[[NSUserDefaults standardUserDefaults] boolForKey:item.key]];
+        // 1.0.4 统一视觉：开关统一用龙头金 accent。
+        switchView.onTintColor = [DYYYUtils dYYYGoldAccentColor];
         [switchView addTarget:self action:@selector(switchToggled:) forControlEvents:UIControlEventValueChanged];
         switchView.tag = tag;
         cell.accessoryView = switchView;
@@ -898,11 +1064,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         textField.borderStyle = UITextBorderStyleRoundedRect;
         textField.font = [UIFont systemFontOfSize:14];
         textField.placeholder = item.placeholder;
-        textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:item.placeholder attributes:@{NSForegroundColorAttributeName : [UIColor grayColor]}];
+        textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:item.placeholder attributes:@{NSForegroundColorAttributeName : [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark]}];
         textField.text = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
         textField.textAlignment = NSTextAlignmentRight;
-        textField.backgroundColor = [UIColor colorWithWhite:0.94 alpha:1.0];
-        textField.textColor = [UIColor blackColor];
+        textField.backgroundColor = dark ? [UIColor colorWithWhite:1 alpha:0.08] : [UIColor colorWithWhite:0.94 alpha:1.0];
+        textField.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
 
         [textField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingDidEnd];
         textField.tag = tag;
@@ -919,7 +1085,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
         pickerLabel.text = [self displayValueForKey:item.key value:currentValue];
         pickerLabel.font = [UIFont systemFontOfSize:13];
-        pickerLabel.textColor = [UIColor blackColor];
+        pickerLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
         pickerLabel.textAlignment = NSTextAlignmentRight;
         pickerLabel.tag = tag;
         // 值太长（例如音色名“李牧 (z…)”）时自动缩小字号显示，不截断
@@ -1015,6 +1181,30 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                          // 顾海龙抖音：选完睡眠定时立即重启动时；选完语音包音色立即试听；选管理器打开列表页
                                                          if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
                                                              GHLPresentVoicePackageManagerFromViewController(self);
+                                                         } else if ([item.key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
+                                                             // 1.0.4 下载管理页
+                                                             DYYYDownloadManagerViewController *downloadVC = [[DYYYDownloadManagerViewController alloc] init];
+                                                             [self.navigationController pushViewController:downloadVC animated:YES];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
+                                                             // 1.0.4 导入配置
+                                                             [self ghlPresentImportPicker];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
+                                                             // 1.0.4 导出配置
+                                                             [self ghlExportAndShareFromIndexPath:indexPath];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_RESET_SETTINGS]) {
+                                                             // 1.0.4 恢复默认配置（先弹确认框）
+                                                             [self ghlConfirmResetSettings];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_CHANGE_BACKGROUND]) {
+                                                             // 1.0.4 更换背景图
+                                                             [self ghlPresentImagePickerForBackground];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_RESET_BACKGROUND]) {
+                                                             // 1.0.4 恢复默认背景
+                                                             GHLClearCustomBackground();
+                                                             [self ghlApplySettingsBackground];
+                                                             [DYYYUtils showToast:@"已恢复默认背景"];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_RESET_LOGO]) {
+                                                             // 1.0.4 恢复默认龙头
+                                                             [self ghlRestoreDefaultLogo];
                                                          } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
@@ -1074,6 +1264,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         GHLApplyCleanMode(sender.isOn);
     } else if ([item.key isEqualToString:GHL_KEY_NIGHT_MODE]) {
         GHLApplyNightMode(sender.isOn);
+    } else if ([item.key isEqualToString:GHL_KEY_FOLLOW_SYSTEM_DARK]) {
+        // 1.0.4：跟随系统深色开关，立即重刷颜色和背景遮罩。
+        [self ghlApplySettingsAppearance];
+        [self ghlApplySettingsBackground];
     } else if ([item.key isEqualToString:GHL_KEY_BGM_SAVE]) {
         [defaults setBool:sender.isOn forKey:@"DYYYLongPressSaveAudio"];
     } else if ([item.key isEqualToString:GHL_KEY_COMMENT_IMAGE_SAVE]) {
@@ -1139,6 +1333,182 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     if ([item.key isEqualToString:@"DYYYEnableFloatClearButtonSize"]) {
         reloadClearButtonConfiguration();
     }
+}
+
+#pragma mark - 1.0.4 导入 / 导出 / 恢复默认配置
+
+// settingSections 里全部设置的 key（导入只认这些，恢复默认也只动这些）。
+- (NSArray<NSString *> *)ghlAllSettingKeys {
+    NSMutableArray<NSString *> *keys = [NSMutableArray array];
+    for (NSArray<DYYYSettingItem *> *section in self.settingSections) {
+        for (DYYYSettingItem *item in section) {
+            if (item.key.length > 0) [keys addObject:item.key];
+        }
+    }
+    return keys;
+}
+
+// 导入配置：系统文件选择器选 .plist。
+- (void)ghlPresentImportPicker {
+    self.backupPickerDelegate = [[DYYYBackupPickerDelegate alloc] init];
+    __weak typeof(self) weakSelf = self;
+    self.backupPickerDelegate.completionBlock = ^(NSURL *url) {
+      __strong typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      [strongSelf ghlImportFromURL:url];
+    };
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[ @"com.apple.property-list" ] inMode:UIDocumentPickerModeImport];
+    picker.delegate = self.backupPickerDelegate;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)ghlImportFromURL:(NSURL *)url {
+    NSError *error = nil;
+    NSInteger count = [DYYYSettingsBackup importSettingsFromURL:url allowedKeys:[NSSet setWithArray:[self ghlAllSettingKeys]] error:&error];
+    if (count <= 0) {
+        [DYYYUtils showToast:@"文件不对，导入失败"];
+        return;
+    }
+    // 导入后刷新界面（深色开关可能变了，重刷颜色和背景；部分功能要重启抖音才生效）。
+    [self ghlApplySettingsAppearance];
+    [self ghlApplySettingsBackground];
+    [self refreshHeaderStats];
+    self.logoImageView.image = GHLLogoImage();
+    [DYYYUtils showToast:[NSString stringWithFormat:@"导入成功，共 %ld 项（部分功能需重启抖音生效）", (long)count]];
+}
+
+// 导出配置：写成“顾海龙抖音配置.plist”，用系统分享调出来（存到“文件”或发给别人）。
+- (void)ghlExportAndShareFromIndexPath:(NSIndexPath *)indexPath {
+    NSError *error = nil;
+    NSURL *url = [DYYYSettingsBackup exportSettingsForKeys:[self ghlAllSettingKeys] error:&error];
+    if (!url) {
+        [DYYYUtils showToast:@"导出失败"];
+        return;
+    }
+    UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ url ] applicationActivities:nil];
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
+        activityVC.popoverPresentationController.sourceView = cell ?: self.view;
+        activityVC.popoverPresentationController.sourceRect = cell ? cell.bounds : self.view.bounds;
+    }
+    [self presentViewController:activityVC animated:YES completion:nil];
+}
+
+// 恢复默认配置：先弹确认框（全部设置项、自选龙头、自定义背景都会恢复默认，不能撤销），点了确认才执行。
+- (void)ghlConfirmResetSettings {
+    __weak typeof(self) weakSelf = self;
+    [DYYYBottomAlertView showAlertWithTitle:@"恢复默认配置"
+                                     message:@"全部设置项、自选龙头、自定义背景都会恢复默认，这个操作不能撤销。"
+                                   avatarURL:nil
+                            cancelButtonText:@"取消"
+                           confirmButtonText:@"确认恢复"
+                                cancelAction:nil
+                                 closeAction:nil
+                               confirmAction:^{
+                                 __strong typeof(weakSelf) strongSelf = weakSelf;
+                                 if (!strongSelf) return;
+                                 // 只动我们自己的 key（settingSections 全集 + 语音包收藏 + 下载计数），
+                                 // 不动抖音自己的设置；协议和更新日志的记录也不动（只弹一次）。
+                                 [DYYYSettingsBackup resetSettingsForKeys:[strongSelf ghlAllSettingKeys]
+                                                            additionalKeys:@[ GHL_KEY_VOICE_FAVORITES, GHL_KEY_DOWNLOAD_SAVED_COUNT ]];
+                                 // 开关的默认值要重建（跟随系统深色默认开等）。
+                                 [strongSelf setupDefaultValues];
+                                 // 悬浮按钮按新默认值重刷。
+                                 [DYYYFloatingButtonCoordinator reloadConfiguration];
+                                 [strongSelf ghlApplySettingsAppearance];
+                                 [strongSelf ghlApplySettingsBackground];
+                                 [strongSelf refreshHeaderStats];
+                                 strongSelf.logoImageView.image = GHLLogoImage();
+                                 [DYYYUtils showToast:@"已恢复默认配置，部分功能需重启抖音生效"];
+                               }];
+}
+
+#pragma mark - 1.0.4 换龙头 / 换背景图
+
+// 点头卡 logo：打开相册选图换龙头。
+- (void)ghlLogoTapped {
+    [self ghlPresentImagePickerForKind:0];
+}
+
+// 长按头卡 logo：确认后恢复默认龙头。
+- (void)ghlLogoLongPressed:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    if (!GHLHasCustomLogo()) {
+        [DYYYUtils showToast:@"现在用的就是默认龙头"];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    [DYYYBottomAlertView showAlertWithTitle:@"恢复默认龙头"
+                                     message:@"换回内置龙头 logo。"
+                                   avatarURL:nil
+                            cancelButtonText:@"取消"
+                           confirmButtonText:@"恢复"
+                                cancelAction:nil
+                                 closeAction:nil
+                               confirmAction:^{
+                                 __strong typeof(weakSelf) strongSelf = weakSelf;
+                                 if (!strongSelf) return;
+                                 [strongSelf ghlRestoreDefaultLogo];
+                               }];
+}
+
+- (void)ghlRestoreDefaultLogo {
+    GHLClearCustomLogo();
+    self.logoImageView.image = GHLLogoImage();
+    [DYYYUtils showToast:@"已恢复默认龙头"];
+}
+
+// 换背景图：打开相册选图。
+- (void)ghlPresentImagePickerForBackground {
+    [self ghlPresentImagePickerForKind:1];
+}
+
+// 相册选图（kind 0 = 换龙头，1 = 换背景图）。拒绝了相册权限就提示，不硬打开。
+- (void)ghlPresentImagePickerForKind:(NSInteger)kind {
+    PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
+    if (status == PHAuthorizationStatusDenied || status == PHAuthorizationStatusRestricted) {
+        [DYYYUtils showToast:@"需要相册权限才能换图"];
+        return;
+    }
+    self.pendingImagePickerKind = kind;
+    self.imagePickerDelegate = [[DYYYImagePickerDelegate alloc] init];
+    __weak typeof(self) weakSelf = self;
+    self.imagePickerDelegate.completionBlock = ^(NSDictionary *info) {
+      __strong typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      UIImage *image = info[UIImagePickerControllerOriginalImage];
+      if (!image) {
+          [DYYYUtils showToast:@"选图失败"];
+          return;
+      }
+      // 存图放后台线程，别卡界面；存完回主线程刷新。
+      NSInteger pickedKind = strongSelf.pendingImagePickerKind;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        BOOL ok = NO;
+        if (pickedKind == 0) {
+            ok = GHLSaveCustomLogoImage(image);
+        } else {
+            ok = GHLSaveCustomBackgroundImage(image);
+        }
+        GHLRunOnMain(^{
+          if (!ok) {
+              [DYYYUtils showToast:@"保存失败，换图没成功"];
+              return;
+          }
+          if (pickedKind == 0) {
+              strongSelf.logoImageView.image = GHLLogoImage();
+              [DYYYUtils showToast:@"龙头已更换"];
+          } else {
+              [strongSelf ghlApplySettingsBackground];
+              [DYYYUtils showToast:@"背景图已更换"];
+          }
+        });
+      });
+    };
+    UIImagePickerController *picker = [[UIImagePickerController alloc] init];
+    picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+    picker.delegate = self.imagePickerDelegate;
+    [self presentViewController:picker animated:YES completion:nil];
 }
 
 @end

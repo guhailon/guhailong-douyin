@@ -3,7 +3,15 @@
 // 头部居中裁切 460x460 (180,210)-(640,670) 再缩到 256x256，头卡 64pt 显示。1.0.3 重裁：龙头居中对齐。
 #import <UIKit/UIKit.h>
 
+// 前向声明：GHLLogoImage 在文件上方调用下面的自选图读取函数。
+UIImage *GHLCustomLogoImage(void);
+UIImage *GHLCustomBackgroundImage(void);
+
 UIImage *GHLLogoImage(void) {
+    // 1.0.4 自选龙头：有用户自己选的图就用它（每次都读文件，换图/恢复后立即生效）；
+    // 文件损坏、解不出来一律回退内置龙头，不崩。
+    UIImage *custom = GHLCustomLogoImage();
+    if (custom) return custom;
     static UIImage *logo = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -434,4 +442,107 @@ UIImage *GHLLogoImage(void) {
         logo = [UIImage imageWithData:data];
     });
     return logo;
+}
+
+// MARK: - 1.0.4 自选龙头 / 自定义背景
+// 存到 Documents/DYYY/（和项目已有的 DYYYCustomAssetsDirectory 同一个地方），不进仓库。
+// 读图失败、文件损坏一律返回 nil，调用方回退内置/默认，不崩。
+static NSString *GHLCustomAssetsDirectory(void) {
+    static NSString *customDirectory = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+      customDirectory = [documentsPath stringByAppendingPathComponent:@"DYYY"];
+      [[NSFileManager defaultManager] createDirectoryAtPath:customDirectory withIntermediateDirectories:YES attributes:nil error:nil];
+    });
+    return customDirectory;
+}
+
+static NSString *GHLCustomLogoPath(void) {
+    return [GHLCustomAssetsDirectory() stringByAppendingPathComponent:@"ghl-custom-logo.jpg"];
+}
+
+static NSString *GHLCustomBackgroundPath(void) {
+    return [GHLCustomAssetsDirectory() stringByAppendingPathComponent:@"ghl-custom-background.jpg"];
+}
+
+// 读一张图并校验能解码（尺寸 >0 才算有效，否则当损坏处理）。
+static UIImage *GHLValidImageAtPath(NSString *path) {
+    if (path.length == 0) return nil;
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data || data.length == 0) return nil;
+    UIImage *image = [UIImage imageWithData:data];
+    if (!image || image.size.width <= 0 || image.size.height <= 0) return nil;
+    return image;
+}
+
+// 按比例缩放（保持宽高比，不拉伸；目标是长边不超过 maxDimension）。
+static UIImage *GHLImageScaledToMaxDimension(UIImage *image, CGFloat maxDimension) {
+    if (!image || maxDimension <= 0) return image;
+    CGFloat longest = MAX(image.size.width, image.size.height);
+    if (longest <= maxDimension) return image;
+    CGFloat scale = maxDimension / longest;
+    CGSize newSize = CGSizeMake(image.size.width * scale, image.size.height * scale);
+    UIGraphicsBeginImageContextWithOptions(newSize, YES, 1.0);
+    [image drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
+    UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaled ?: image;
+}
+
+// 居中裁成正方形：短边等比铺满正方形、长边两端对称裁掉（用 drawInRect，方向自动正确，不拉伸变形）。
+static UIImage *GHLImageCenterCroppedSquare(UIImage *image) {
+    if (!image) return nil;
+    CGFloat side = MIN(image.size.width, image.size.height);
+    if (side <= 0) return nil;
+    CGFloat k = side / MIN(image.size.width, image.size.height);
+    CGSize drawSize = CGSizeMake(image.size.width * k, image.size.height * k);
+    CGRect drawRect = CGRectMake((side - drawSize.width) / 2.0, (side - drawSize.height) / 2.0, drawSize.width, drawSize.height);
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), YES, 1.0);
+    [image drawInRect:drawRect];
+    UIImage *result = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return result ?: image;
+}
+
+UIImage *GHLCustomLogoImage(void) {
+    return GHLValidImageAtPath(GHLCustomLogoPath());
+}
+
+BOOL GHLHasCustomLogo(void) {
+    return GHLCustomLogoImage() != nil;
+}
+
+BOOL GHLSaveCustomLogoImage(UIImage *image) {
+    if (!image) return NO;
+    UIImage *square = GHLImageCenterCroppedSquare(image);
+    UIImage *resized = GHLImageScaledToMaxDimension(square, 256);
+    NSData *jpeg = UIImageJPEGRepresentation(resized, 0.88);
+    if (!jpeg) return NO;
+    return [jpeg writeToFile:GHLCustomLogoPath() atomically:YES];
+}
+
+void GHLClearCustomLogo(void) {
+    [[NSFileManager defaultManager] removeItemAtPath:GHLCustomLogoPath() error:nil];
+}
+
+UIImage *GHLCustomBackgroundImage(void) {
+    return GHLValidImageAtPath(GHLCustomBackgroundPath());
+}
+
+BOOL GHLHasCustomBackground(void) {
+    return GHLCustomBackgroundImage() != nil;
+}
+
+BOOL GHLSaveCustomBackgroundImage(UIImage *image) {
+    if (!image) return NO;
+    // 先缩到合适尺寸再存，不存原图（长边 1242，够铺满手机屏，文件也小）。
+    UIImage *resized = GHLImageScaledToMaxDimension(image, 1242);
+    NSData *jpeg = UIImageJPEGRepresentation(resized, 0.85);
+    if (!jpeg) return NO;
+    return [jpeg writeToFile:GHLCustomBackgroundPath() atomically:YES];
+}
+
+void GHLClearCustomBackground(void) {
+    [[NSFileManager defaultManager] removeItemAtPath:GHLCustomBackgroundPath() error:nil];
 }

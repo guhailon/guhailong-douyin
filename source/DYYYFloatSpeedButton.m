@@ -3,6 +3,7 @@
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYUtils.h"
+#import "GHLFeatures.h"
 #import <UIKit/UIKit.h>
 #import <float.h>
 #import <math.h>
@@ -406,6 +407,9 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
                            }];
         }];
 
+    // 1.0.4 悬浮按钮自定义：配了动作就执行动作，不走默认倍速切换。
+    if (GHLPerformFloatButtonAction(GHLGetString(GHL_KEY_SPEED_BUTTON_TAP))) return;
+
     id currentController = DYYYCurrentSpeedInteractionController();
     if (currentController) {
         self.interactionController = currentController;
@@ -432,6 +436,9 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 
     if (gesture.state == UIGestureRecognizerStateBegan) {
         [self resetFadeTimer];
+
+        // 1.0.4 悬浮按钮自定义：配了长按动作就执行动作，不走默认锁定/解锁。
+        if (GHLPerformFloatButtonAction(GHLGetString(GHL_KEY_SPEED_BUTTON_LONGPRESS))) return;
 
         self.originalLockState = self.isLocked;
 

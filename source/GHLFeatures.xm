@@ -43,6 +43,12 @@ BOOL GHLKeywordFilterEnabled(void) {
     return [value boolValue];
 }
 
+BOOL GHLFollowSystemDarkEnabled(void) {
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_FOLLOW_SYSTEM_DARK];
+    if (!value) return YES; // 没设置过默认开
+    return [value boolValue];
+}
+
 static dispatch_queue_t GHLLogQueue(void) {
     static dispatch_queue_t queue;
     static dispatch_once_t onceToken;
@@ -97,6 +103,74 @@ AWEAwemeModel *GHLCurrentAwemeModel(void) {
     } @catch (__unused NSException *exception) {
     }
     return nil;
+}
+
+#pragma mark - 1.0.4 悬浮按钮自定义
+
+// 在 keyWindow 的视图树里找清屏按钮实例（协调器不对外暴露实例，只能这样找）。
+static HideUIButton *GHLFindHideButton(void) {
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    if (!window) return nil;
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:window];
+    while (stack.count > 0) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[HideUIButton class]]) return (HideUIButton *)view;
+        [stack addObjectsFromArray:view.subviews];
+    }
+    return nil;
+}
+
+// 执行一个悬浮按钮动作；返回 YES 表示已处理，调用方跳过默认行为。
+// 动作候选只给已经存在的功能：下载当前视频、清屏、倍速切换、弹幕开关、截图去水印。
+BOOL GHLPerformFloatButtonAction(NSString *action) {
+    if (!action || [action isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) return NO;
+    if ([action isEqualToString:GHL_FLOAT_ACTION_DOWNLOAD]) {
+        GHLDownloadCurrentVideoWithProgress();
+    } else if ([action isEqualToString:GHL_FLOAT_ACTION_CLEAR]) {
+        HideUIButton *clearButton = GHLFindHideButton();
+        if (clearButton && clearButton.window) {
+            [clearButton handleTap];
+        } else {
+            [DYYYUtils showToast:@"清屏按钮当前不可用"];
+        }
+    } else if ([action isEqualToString:GHL_FLOAT_ACTION_SPEED]) {
+        UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+        if (controller && [controller respondsToSelector:@selector(speedButtonTapped:)]) {
+            @try {
+                [(id)controller speedButtonTapped:nil];
+            } @catch (__unused NSException *exception) {
+                [DYYYUtils showToast:@"切换倍速失败"];
+            }
+        } else {
+            [DYYYUtils showToast:@"当前没有可切换倍速的视频"];
+        }
+    } else if ([action isEqualToString:GHL_FLOAT_ACTION_DANMAKU]) {
+        BOOL on = GHLGetBool(@"DYYYCommentShowDanmaku") || GHLGetBool(GHL_KEY_COMMENT_DANMAKU);
+        [[NSUserDefaults standardUserDefaults] setBool:!on forKey:@"DYYYCommentShowDanmaku"];
+        [[NSUserDefaults standardUserDefaults] setBool:!on forKey:GHL_KEY_COMMENT_DANMAKU];
+        [DYYYUtils showToast:!on ? @"弹幕已开" : @"弹幕已关"];
+    } else if ([action isEqualToString:GHL_FLOAT_ACTION_SCREENSHOT]) {
+        AWEAwemeModel *model = GHLCurrentAwemeModel();
+        if (!model) {
+            [DYYYUtils showToast:@"当前没有视频"];
+            return YES;
+        }
+        double seconds = GHLCurrentPlayerTime();
+        if (seconds < 0) seconds = 0;
+        GHLSaveCleanScreenshotForAwemeModel(model, seconds);
+    } else {
+        return NO;
+    }
+    return YES;
+}
+
+// 更新日志文本（1.0.1–1.0.4 各一行真实改动，以 git log 为准）。
+NSString *GHLChangelogText(void) {
+    return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
+           @"1.0.2：设置主页改白色单步直达，龙头招牌，语音四项探针。\n"
+           @"1.0.3：龙头重裁居中，分区改名常用功能/自动功能，关于加 QQ 号和 QQ 群。\n"
+           @"1.0.4：导入/导出配置、恢复默认配置、下载管理、语音包收藏、深色模式、悬浮按钮自定义、更新日志、加群按钮、龙头和背景可换、界面视觉统一。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -1122,7 +1196,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.3 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.4 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
@@ -1236,6 +1310,10 @@ static NSArray<GHLVoicePackageInfo *> *GHLFishAudioVoicePackages(void) {
                                            systemVoiceIdentifier:nil
                                                      fishModelId:modelId]];
     }
+    // 1.0.4：Fish Audio 返回的模型没有分类/热度字段，不编造热度数字，按名字排。
+    [list sortUsingComparator:^NSComparisonResult(GHLVoicePackageInfo *a, GHLVoicePackageInfo *b) {
+      return [a.displayName localizedStandardCompare:b.displayName];
+    }];
     return list;
 }
 
@@ -1282,6 +1360,32 @@ GHLVoicePackageInfo *GHLVoicePackageForID(NSString *voiceId) {
 NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId) {
     GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
     return info ? info.displayName : @"未选择";
+}
+
+// 1.0.4 语音包收藏：收藏的 voiceId 存在 NSUserDefaults（GHL_KEY_VOICE_FAVORITES）。
+NSSet<NSString *> *GHLVoiceFavorites(void) {
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_FAVORITES];
+    if (![stored isKindOfClass:[NSArray class]]) return [NSSet set];
+    NSMutableSet<NSString *> *set = [NSMutableSet set];
+    for (id item in stored) {
+        if ([item isKindOfClass:[NSString class]]) [set addObject:item];
+    }
+    return [set copy];
+}
+
+BOOL GHLIsVoiceFavorite(NSString *voiceId) {
+    return voiceId.length > 0 && [GHLVoiceFavorites() containsObject:voiceId];
+}
+
+void GHLSetVoiceFavorite(NSString *voiceId, BOOL favorite) {
+    if (voiceId.length == 0) return;
+    NSMutableSet<NSString *> *set = [NSMutableSet setWithSet:GHLVoiceFavorites()];
+    if (favorite) {
+        [set addObject:voiceId];
+    } else {
+        [set removeObject:voiceId];
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:set.allObjects forKey:GHL_KEY_VOICE_FAVORITES];
 }
 
 static AVSpeechSynthesizer *ghlSpeechSynthesizer = nil;
@@ -1531,6 +1635,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 @interface GHLVoicePackageManagerViewController : UITableViewController <UISearchBarDelegate>
 @property(nonatomic, strong) UISearchBar *searchBar;
 @property(nonatomic, copy) NSString *searchText;
+@property(nonatomic, strong, nullable) UIImage *backgroundImage;
 @end
 
 @implementation GHLVoicePackageManagerViewController
@@ -1541,10 +1646,32 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     self.searchText = @"";
     self.searchBar = [[UISearchBar alloc] init];
     self.searchBar.placeholder = @"搜名字或 voiceId";
+    self.searchBar.searchBarStyle = UISearchBarStyleMinimal;
     self.searchBar.delegate = self;
     self.tableView.tableHeaderView = self.searchBar;
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"完成" style:UIBarButtonItemStyleDone target:self action:@selector(ghlDismiss)];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+    [self ghlApplyAppearance];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self ghlApplyAppearance];
+    [self.tableView reloadData];
+}
+
+// 统一视觉：跟设置主页同一套（金色点缀、深色跟随、自定义背景铺底）。
+- (BOOL)ghlDarkModeActive {
+    return GHLFollowSystemDarkEnabled() && [DYYYUtils isDarkMode];
+}
+
+- (void)ghlApplyAppearance {
+    BOOL dark = [self ghlDarkModeActive];
+    self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
+    self.backgroundImage = GHLCustomBackgroundImage();
+    self.tableView.backgroundView = [DYYYUtils dYYYSettingsBackgroundViewForImage:self.backgroundImage darkMode:dark];
+    self.tableView.backgroundColor = self.backgroundImage ? [UIColor clearColor] : [UIColor systemGroupedBackgroundColor];
 }
 
 - (void)ghlDismiss {
@@ -1577,6 +1704,16 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 
 - (NSArray<NSString *> *)ghlVisibleCategories {
     NSMutableArray<NSString *> *categories = [NSMutableArray array];
+    // 1.0.4：收藏置顶一个分区（只有收藏了、且收藏的音色还在当前列表里才出现）。
+    NSSet<NSString *> *favorites = GHLVoiceFavorites();
+    if (favorites.count > 0) {
+        for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
+            if ([favorites containsObject:info.voiceId]) {
+                [categories addObject:@"★ 收藏"];
+                break;
+            }
+        }
+    }
     for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
         if (![categories containsObject:info.category]) [categories addObject:info.category];
     }
@@ -1585,8 +1722,13 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 
 - (NSArray<GHLVoicePackageInfo *> *)ghlPackagesInCategory:(NSString *)category {
     NSMutableArray<GHLVoicePackageInfo *> *result = [NSMutableArray array];
+    NSSet<NSString *> *favorites = GHLVoiceFavorites();
     for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
-        if ([info.category isEqualToString:category]) [result addObject:info];
+        if ([category isEqualToString:@"★ 收藏"]) {
+            if ([favorites containsObject:info.voiceId]) [result addObject:info];
+        } else if ([info.category isEqualToString:category]) {
+            [result addObject:info];
+        }
     }
     return result;
 }
@@ -1605,6 +1747,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     NSArray *categories = [self ghlVisibleCategories];
     if (categories.count == 0) return nil;
     NSString *category = categories[section];
+    if ([category isEqualToString:@"★ 收藏"]) return @"★ 收藏";
     if ([category isEqualToString:@"在线"]) return @"在线（Fish Audio，需 key）";
     return category;
 }
@@ -1612,6 +1755,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     NSArray *categories = [self ghlVisibleCategories];
     if (categories.count == 0) return nil;
+    if ([categories[section] isEqualToString:@"★ 收藏"]) return @"点 ★ 取消收藏；点行选中并试听。";
     if (![categories[section] isEqualToString:@"在线"]) return nil;
     NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
@@ -1627,8 +1771,45 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     cell.textLabel.text = info.displayName;
     cell.detailTextLabel.text = info.voiceId;
     NSString *selectedId = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_VOICE_PACKAGE_ID];
-    cell.accessoryType = [info.voiceId isEqualToString:selectedId] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    BOOL selected = [info.voiceId isEqualToString:selectedId];
+    // 统一视觉：选中行名字用金色；行底色跟随深色/自定义背景。
+    BOOL dark = [self ghlDarkModeActive];
+    cell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+    cell.textLabel.textColor = selected ? [DYYYUtils dYYYGoldAccentColor] : [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
+    cell.detailTextLabel.textColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark];
+    // 1.0.4 收藏：右侧 ✓（已选）+ ★/☆ 按钮（点一下收藏/取消收藏，不影响点行选中）。
+    UIView *accessory = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 76, 44)];
+    UILabel *checkLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 24, 44)];
+    checkLabel.text = @"✓";
+    checkLabel.font = [UIFont systemFontOfSize:17];
+    checkLabel.textColor = [DYYYUtils dYYYGoldAccentColor];
+    checkLabel.textAlignment = NSTextAlignmentCenter;
+    checkLabel.hidden = !selected;
+    [accessory addSubview:checkLabel];
+    UIButton *starButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    starButton.frame = CGRectMake(28, 0, 44, 44);
+    BOOL favorited = GHLIsVoiceFavorite(info.voiceId);
+    [starButton setTitle:favorited ? @"★" : @"☆" forState:UIControlStateNormal];
+    starButton.titleLabel.font = [UIFont systemFontOfSize:20];
+    [starButton setTitleColor:favorited ? [DYYYUtils dYYYGoldAccentColor] : [UIColor grayColor] forState:UIControlStateNormal];
+    starButton.tag = indexPath.section * 10000 + indexPath.row;
+    [starButton addTarget:self action:@selector(ghlFavoriteButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [accessory addSubview:starButton];
+    cell.accessoryView = accessory;
     return cell;
+}
+
+// 1.0.4：点 ★ 收藏/取消收藏（收藏的固定排在最前面）。
+- (void)ghlFavoriteButtonTapped:(UIButton *)sender {
+    NSInteger section = sender.tag / 10000;
+    NSInteger row = sender.tag % 10000;
+    NSArray *categories = [self ghlVisibleCategories];
+    if (section < 0 || section >= (NSInteger)categories.count) return;
+    NSArray *packages = [self ghlPackagesInCategory:categories[section]];
+    if (row < 0 || row >= (NSInteger)packages.count) return;
+    GHLVoicePackageInfo *info = packages[row];
+    GHLSetVoiceFavorite(info.voiceId, !GHLIsVoiceFavorite(info.voiceId));
+    [self.tableView reloadData];
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -1658,6 +1839,7 @@ void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewContr
     GHLRunOnMain(^{
       GHLVoicePackageManagerViewController *managerVC = [[GHLVoicePackageManagerViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
       UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:managerVC];
+      nav.navigationBar.prefersLargeTitles = YES; // 统一视觉：跟设置主页一样用大标题
       [viewController presentViewController:nav animated:YES completion:nil];
       GHLLog(@"语音包管理：已打开管理器");
     });

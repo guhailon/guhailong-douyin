@@ -26,6 +26,7 @@
  * @param onConfirm 确认回调
  */
 + (void)showAboutDialog:(NSString *)title message:(NSString *)message onConfirm:(void (^)(void))onConfirm;
++ (void)showAboutDialog:(NSString *)title message:(NSString *)message onConfirm:(void (^)(void))onConfirm joinGroupURL:(nullable NSString *)joinGroupURL;
 
 /**
  * 显示文本输入弹窗（完整版）

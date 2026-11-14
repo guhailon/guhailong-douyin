@@ -73,7 +73,12 @@
 
 // 显示自定义关于弹窗
 + (void)showAboutDialog:(NSString *)title message:(NSString *)message onConfirm:(void (^)(void))onConfirm {
-    DYYYAboutDialogView *aboutDialog = [[DYYYAboutDialogView alloc] initWithTitle:title message:message];
+    [self showAboutDialog:title message:message onConfirm:onConfirm joinGroupURL:nil];
+}
+
+// 显示自定义关于弹窗（带“加入QQ群”按钮；只有关于弹窗传链接，其他弹窗传 nil）
++ (void)showAboutDialog:(NSString *)title message:(NSString *)message onConfirm:(void (^)(void))onConfirm joinGroupURL:(NSString *)joinGroupURL {
+    DYYYAboutDialogView *aboutDialog = [[DYYYAboutDialogView alloc] initWithTitle:title message:message joinGroupURL:joinGroupURL];
     aboutDialog.onConfirm = onConfirm;
     [aboutDialog show];
 }

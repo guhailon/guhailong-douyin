@@ -11,6 +11,7 @@
 #import "DYYYUtils.h"
 #import "DYYYDownloadScheduler.h"
 #import "DYYYConstants.h"
+#import "GHLFeatures.h"
 
 
 @interface DYYYManager () <NSURLSessionDownloadDelegate>
@@ -682,6 +683,12 @@
 
     [self removeMappingsForDownloadID:downloadID];
 
+    // 1.0.4 下载管理：一次下载成功收尾就记一次（自 1.0.4 起统计；之前没有记录，做不出历史数）。
+    if (success) {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        [defaults setInteger:[defaults integerForKey:GHL_KEY_DOWNLOAD_SAVED_COUNT] + 1 forKey:GHL_KEY_DOWNLOAD_SAVED_COUNT];
+    }
+
     dispatch_async(dispatch_get_main_queue(), ^{
       DYYYToast *progressView = self.progressViews[downloadID];
       if (progressView) {
@@ -710,6 +717,69 @@
             }
         }
     }
+}
+
+#pragma mark - 1.0.4 下载管理（已保存计数 + 我们自己的临时缓存）
+
++ (NSInteger)ghlSavedMediaCount {
+    return [[NSUserDefaults standardUserDefaults] integerForKey:GHL_KEY_DOWNLOAD_SAVED_COUNT];
+}
+
+// 我们自己的临时文件落点（只认这些，不碰抖音自己的缓存）：
+// tmp 根目录下 DYYY_ / temp_img_ / sticker_ 前缀的文件；VideoComposition、DYYYLogs、tmp/DYYY 三个目录。
++ (NSArray<NSString *> *)ghlOurTemporaryPaths {
+    NSString *tmpDir = NSTemporaryDirectory() ?: @"/tmp";
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    NSArray<NSString *> *dirs = @[
+        [tmpDir stringByAppendingPathComponent:@"VideoComposition"],
+        [tmpDir stringByAppendingPathComponent:@"DYYYLogs"],
+        [tmpDir stringByAppendingPathComponent:@"DYYY"],
+    ];
+    [paths addObjectsFromArray:dirs];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray<NSString *> *rootItems = [fm contentsOfDirectoryAtPath:tmpDir error:nil] ?: @[];
+    for (NSString *name in rootItems) {
+        if ([name hasPrefix:@"DYYY_"] || [name hasPrefix:@"temp_img_"] || [name hasPrefix:@"sticker_"]) {
+            [paths addObject:[tmpDir stringByAppendingPathComponent:name]];
+        }
+    }
+    return paths;
+}
+
++ (unsigned long long)ghlOurTemporaryCacheSize {
+    unsigned long long total = 0;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *path in [self ghlOurTemporaryPaths]) {
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:path isDirectory:&isDir]) continue;
+        if (isDir) {
+            total += [DYYYUtils directorySizeAtPath:path];
+        } else {
+            NSNumber *size = [fm attributesOfItemAtPath:path error:nil][NSFileSize];
+            total += size.unsignedLongLongValue;
+        }
+    }
+    return total;
+}
+
++ (unsigned long long)ghlClearOurTemporaryCache {
+    unsigned long long freed = 0;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *path in [self ghlOurTemporaryPaths]) {
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:path isDirectory:&isDir]) continue;
+        unsigned long long size = 0;
+        if (isDir) {
+            size = [DYYYUtils directorySizeAtPath:path];
+            [DYYYUtils removeAllContentsAtPath:path];
+        } else {
+            NSNumber *fileSize = [fm attributesOfItemAtPath:path error:nil][NSFileSize];
+            size = fileSize.unsignedLongLongValue;
+            [fm removeItemAtPath:path error:nil];
+        }
+        freed += size;
+    }
+    return freed;
 }
 
 #pragma mark - 统一下载调度

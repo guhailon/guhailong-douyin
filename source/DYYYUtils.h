@@ -108,6 +108,22 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (BOOL)isDarkMode;
 
+#pragma mark - 顾海龙抖音设置页统一视觉（1.0.4：主页、子页、语音包管理器、关于弹窗、下载管理页共用一套）
+// 金色点缀：跟头卡龙头金边同一个金（#D4AF37），开关 accent、选中态、链接、加入群按钮都用它。
++ (UIColor *)dYYYGoldAccentColor;
+// 卡片底色（浅色白 / 深色 #2C2C2E）
++ (UIColor *)dYYYSettingsCardColorDarkMode:(BOOL)darkMode;
+// 主文字（浅色黑 / 深色白）
++ (UIColor *)dYYYSettingsPrimaryTextColorDarkMode:(BOOL)darkMode;
+// 次要文字（浅色灰 / 深色浅灰）
++ (UIColor *)dYYYSettingsSecondaryTextColorDarkMode:(BOOL)darkMode;
+// 设置行底色：有自定义背景图就透明（让背景透出来），否则跟卡片底色一致。
++ (UIColor *)dYYYSettingsCellBackgroundColorForBackgroundImage:(nullable UIImage *)backgroundImage darkMode:(BOOL)darkMode;
+// 自定义背景的铺底视图（图 + 淡色遮罩：浅色白遮罩、深色黑遮罩，字才看得清）；没有图返回 nil。
++ (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode;
+// 卡片圆角（头卡、弹窗统一 16）
++ (CGFloat)dYYYSettingsCardCornerRadius;
+
 /**
  * 检查当前抖音背景设置是否为浅色
  */

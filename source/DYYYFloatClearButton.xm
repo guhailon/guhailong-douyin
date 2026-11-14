@@ -9,6 +9,7 @@
 #import "DYYYConstants.h"
 #import "DYYYUtils.h"
 #import "DYYYFloatingButtonCoordinator.h"
+#import "GHLFeatures.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <float.h>
@@ -720,6 +721,11 @@ void reloadClearButtonConfiguration(void) {
 }
 
 - (void)handleTap {
+    // 1.0.4 悬浮按钮自定义：配了动作就执行动作，不走默认清屏切换。
+    if (GHLPerformFloatButtonAction(GHLGetString(GHL_KEY_CLEAR_BUTTON_TAP))) {
+        [self resetFadeTimer];
+        return;
+    }
     self.manualClearActive = !self.manualClearActive;
     if (!([self dyyy_shouldSelfHideOnClear] && self.manualClearActive)) [self resetFadeTimer];
     [self updateClearState];
@@ -736,6 +742,8 @@ void reloadClearButtonConfiguration(void) {
 - (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state == UIGestureRecognizerStateBegan) {
         [self resetFadeTimer];
+        // 1.0.4 悬浮按钮自定义：配了长按动作就执行动作，不走默认锁定/解锁。
+        if (GHLPerformFloatButtonAction(GHLGetString(GHL_KEY_CLEAR_BUTTON_LONGPRESS))) return;
         self.isLocked = !self.isLocked;
         [self saveLockState];
         NSString *toastMessage = self.isLocked ? @"按钮已锁定" : @"按钮已解锁";

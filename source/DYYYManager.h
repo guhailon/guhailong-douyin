@@ -24,6 +24,14 @@
  */
 + (instancetype)shared;
 
+// 1.0.4 下载管理：经本插件成功保存的媒体数量（自 1.0.4 起统计；1.0.4 之前没有记录，做不出历史数）。
++ (NSInteger)ghlSavedMediaCount;
+// 1.0.4 下载管理：只算我们自己的临时文件（DYYY_ / temp_img_ / sticker_ 前缀、VideoComposition、DYYYLogs、
+// tmp/DYYY 缓存目录），不碰抖音自己的缓存；返回字节数。
++ (unsigned long long)ghlOurTemporaryCacheSize;
+// 1.0.4 下载管理：清理上面那些我们自己的临时文件，返回实际清掉的字节数。
++ (unsigned long long)ghlClearOurTemporaryCache;
+
 #pragma mark - UI相关方法
 
 #pragma mark - 媒体保存方法

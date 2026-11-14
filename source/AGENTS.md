@@ -19,6 +19,8 @@
   - `DYYY.xm`、`DYYYSettings.xm`：全局 Hook、设置页 Hook。
   - `DYYYSettingViewController.(h/m)`：自定义设置主界面。
   - `DYYYSettingsHelper.(h/m)`：设置项依赖、入口、协议弹窗。
+  - `DYYYSettingsBackup.(h/m)`：设置导入 / 导出 / 恢复默认（1.0.4）。
+  - `DYYYDownloadManagerViewController.(h/m)`：下载管理页（1.0.4，已保存统计 + 缓存清理）。
 - **业务/下载**
   - `DYYYManager.(h/m)`：下载、合成、任务管理、授权。
   - `DYYYDownloadScheduler.(h/m)`：下载并发限制、等待队列与取消调度。
@@ -90,6 +92,7 @@
 1. 所有弹窗、输入框、选择视图均继承自 `UIView` 或自定义控件，负责自己的布局和动画，控制器或 Hook 仅负责组装。
 2. 新的设置项请沿用 AWESetting 模型（`AWESettingSectionModel`、`AWESettingItemModel`）的构造方式，保持 icon/identifier/type 配置完整。
 3. Toast、提示统一调用 `DYYYToast` / `DYYYBottomAlertView`，不要直接 `UIAlertController`。
+4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。
 
 ### 7. 资源与缓存
 1. `DYYYCustomAssetsDirectory`、`NSCache` 等资源缓存均用 `dispatch_once` 初始化。新增缓存时务必限制容量或提供清理策略。

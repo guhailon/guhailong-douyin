@@ -1102,6 +1102,56 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return NO;
 }
 
+#pragma mark - 顾海龙抖音设置页统一视觉（1.0.4）
+
++ (UIColor *)dYYYGoldAccentColor {
+    // 跟头卡龙头金边同一个金 #D4AF37。
+    return [UIColor colorWithRed:212 / 255.0 green:175 / 255.0 blue:55 / 255.0 alpha:1.0];
+}
+
++ (UIColor *)dYYYSettingsCardColorDarkMode:(BOOL)darkMode {
+    if (darkMode) return [UIColor colorWithRed:44 / 255.0 green:44 / 255.0 blue:46 / 255.0 alpha:1.0]; // #2C2C2E
+    return [UIColor whiteColor];
+}
+
++ (UIColor *)dYYYSettingsPrimaryTextColorDarkMode:(BOOL)darkMode {
+    if (darkMode) return [UIColor whiteColor];
+    return [UIColor blackColor];
+}
+
++ (UIColor *)dYYYSettingsSecondaryTextColorDarkMode:(BOOL)darkMode {
+    if (darkMode) return [UIColor colorWithWhite:0.7 alpha:1.0];
+    return [UIColor grayColor];
+}
+
++ (UIColor *)dYYYSettingsCellBackgroundColorForBackgroundImage:(nullable UIImage *)backgroundImage darkMode:(BOOL)darkMode {
+    if (backgroundImage) return [UIColor clearColor];
+    return [self dYYYSettingsCardColorDarkMode:darkMode];
+}
+
++ (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode {
+    if (!image) return nil;
+    // 先给屏幕尺寸的初始 frame（tableView 接手后会再调 container 的 frame，子视图靠 autoresizing 跟着变）。
+    CGRect bounds = UIScreen.mainScreen.bounds;
+    UIView *container = [[UIView alloc] initWithFrame:bounds];
+    container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:bounds];
+    imageView.image = image;
+    imageView.contentMode = UIViewContentModeScaleAspectFill;
+    imageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [container addSubview:imageView];
+    // 淡色半透明遮罩：浅色白遮罩、深色黑遮罩，字才不会糊掉。
+    UIView *mask = [[UIView alloc] initWithFrame:bounds];
+    mask.backgroundColor = darkMode ? [UIColor colorWithWhite:0 alpha:0.55] : [UIColor colorWithWhite:1 alpha:0.55];
+    mask.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [container addSubview:mask];
+    return container;
+}
+
++ (CGFloat)dYYYSettingsCardCornerRadius {
+    return 16;
+}
+
 #pragma mark - Public File Management (公共文件管理)
 
 + (NSURL *)uniqueTemporaryFileURLWithFileName:(NSString *)fileName {

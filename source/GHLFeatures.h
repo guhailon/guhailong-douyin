@@ -79,6 +79,35 @@ extern "C" {
 #define GHL_KEY_VOICE_FORWARD @"GHLVoiceForward"                 // 语音消息转发（实验，需真机日志验证）
 #define GHL_KEY_VOICE_DURATION @"GHLVoiceDuration"               // 设置语音秒数（实验，需真机日志验证）
 #define GHL_KEY_VOICE_REPLACE_COMMENT @"GHLVoiceReplaceComment" // 替换语音评论（实验，需真机日志验证）
+// 1.0.4 语音包收藏：收藏的 voiceId 列表（NSArray<NSString *>），收藏的排在管理器最前面
+#define GHL_KEY_VOICE_FAVORITES @"GHLVoiceFavorites"
+
+// MARK: - 1.0.4 新增（设置备份/恢复、下载管理、深色模式、悬浮按钮自定义、更新日志、换龙头/换背景）
+// 跟随系统深色（设置主页和子页；默认开；关了就强制浅色）
+#define GHL_KEY_FOLLOW_SYSTEM_DARK @"GHLFollowSystemDark"
+// 悬浮按钮自定义：每个按钮点一下/长按各选一个动作，值见下面的 GHL_FLOAT_ACTION_*（@"默认" = 原来功能）
+#define GHL_KEY_SPEED_BUTTON_TAP @"GHLSpeedButtonTapAction"
+#define GHL_KEY_SPEED_BUTTON_LONGPRESS @"GHLSpeedButtonLongPressAction"
+#define GHL_KEY_CLEAR_BUTTON_TAP @"GHLClearButtonTapAction"
+#define GHL_KEY_CLEAR_BUTTON_LONGPRESS @"GHLClearButtonLongPressAction"
+#define GHL_FLOAT_ACTION_DEFAULT @"默认"
+#define GHL_FLOAT_ACTION_DOWNLOAD @"下载当前视频"
+#define GHL_FLOAT_ACTION_CLEAR @"清屏"
+#define GHL_FLOAT_ACTION_SPEED @"倍速切换"
+#define GHL_FLOAT_ACTION_DANMAKU @"弹幕开关"
+#define GHL_FLOAT_ACTION_SCREENSHOT @"截图去水印"
+// 动作型入口（Picker 行，值本身无意义，选完即执行）
+#define GHL_KEY_DOWNLOAD_MANAGER @"GHLDownloadManager"   // 打开下载管理页
+#define GHL_KEY_IMPORT_SETTINGS @"GHLImportSettings"     // 导入配置（系统文件选择器选 .plist）
+#define GHL_KEY_EXPORT_SETTINGS @"GHLExportSettings"     // 导出配置（分享“顾海龙抖音配置.plist”）
+#define GHL_KEY_RESET_SETTINGS @"GHLResetSettings"       // 恢复默认配置（先弹确认框）
+#define GHL_KEY_CHANGE_BACKGROUND @"GHLChangeBackground" // 更换背景图（相册选图）
+#define GHL_KEY_RESET_BACKGROUND @"GHLResetBackground"   // 恢复默认背景
+#define GHL_KEY_RESET_LOGO @"GHLResetLogo"               // 恢复默认龙头
+// 更新日志：上次见过的版本号（变了就进设置主页时弹一次）
+#define GHL_KEY_LAST_SEEN_VERSION @"GHLLastSeenVersion"
+// 下载管理：经本插件成功保存的媒体数量（自 1.0.4 起统计；1.0.4 之前没有记录，做不出历史数）
+#define GHL_KEY_DOWNLOAD_SAVED_COUNT @"GHLDownloadSavedCount"
 
 // MARK: - 语音包 (31)
 typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
@@ -204,6 +233,8 @@ NSString *GHLGetString(NSString *key);
 void GHLRunOnMain(dispatch_block_t block);
 // 关键词过滤总开关：键不存在时默认开（保持上游已有过滤行为不变）
 BOOL GHLKeywordFilterEnabled(void);
+// 跟随系统深色：键不存在时默认开（1.0.4 新增开关，没设过就跟随系统）
+BOOL GHLFollowSystemDarkEnabled(void);
 // 写诊断日志到 /var/mobile/Library/Logs/GuHaiLongDouyin.log
 void GHLLog(NSString *format, ...);
 
@@ -239,6 +270,25 @@ void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
 
 // MARK: - Logo
 UIImage *GHLLogoImage(void);
+// 1.0.4 自选龙头 / 自定义背景（存在 Documents/DYYY/ 里，不进仓库；读不到、损坏一律回退内置/默认）
+UIImage *GHLCustomLogoImage(void);
+BOOL GHLSaveCustomLogoImage(UIImage *image);     // 居中裁正方形 → 256x256 → JPEG q88
+void GHLClearCustomLogo(void);
+BOOL GHLHasCustomLogo(void);
+UIImage *GHLCustomBackgroundImage(void);         // 有自选背景图就返回，否则 nil
+BOOL GHLSaveCustomBackgroundImage(UIImage *image); // 长边缩到 1242 → JPEG q85
+void GHLClearCustomBackground(void);
+BOOL GHLHasCustomBackground(void);
+
+// MARK: - 1.0.4 悬浮按钮自定义 / 更新日志 / 语音包收藏
+// 执行一个悬浮按钮动作（下载/清屏/倍速/弹幕/截图）；返回 YES 表示已处理，调用方跳过默认行为
+BOOL GHLPerformFloatButtonAction(NSString *action);
+// 更新日志文本（1.0.1–1.0.4 各一行真实改动）
+NSString *GHLChangelogText(void);
+// 语音包收藏
+BOOL GHLIsVoiceFavorite(NSString *voiceId);
+void GHLSetVoiceFavorite(NSString *voiceId, BOOL favorite);
+NSSet<NSString *> *GHLVoiceFavorites(void);
 
 #ifdef __cplusplus
 }
