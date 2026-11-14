@@ -207,7 +207,7 @@ BOOL GHLPerformGestureAction(NSString *action) {
     return NO;
 }
 
-// 更新日志文本（1.0.1–1.0.9 各一行真实改动，以 git log 为准）。
+// 更新日志文本（1.0.1–1.0.10 各一行真实改动，以 git log 为准）。
 NSString *GHLChangelogText(void) {
     return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
            @"1.0.2：设置主页改白色单步直达，龙头招牌，语音四项探针。\n"
@@ -217,7 +217,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.6：诊断日志改写到 App 自己的 Documents/DYYY/ 文件夹，沙盒里也能写出来；设置里加「顾海龙日志」，点进去能看日志、刷新、清空、分享。\n"
            @"1.0.7：修底栏朋友和加号藏不住（不认类名改名、标签为空、按钮被容器包着都能认；头像下的关注加号按位置认），底栏诊断写进顾海龙日志。\n"
            @"1.0.8：颜色行改系统调色盘，主题预设一键换（金龙/冰蓝/樱粉/暗夜），侧边栏图标大小/间距/圆角底，进度条加粗圆角默认金色，头像金边（关注实心/未关注细边），弹幕字号/描边/透明度+多时自动变淡，底栏毛玻璃+选中态金色；双击爱心换图标仍是探针（爱心动画类没找到，只记日志，需真机验证）。\n"
-           @"1.0.9：长按下载面板换成我们自己的网格面板（深色毛玻璃、三列金色图标、顶部金色龙头；更多回原生面板；精简模式和隐藏列表照常生效）。";
+           @"1.0.9：长按下载面板换成我们自己的网格面板（深色毛玻璃、三列金色图标、顶部金色龙头；更多回原生面板；精简模式和隐藏列表照常生效）。\n"
+           @"1.0.10：修网格面板盖不上（数据改强引用持有到收起，dataArray 一到就主线程补盖一次；每个失败分支都记诊断日志，下次没盖上日志直接写明哪一关没过）。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -1501,7 +1502,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.9 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.10 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
