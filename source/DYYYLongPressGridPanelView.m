@@ -9,7 +9,7 @@
 static const NSInteger kDYYYGridColumns = 3;
 static const CGFloat kDYYYGridSideMargin = 16.0;
 static const CGFloat kDYYYGridSpacing = 12.0;
-static const CGFloat kDYYYGridCellHeight = 104.0;
+static const CGFloat kDYYYGridCellHeight = 92.0; // 1.0.11：104 收小到 92，4 行在 iPhone 11 的 sheet 里基本不用滑也能看到
 static const CGFloat kDYYYGridDragonSize = 76.0;
 static const CGFloat kDYYYGridDragonTop = 10.0;
 static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
@@ -109,7 +109,7 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
     [self addSubview:_dragonImageView];
 
     _gridScrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
-    _gridScrollView.showsVerticalScrollIndicator = NO;
+    _gridScrollView.showsVerticalScrollIndicator = YES; // 1.0.11：下面还有格子时一眼能看出来
     _gridScrollView.showsHorizontalScrollIndicator = NO;
     [self addSubview:_gridScrollView];
 
@@ -208,8 +208,8 @@ static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
         // 图标在上、标题在下（和效果图一致）。
         UIImageView *iconView = [cell viewWithTag:1001];
         UILabel *label = [cell viewWithTag:1002];
-        iconView.frame = CGRectMake((cellWidth - 30) / 2, 18, 30, 30);
-        label.frame = CGRectMake(4, 56, cellWidth - 8, 18);
+        iconView.frame = CGRectMake((cellWidth - 28) / 2, 16, 28, 28);
+        label.frame = CGRectMake(4, 50, cellWidth - 8, 18);
     }
 }
 

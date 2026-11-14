@@ -531,6 +531,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             [DYYYSettingItem itemWithTitle:@"精简长按面板" key:@"DYYYSimplifyLongPressPanel" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板网格风格（龙头）" key:GHL_KEY_LONG_PRESS_GRID_PANEL type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"长按面板头像" key:GHL_KEY_GRID_PANEL_AVATAR type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"隐藏面板项目" key:@"DYYYHidePanelItems" type:DYYYSettingItemTypeTextField placeholder:@"逗号分隔按钮名"],
             [DYYYSettingItem itemWithTitle:@"隐藏评论分享" key:@"DYYYHideCommentShareToFriends" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"隐藏评论复制" key:@"DYYYHideCommentLongPressCopy" type:DYYYSettingItemTypeSwitch],
@@ -833,6 +834,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         // 1.0.4 恢复默认龙头
         return @[ @"恢复默认龙头" ];
+    } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
+        // 1.0.11 长按面板头像：从相册选图换头像，或恢复默认龙头
+        return @[ @"从相册选图", @"恢复默认龙头" ];
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：点一套就把现有颜色类 key 一次设好
         return @[ @"无", @"金龙", @"冰蓝", @"樱粉", @"暗夜" ];
@@ -883,6 +887,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认背景";
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
+        // 1.0.11：选单里的两个动作原样显示；没选过动作时行上显示当前头像状态
+        if ([value isKindOfClass:[NSString class]] && ([value isEqualToString:@"从相册选图"] || [value isEqualToString:@"恢复默认龙头"])) return value;
+        return GHLHasCustomLogo() ? @"已换自选图" : @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         // 1.0.8 主题预设：没选过就是无
         return value ?: @"无";
@@ -929,6 +937,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认背景";
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
+        return @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
         return @"无";
     } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
@@ -1318,6 +1328,14 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                          } else if ([item.key isEqualToString:GHL_KEY_RESET_LOGO]) {
                                                              // 1.0.4 恢复默认龙头
                                                              [self ghlRestoreDefaultLogo];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
+                                                             // 1.0.11 长按面板头像：从相册选图（复用换龙头 picker，kind 0）或恢复默认龙头；
+                                                             // 换完头卡 logo 已刷新（picker 回调 / ghlRestoreDefaultLogo），网格下次长按直接读 GHLLogoImage()，不用重启抖音
+                                                             if ([(NSString *)option isEqualToString:@"恢复默认龙头"]) {
+                                                                 [self ghlRestoreDefaultLogo];
+                                                             } else {
+                                                                 [self ghlPresentImagePickerForKind:0];
+                                                             }
                                                          } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {

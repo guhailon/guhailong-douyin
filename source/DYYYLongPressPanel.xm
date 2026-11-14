@@ -1092,7 +1092,7 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     [vc.view addSubview:panel];
     [panel setNeedsLayout];
     gDYYYLongPressGridPanel = panel;
-    GHLLog(@"长按面板：网格已盖上（%lu 项，原生项%@）", (unsigned long)gridItems.count, hasNativeItems ? @"有" : @"无");
+    GHLLog(@"长按面板：网格已盖上（%lu 项，原生项%@）：%@", (unsigned long)gridItems.count, hasNativeItems ? @"有" : @"无", [[gridItems valueForKey:@"title"] componentsJoinedByString:@"、"]);
 }
 
 static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
