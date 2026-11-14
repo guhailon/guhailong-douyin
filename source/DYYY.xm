@@ -5551,6 +5551,48 @@ static BOOL DYYYApplyAvatarAuxiliaryActionSettingsForOwner(id owner) {
     return handled;
 }
 
+// 1.0.7：头像下方的关注“+”在新版抖音里可能不是 LOTAnimationView /
+// StaticFollowAnimationView，而是一个小按钮或图片。按位置 + 尺寸认它：
+// 在头像视图内、贴着头像下沿、横向居中附近、很小（≤34pt）的图标类视图。
+// 头像本体不算（它居中、类名含 Avatar 或尺寸更大）。
+static NSTimeInterval DYYYAvatarPlusBadgeLastLogTime = 0;
+
+static void DYYYHideAvatarFollowPlusBadgeInSubtree(UIView *view, UIView *avatarView, NSInteger depth) {
+    if (!view || !avatarView || depth > 4) return;
+    if (depth > 0) {
+        NSString *className = NSStringFromClass(view.class);
+        if (![className containsString:@"Avatar"] && ![className containsString:@"avatar"]) {
+            CGFloat width = CGRectGetWidth(view.bounds);
+            CGFloat height = CGRectGetHeight(view.bounds);
+            BOOL small = width > 0 && height > 0 && width <= 34 && height <= 34;
+            CGPoint centerInAvatar = [view.superview convertPoint:view.center toView:avatarView];
+            BOOL atBottom = centerInAvatar.y > CGRectGetHeight(avatarView.bounds) * 0.6;
+            BOOL centered = fabs(centerInAvatar.x - CGRectGetMidX(avatarView.bounds)) < CGRectGetWidth(avatarView.bounds) * 0.35;
+            BOOL iconLike = [view isKindOfClass:[UIImageView class]] || [view isKindOfClass:[UIButton class]] ||
+                            [className containsString:@"Follow"] || [className containsString:@"follow"] ||
+                            [className containsString:@"Plus"] || [className containsString:@"plus"] ||
+                            [className containsString:@"Add"] || [className containsString:@"Animation"] ||
+                            [className isEqualToString:@"LOTAnimationView"];
+            if (small && atBottom && centered && iconLike) {
+                if (DYYYGetBool(@"DYYYHideFollowPromptView")) {
+                    DYYYRemoveAvatarView(DYYYAvatarFollowRemovalTargetForView(view, avatarView));
+                } else {
+                    DYYYMarkAvatarActionViewHidden(view);
+                }
+                NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+                if (now - DYYYAvatarPlusBadgeLastLogTime > 10.0) {
+                    DYYYAvatarPlusBadgeLastLogTime = now;
+                    GHLLog(@"头像+：按位置隐藏 %@ %.0fx%.0f", className, width, height);
+                }
+                return;
+            }
+        }
+    }
+    for (UIView *subview in [view.subviews copy]) {
+        DYYYHideAvatarFollowPlusBadgeInSubtree(subview, avatarView, depth + 1);
+    }
+}
+
 static BOOL DYYYApplyAvatarFollowSettingsInView(UIView *view, UIView *rootView) {
     if (!view) {
         return NO;
@@ -5574,6 +5616,8 @@ static BOOL DYYYApplyAvatarFollowSettingsInView(UIView *view, UIView *rootView) 
 
     if (isAvatarView) {
         handled = DYYYApplyAvatarAuxiliaryActionSettingsForOwner(view) || handled;
+        // 1.0.7：新版抖音的关注“+”可能换了类名，按位置 + 尺寸再扫一遍。
+        DYYYHideAvatarFollowPlusBadgeInSubtree(view, view, 0);
     }
 
     if (isStaticFollowView || isLegacyFollowAnimation) {
@@ -10479,6 +10523,228 @@ static NSHashTable *processedParentViews = nil;
 %end
 
 // 底栏高度
+// 1.0.7：底栏隐藏加固
+// 旧代码只认 %c() 解析出的 4 个内部类名 + 按钮自身的 accessibilityLabel，
+// 类改名 / 标签为空 / 按钮被容器包裹时都会静默失效（皇上的 朋友 和加号就是这样漏掉的）。
+// 新逻辑：类名片段 + 子树里的文字标签 + 位置三路信号识别，不再依赖单一类名；
+// 认不出的按钮绝不隐藏，只记进日志。
+static char kDYYYTabBarHideRecheckPendingKey;
+static char kDYYYTabBarHideLastLogKey;
+
+// 从视图子树里找第一段非空文字（accessibilityLabel / UILabel.text），最多往下 3 层。
+static NSString *DYYYTabBarLabelTextInView(UIView *view, NSInteger depth) {
+    if (!view || depth < 0) return nil;
+    NSString *label = view.accessibilityLabel;
+    if (label.length > 0) return label;
+    if ([view isKindOfClass:[UILabel class]]) {
+        NSString *text = ((UILabel *)view).text;
+        if (text.length > 0) return text;
+    }
+    for (UIView *subview in view.subviews) {
+        NSString *found = DYYYTabBarLabelTextInView(subview, depth - 1);
+        if (found.length > 0) return found;
+    }
+    return nil;
+}
+
+// 视图是不是底栏按钮：类名含 TabBar+Button/Plus，或是有文字标签的 UIButton。
+// 系统 UITabBarButton、角标容器、文字视图本身不算按钮。
+static BOOL DYYYTabBarLooksLikeTabButton(UIView *view) {
+    if (!view) return NO;
+    NSString *className = NSStringFromClass(view.class);
+    if ([className isEqualToString:@"UITabBarButton"]) return NO;
+    if ([className containsString:@"Badge"] || [className containsString:@"TextView"]) return NO;
+    if ([className containsString:@"TabBar"] &&
+        ([className containsString:@"Button"] || [className containsString:@"Plus"])) {
+        return YES;
+    }
+    if ([view isKindOfClass:[UIButton class]]) {
+        NSString *label = DYYYTabBarLabelTextInView(view, 3);
+        if (label.length > 0) return YES;
+    }
+    return NO;
+}
+
+// 收集底栏按钮：先看直接子视图，再往非按钮容器里递归（最多 3 层）。
+// 已收集按钮的子树不再重复收集，避免把加号内层按钮也算成一个 tab。
+static void DYYYTabBarCollectButtonsInView(UIView *view, NSInteger depth, NSMutableArray<UIView *> *out) {
+    if (!view || depth < 0) return;
+    for (UIView *subview in [view.subviews copy]) {
+        if ([out containsObject:subview]) continue;
+        if (DYYYTabBarLooksLikeTabButton(subview)) {
+            [out addObject:subview];
+            continue;
+        }
+        DYYYTabBarCollectButtonsInView(subview, depth - 1, out);
+    }
+}
+
+// 标签是否匹配某个 tab（原文或皇上改过的自定义标题都算；“我”用精确匹配，避免误伤）。
+static BOOL DYYYTabBarLabelMatchesTitle(NSString *label, NSString *originalTitle, NSString *customTitleKey, BOOL exactMatch) {
+    if (!label.length) return NO;
+    if (exactMatch) {
+        if ([label isEqualToString:originalTitle]) return YES;
+    } else {
+        if ([label containsString:originalTitle]) return YES;
+    }
+    NSString *customTitle = [[NSUserDefaults standardUserDefaults] objectForKey:customTitleKey];
+    if (customTitle.length > 0) {
+        if (exactMatch) {
+            if ([label isEqualToString:customTitle]) return YES;
+        } else {
+            if ([label containsString:customTitle]) return YES;
+        }
+    }
+    return NO;
+}
+
+// 加号：类名含 Plus，或标签是“拍摄”。位置兜底在主流程里另算。
+static BOOL DYYYTabBarViewIsPlusButton(UIView *view, NSString *label) {
+    NSString *className = NSStringFromClass(view.class);
+    if ([className containsString:@"Plus"]) return YES;
+    if ([label isEqualToString:@"拍摄"]) return YES;
+    return NO;
+}
+
+// 视图在底栏坐标里的中心 X（候选按钮可能在容器里，frame 不直接可比）。
+static CGFloat DYYYTabBarCenterXInTabBar(UIView *view, UIView *tabBar) {
+    CGRect boundsInTabBar = [view convertRect:view.bounds toView:tabBar];
+    return CGRectGetMidX(boundsInTabBar);
+}
+
+// 底栏隐藏主流程：识别 → 隐藏 → 剩余按钮均匀重排 → 节流诊断日志。
+// 认不出的按钮保持可见，只记进日志，绝不误藏。
+static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
+    if (!tabBar || CGRectGetWidth(tabBar.bounds) <= 0) return;
+    BOOL hideShop = DYYYGetBool(@"DYYYHideShopButton");
+    BOOL hideMsg = DYYYGetBool(@"DYYYHideMessageButton");
+    BOOL hideFri = DYYYGetBool(@"DYYYHideFriendsButton");
+    BOOL hideMe = DYYYGetBool(@"DYYYHideMyButton");
+    BOOL hidePlus = DYYYGetBool(@"DYYYHidePlusButton");
+    BOOL isPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
+
+    NSMutableArray<UIView *> *visibleButtons = [NSMutableArray array];
+    NSMutableArray<UIView *> *candidates = [NSMutableArray array];
+    DYYYTabBarCollectButtonsInView(tabBar, 3, candidates);
+    UIView *ipadContainerView = nil;
+    Class tabBarButtonClassLocal = NSClassFromString(@"UITabBarButton");
+
+    // 系统 tab 按钮一律隐藏；平板容器沿用旧逻辑定位。
+    for (UIView *subview in [tabBar.subviews copy]) {
+        if (tabBarButtonClassLocal && [subview isKindOfClass:tabBarButtonClassLocal]) {
+            subview.userInteractionEnabled = NO;
+            subview.hidden = YES;
+        } else if (isPad && !ipadContainerView && [subview isMemberOfClass:UIView.class] && fabs(subview.frame.size.width - tabBar.bounds.size.width) > 0.1) {
+            ipadContainerView = subview;
+        }
+    }
+
+    NSMutableArray<NSString *> *seenLabels = [NSMutableArray array];
+    BOOL plusIdentified = NO;
+    NSUInteger hiddenCount = 0;
+    for (UIView *candidate in candidates) {
+        NSString *label = DYYYTabBarLabelTextInView(candidate, 3);
+        if (label.length > 0) [seenLabels addObject:label];
+        BOOL isPlus = DYYYTabBarViewIsPlusButton(candidate, label);
+        if (isPlus) plusIdentified = YES;
+        BOOL shouldHide = (isPlus && hidePlus) ||
+                          ([label containsString:@"商城"] && hideShop) ||
+                          (DYYYTabBarLabelMatchesTitle(label, @"消息", @"DYYYMsgTitle", NO) && hideMsg) ||
+                          (DYYYTabBarLabelMatchesTitle(label, @"朋友", @"DYYYFriendsTitle", NO) && hideFri) ||
+                          (DYYYTabBarLabelMatchesTitle(label, @"我", @"DYYYSelfTitle", YES) && hideMe);
+        candidate.userInteractionEnabled = !shouldHide;
+        candidate.hidden = shouldHide;
+        if (shouldHide) {
+            hiddenCount++;
+        } else {
+            [visibleButtons addObject:candidate];
+        }
+    }
+
+    // 加号兜底：类名和标签都没认出加号时，找最靠近横向中心、无文字的候选按钮。
+    if (hidePlus && !plusIdentified) {
+        UIView *centerCandidate = nil;
+        CGFloat centerDistance = CGFLOAT_MAX;
+        CGFloat midX = CGRectGetMidX(tabBar.bounds);
+        for (UIView *candidate in candidates) {
+            if (candidate.hidden) continue;
+            NSString *label = DYYYTabBarLabelTextInView(candidate, 3);
+            if (label.length > 0) continue;
+            CGFloat distance = fabs(DYYYTabBarCenterXInTabBar(candidate, tabBar) - midX);
+            if (distance < centerDistance) {
+                centerDistance = distance;
+                centerCandidate = candidate;
+            }
+        }
+        if (centerCandidate && centerDistance < CGRectGetWidth(tabBar.bounds) * 0.2) {
+            centerCandidate.userInteractionEnabled = NO;
+            centerCandidate.hidden = YES;
+            [visibleButtons removeObject:centerCandidate];
+            plusIdentified = YES;
+            hiddenCount++;
+        }
+    }
+
+    [visibleButtons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+      CGFloat ax = DYYYTabBarCenterXInTabBar(a, tabBar);
+      CGFloat bx = DYYYTabBarCenterXInTabBar(b, tabBar);
+      if (ax < bx) return NSOrderedAscending;
+      if (ax > bx) return NSOrderedDescending;
+      return NSOrderedSame;
+    }];
+
+    CGFloat offsetX, totalWidth;
+    if (ipadContainerView) {
+        offsetX = ipadContainerView.frame.origin.x;
+        totalWidth = ipadContainerView.bounds.size.width;
+    } else {
+        offsetX = 0;
+        totalWidth = tabBar.bounds.size.width;
+    }
+    CGFloat buttonWidth = (visibleButtons.count > 0) ? (totalWidth / visibleButtons.count) : 0;
+
+    // 均匀布局剩余按钮（容器里的按钮要换算到它自己的父视图坐标）。
+    for (NSInteger i = 0; i < visibleButtons.count; i++) {
+        UIView *button = visibleButtons[i];
+        CGRect currentInTabBar = [button convertRect:button.bounds toView:tabBar];
+        CGRect targetInTabBar = CGRectMake(offsetX + i * buttonWidth, currentInTabBar.origin.y, buttonWidth, currentInTabBar.size.height);
+        if (button.superview && button.superview != tabBar) {
+            button.frame = [tabBar convertRect:targetInTabBar toView:button.superview];
+        } else {
+            button.frame = targetInTabBar;
+        }
+    }
+
+    // 诊断（节流：每个底栏 10 秒最多一条，方便皇上在“顾海龙日志”里核对）。
+    NSDate *lastLog = objc_getAssociatedObject(tabBar, &kDYYYTabBarHideLastLogKey);
+    if (!lastLog || [[NSDate date] timeIntervalSinceDate:lastLog] > 10.0) {
+        objc_setAssociatedObject(tabBar, &kDYYYTabBarHideLastLogKey, [NSDate date], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        Class generalClass = NSClassFromString(@"AWENormalModeTabBarGeneralButton");
+        Class plusContainerClass = NSClassFromString(@"AWENormalModeTabBarPlusButton");
+        Class plusClass = NSClassFromString(@"AWENormalModeTabBarGeneralPlusButton");
+        Class plusInnerClass = NSClassFromString(@"AWENormalModeTabBarGeneralPlusInnerButton");
+        NSArray *labelsToShow = (seenLabels.count > 6) ? [seenLabels subarrayWithRange:NSMakeRange(0, 6)] : seenLabels;
+        GHLLog(@"底栏：类 General=%@ Plus容器=%@ Plus=%@ Plus内层=%@ | 候选 %lu 看到按钮 %@ | 开关 朋友=%@ 加号=%@ | 已隐藏 %lu",
+               generalClass ? @"有" : @"无", plusContainerClass ? @"有" : @"无", plusClass ? @"有" : @"无", plusInnerClass ? @"有" : @"无",
+               (unsigned long)candidates.count, [labelsToShow componentsJoinedByString:@","], hideFri ? @"开" : @"关", hidePlus ? @"开" : @"关", (unsigned long)hiddenCount);
+    }
+}
+
+// 抖音可能在我们的 layout 之后又把按钮显示回来，0.5 秒后再补一次。
+// 一次只挂一个待处理任务，不循环。
+static void DYYYTabBarScheduleDelayedHideRecheck(AWENormalModeTabBar *tabBar) {
+    if (!tabBar) return;
+    if (objc_getAssociatedObject(tabBar, &kDYYYTabBarHideRecheckPendingKey)) return;
+    objc_setAssociatedObject(tabBar, &kDYYYTabBarHideRecheckPendingKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak AWENormalModeTabBar *weakTabBar = tabBar;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        AWENormalModeTabBar *strongTabBar = weakTabBar;
+        if (!strongTabBar) return;
+        objc_setAssociatedObject(strongTabBar, &kDYYYTabBarHideRecheckPendingKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        DYYYApplyTabBarHideSettings(strongTabBar);
+    });
+}
+
 %hook AWENormalModeTabBarPlusButton
 
 - (void)setHidden:(BOOL)hidden {
@@ -10559,6 +10825,8 @@ static Class tabBarButtonClass = nil;
     %orig;
     if (self.window) {
         [self initializeOriginalTabBarHeight];
+        // 1.0.7：进窗口时也跑一次隐藏，避免只靠 layout 才生效。
+        DYYYApplyTabBarHideSettings(self);
     }
     [DYYYFullscreenCoordinator registerTabBar:self];
 }
@@ -10576,58 +10844,10 @@ static Class tabBarButtonClass = nil;
         NSLog(@"[DYYY] layoutSubviews: gCurrentTabBarHeight fallback synced to %.1f.", gCurrentTabBarHeight);
     }
 
-    BOOL hideShop = DYYYGetBool(@"DYYYHideShopButton");
-    BOOL hideMsg = DYYYGetBool(@"DYYYHideMessageButton");
-    BOOL hideFri = DYYYGetBool(@"DYYYHideFriendsButton");
-    BOOL hideMe = DYYYGetBool(@"DYYYHideMyButton");
-    BOOL hidePlus = DYYYGetBool(@"DYYYHidePlusButton");
-    BOOL isPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
-
-    NSMutableArray *visibleButtons = [NSMutableArray array];
-    UIView *ipadContainerView = nil;
-
-    for (UIView *subview in self.subviews) {
-        if ([subview isKindOfClass:generalButtonClass] || [subview isKindOfClass:plusContainerButtonClass] || [subview isKindOfClass:plusButtonClass] ||
-            [subview isKindOfClass:plusInnerButtonClass]) {
-            NSString *label = subview.accessibilityLabel;
-            BOOL isPlusButton = [subview isKindOfClass:plusContainerButtonClass] || [subview isKindOfClass:plusButtonClass] || [subview isKindOfClass:plusInnerButtonClass] ||
-                                [label isEqualToString:@"拍摄"];
-            BOOL shouldHide = (isPlusButton && hidePlus) || ([label containsString:@"商城"] && hideShop) || ([label containsString:@"消息"] && hideMsg) || ([label containsString:@"朋友"] && hideFri) ||
-                              ([label isEqualToString:@"我"] && hideMe);
-
-            subview.userInteractionEnabled = !shouldHide;
-            subview.hidden = shouldHide;
-
-            if (!shouldHide) {
-                [visibleButtons addObject:subview];
-            }
-        } else if ([subview isKindOfClass:tabBarButtonClass]) {
-            subview.userInteractionEnabled = NO;
-            subview.hidden = YES;
-        } else if (isPad && !ipadContainerView && [subview isMemberOfClass:UIView.class] && fabs(subview.frame.size.width - self.bounds.size.width) > 0.1) {
-            ipadContainerView = subview;
-        }
-    }
-
-    [visibleButtons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-      return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
-    }];
-
-    CGFloat offsetX, totalWidth;
-    if (ipadContainerView) {
-        offsetX = ipadContainerView.frame.origin.x;
-        totalWidth = ipadContainerView.bounds.size.width;
-    } else {
-        offsetX = 0;
-        totalWidth = self.bounds.size.width;
-    }
-    CGFloat buttonWidth = (visibleButtons.count > 0) ? (totalWidth / visibleButtons.count) : 0;
-
-    // 均匀布局按钮
-    for (NSInteger i = 0; i < visibleButtons.count; i++) {
-        UIView *button = visibleButtons[i];
-        button.frame = CGRectMake(offsetX + i * buttonWidth, button.frame.origin.y, buttonWidth, button.frame.size.height);
-    }
+    // 1.0.7：隐藏逻辑抽到 DYYYApplyTabBarHideSettings（类名片段 + 子树标签 + 位置兜底），
+    // 再挂一个 0.5 秒后的补查，防止抖音在我们之后又把按钮显示回来。
+    DYYYApplyTabBarHideSettings(self);
+    DYYYTabBarScheduleDelayedHideRecheck(self);
 
     // 禁用首页刷新功能
     if (DYYYGetBool(@"DYYYDisableHomeRefresh")) {

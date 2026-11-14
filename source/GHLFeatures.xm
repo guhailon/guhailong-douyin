@@ -207,14 +207,15 @@ BOOL GHLPerformGestureAction(NSString *action) {
     return NO;
 }
 
-// 更新日志文本（1.0.1–1.0.6 各一行真实改动，以 git log 为准）。
+// 更新日志文本（1.0.1–1.0.7 各一行真实改动，以 git log 为准）。
 NSString *GHLChangelogText(void) {
     return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
            @"1.0.2：设置主页改白色单步直达，龙头招牌，语音四项探针。\n"
            @"1.0.3：龙头重裁居中，分区改名常用功能/自动功能，关于加 QQ 号和 QQ 群。\n"
            @"1.0.4：导入/导出配置、恢复默认配置、下载管理、语音包收藏、深色模式、悬浮按钮自定义、更新日志、加群按钮、龙头和背景可换、界面视觉统一。\n"
            @"1.0.5：设置主页头卡改成毛玻璃，背景图从头卡里透出来；手势自定义（三击/双指双击/左滑/右滑）。\n"
-           @"1.0.6：诊断日志改写到 App 自己的 Documents/DYYY/ 文件夹，沙盒里也能写出来；设置里加「顾海龙日志」，点进去能看日志、刷新、清空、分享。";
+           @"1.0.6：诊断日志改写到 App 自己的 Documents/DYYY/ 文件夹，沙盒里也能写出来；设置里加「顾海龙日志」，点进去能看日志、刷新、清空、分享。\n"
+           @"1.0.7：修底栏朋友和加号藏不住（不认类名改名、标签为空、按钮被容器包着都能认；头像下的关注加号按位置认），底栏诊断写进顾海龙日志。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -1331,7 +1332,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.6 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.7 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
