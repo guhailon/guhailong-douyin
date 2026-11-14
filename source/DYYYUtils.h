@@ -305,6 +305,8 @@ NS_ASSUME_NONNULL_BEGIN
  *         - 对于渐变色，它会渲染一个单像素高度和 targetWidth 宽度的 UIImage 用于图案填充。
  */
 + (UIColor *)colorFromSchemeHexString:(NSString *)hexString targetWidth:(CGFloat)targetWidth;
+// 1.0.8 美化：UIColor 转 RRGGBB 大写 hex（调色盘选完写回设置用；灰度色走 getWhite:，取不到就返回 FFFFFF）
++ (NSString *)dYYYHexStringFromColor:(UIColor *)color;
 
 /**
  * @brief 根据十六进制字符串返回一个配置好的 CALayer (纯色或渐变)。

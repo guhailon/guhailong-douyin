@@ -221,6 +221,23 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_AUDIO_SHARE @"GHLAudioShare" // 音频分享（长按面板）
 #define GHL_KEY_LIVE_AUDIO_MUTE @"GHLLiveAudioMute" // 直播音频单独静音
 #define GHL_KEY_COMMENT_AUDIO_MUTE @"GHLCommentAudioMute" // 评论音频单独静音（探针，未验证）
+// (44) 1.0.8 美化：调色盘 / 主题预设 / 侧边栏 / 进度条 / 头像金边 / 弹幕样式 / 底栏毛玻璃 / 双击爱心探针
+#define GHL_KEY_THEME_PRESET @"GHLThemePreset" // none=无 gold=金龙 ice=冰蓝 pink=樱粉 night=暗夜
+#define GHL_KEY_SIDEBAR_BEAUTIFY @"GHLSidebarBeautify"
+#define GHL_KEY_SIDEBAR_ICON_SCALE @"GHLSidebarIconScale" // 0.5-1.5，默认 1.0
+#define GHL_KEY_SIDEBAR_SPACING @"GHLSidebarSpacing" // pt，默认 0
+#define GHL_KEY_SIDEBAR_PILL_BG @"GHLSidebarPillBackground"
+#define GHL_KEY_PROGRESS_BAR_BEAUTIFY @"GHLProgressBarBeautify"
+#define GHL_KEY_PROGRESS_BAR_COLOR @"GHLProgressBarColor" // 十六进制，默认 D4AF37
+#define GHL_KEY_PROGRESS_BAR_THICKNESS @"GHLProgressBarThickness" // 细/标准/粗
+#define GHL_KEY_AVATAR_GOLD_RING @"GHLAvatarGoldRing"
+#define GHL_KEY_DANMAKU_STYLE @"GHLDanmakuStyle"
+#define GHL_KEY_DANMAKU_FONT_SCALE @"GHLDanmakuFontScale" // 0.5-2.0，默认 1.0
+#define GHL_KEY_DANMAKU_STROKE @"GHLDanmakuStroke" // pt，空=原生
+#define GHL_KEY_DANMAKU_ALPHA @"GHLDanmakuAlpha" // 0-1，默认 1.0
+#define GHL_KEY_DANMAKU_AUTO_FADE @"GHLDanmakuAutoFade"
+#define GHL_KEY_TABBAR_GLASS @"GHLTabBarGlass"
+#define GHL_KEY_DOUBLE_TAP_HEART_PROBE @"GHLDoubleTapHeartProbe" // 双击爱心探针（实验，需真机日志验证）
 
 // MARK: - 32-43 功能入口
 void GHLMaybeAutoLike(void); // (32) 切视频后自动点赞（带每会话上限，已点赞的不重复点）
@@ -298,6 +315,13 @@ BOOL GHLHasCustomBackground(void);
 BOOL GHLPerformFloatButtonAction(NSString *action);
 // 1.0.5 手势自定义：执行一个手势动作（前 5 个复用悬浮按钮那套 + 静音开关 + 下一个视频）；返回 YES 表示已处理
 BOOL GHLPerformGestureAction(NSString *action);
+// MARK: - 1.0.8 美化
+// 主题预设：一次把现有颜色类 key 写好（视频背景 / 弹幕 / 进度标签 / 时间标签 / 进度条颜色）；选完仍可在各行单独微调
+void GHLApplyThemePreset(NSString *preset);
+// 右侧边栏美化（图标缩放 / 间距 / 圆角底），在侧边栏排序之后跑
+void GHLApplySidebarBeautifyInView(UIView *view);
+// 双击爱心探针：双击后扫一遍互动层，记下疑似爱心动画的视图类名和位置（需真机日志确认，见顾海龙日志）
+void GHLProbeDoubleTapHeartInView(UIView *view);
 // 更新日志文本（1.0.1–1.0.6 各一行真实改动）
 NSString *GHLChangelogText(void);
 // 语音包收藏

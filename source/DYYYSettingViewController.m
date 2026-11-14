@@ -16,7 +16,7 @@
 #import "DYYYUtils.h"
 #import "GHLFeatures.h"
 
-typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYYYSettingItemTypeTextField, DYYYSettingItemTypePicker };
+typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYYYSettingItemTypeTextField, DYYYSettingItemTypePicker, DYYYSettingItemTypeColor };
 
 @interface DYYYSettingItem : NSObject
 
@@ -47,7 +47,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 @end
 
-@interface DYYYSettingViewController () <UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate>
+@interface DYYYSettingViewController () <UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate, UIColorPickerViewControllerDelegate>
 
 @property(nonatomic, strong) UITableView *tableView;
 @property(nonatomic, strong) NSArray<NSArray<DYYYSettingItem *> *> *settingSections;
@@ -66,6 +66,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 @property(nonatomic, strong, nullable) DYYYImagePickerDelegate *imagePickerDelegate;
 @property(nonatomic, strong, nullable) DYYYBackupPickerDelegate *backupPickerDelegate;
 @property(nonatomic, assign) NSInteger pendingImagePickerKind; // 0 = 换龙头，1 = 换背景图
+// 1.0.8：调色盘当前正在改的 key（选完写回这个 key）。
+@property(nonatomic, copy, nullable) NSString *pendingColorPickerKey;
 
 @end
 
@@ -323,9 +325,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"评论音频单独静音（实验，未验证）" key:GHL_KEY_COMMENT_AUDIO_MUTE type:DYYYSettingItemTypeSwitch]
         ],
         @[
-            [DYYYSettingItem itemWithTitle:@"视频背景颜色" key:@"DYYYVideoBGColor" type:DYYYSettingItemTypeTextField placeholder:@"十六进制"],
+            [DYYYSettingItem itemWithTitle:@"视频背景颜色" key:@"DYYYVideoBGColor" type:DYYYSettingItemTypeColor],
             [DYYYSettingItem itemWithTitle:@"启用弹幕改色" key:@"DYYYEnableDanmuColor" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"自定弹幕颜色" key:@"DYYYDanmuColor" type:DYYYSettingItemTypeTextField placeholder:@"十六进制"],
+            [DYYYSettingItem itemWithTitle:@"自定弹幕颜色" key:@"DYYYDanmuColor" type:DYYYSettingItemTypeColor],
+            // 1.0.8 弹幕样式：字号/描边/透明度 + 弹幕多时自动变淡
+            [DYYYSettingItem itemWithTitle:@"弹幕样式" key:GHL_KEY_DANMAKU_STYLE type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"弹幕字号（0.5-2.0倍）" key:GHL_KEY_DANMAKU_FONT_SCALE type:DYYYSettingItemTypeTextField placeholder:@"默认1.0"],
+            [DYYYSettingItem itemWithTitle:@"弹幕描边（pt，空=原生）" key:GHL_KEY_DANMAKU_STROKE type:DYYYSettingItemTypeTextField placeholder:@"如：2"],
+            [DYYYSettingItem itemWithTitle:@"弹幕透明度（0-1小数）" key:GHL_KEY_DANMAKU_ALPHA type:DYYYSettingItemTypeTextField placeholder:@"默认1.0"],
+            [DYYYSettingItem itemWithTitle:@"弹幕多时自动变淡" key:GHL_KEY_DANMAKU_AUTO_FADE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"设置默认倍速" key:@"DYYYDefaultSpeed" type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"设置长按倍速" key:@"DYYYLongPressSpeed" type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"上下控制倍速" key:@"DYYYEnableLongPressSpeedGesture" type:DYYYSettingItemTypeSwitch],
@@ -334,7 +342,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"查看评论暂停播放" key:@"DYYYCommentPausePlayback" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"进度时长样式" key:@"DYYYScheduleStyle" type:DYYYSettingItemTypeTextField placeholder:@"默认"],
             [DYYYSettingItem itemWithTitle:@"进度纵轴位置" key:@"DYYYTimelineVerticalPosition" type:DYYYSettingItemTypeTextField placeholder:@"-12.5"],
-            [DYYYSettingItem itemWithTitle:@"进度标签颜色" key:@"DYYYProgressLabelColor" type:DYYYSettingItemTypeTextField placeholder:@"十六进制"],
+            [DYYYSettingItem itemWithTitle:@"进度标签颜色" key:@"DYYYProgressLabelColor" type:DYYYSettingItemTypeColor],
+            // 1.0.8 进度条美化：加粗圆角 + 默认金色
+            [DYYYSettingItem itemWithTitle:@"进度条美化" key:GHL_KEY_PROGRESS_BAR_BEAUTIFY type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"进度条颜色" key:GHL_KEY_PROGRESS_BAR_COLOR type:DYYYSettingItemTypeColor],
+            [DYYYSettingItem itemWithTitle:@"进度条粗细" key:GHL_KEY_PROGRESS_BAR_THICKNESS type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"隐藏视频进度" key:@"DYYYHideVideoProgress" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"启用自动播放" key:@"DYYYEnableAutoPlay" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"忽略投屏 VPN 检测" key:@"DYYYDisableCastVPNCheck" type:DYYYSettingItemTypeSwitch],
@@ -357,7 +369,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"通知圆角半径" key:@"DYYYNotificationCornerRadius" type:DYYYSettingItemTypeTextField placeholder:@"默认12"],
             [DYYYSettingItem itemWithTitle:@"时间属地显示" key:@"DYYYEnableArea" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"国外解析账号" key:@"DYYYGeonamesUsername" type:DYYYSettingItemTypeTextField placeholder:@"需填写才能解析国外"],
-            [DYYYSettingItem itemWithTitle:@"时间标签颜色" key:@"DYYYLabelColor" type:DYYYSettingItemTypeTextField placeholder:@"十六进制"],
+            [DYYYSettingItem itemWithTitle:@"时间标签颜色" key:@"DYYYLabelColor" type:DYYYSettingItemTypeColor],
             [DYYYSettingItem itemWithTitle:@"属地随机渐变" key:@"DYYYEnableRandomGradient" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"隐藏系统顶栏" key:@"DYYYHideStatusbar" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"关注二次确认" key:@"DYYYFollowTips" type:DYYYSettingItemTypeSwitch],
@@ -384,7 +396,16 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"跟随系统深色" key:GHL_KEY_FOLLOW_SYSTEM_DARK type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"更换背景图" key:GHL_KEY_CHANGE_BACKGROUND type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"恢复默认背景" key:GHL_KEY_RESET_BACKGROUND type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"恢复默认龙头" key:GHL_KEY_RESET_LOGO type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"恢复默认龙头" key:GHL_KEY_RESET_LOGO type:DYYYSettingItemTypePicker],
+            // 1.0.8 美化：主题预设 / 侧边栏 / 头像金边 / 底栏毛玻璃 / 双击爱心探针
+            [DYYYSettingItem itemWithTitle:@"主题预设" key:GHL_KEY_THEME_PRESET type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"右侧边栏美化" key:GHL_KEY_SIDEBAR_BEAUTIFY type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"侧边栏图标大小（0.5-1.5）" key:GHL_KEY_SIDEBAR_ICON_SCALE type:DYYYSettingItemTypeTextField placeholder:@"默认1.0"],
+            [DYYYSettingItem itemWithTitle:@"侧边栏间距（pt，可负）" key:GHL_KEY_SIDEBAR_SPACING type:DYYYSettingItemTypeTextField placeholder:@"默认0"],
+            [DYYYSettingItem itemWithTitle:@"侧边栏图标圆角底" key:GHL_KEY_SIDEBAR_PILL_BG type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"头像金边" key:GHL_KEY_AVATAR_GOLD_RING type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"底栏毛玻璃（选中态变金）" key:GHL_KEY_TABBAR_GLASS type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"双击爱心探针（实验，需真机日志验证）" key:GHL_KEY_DOUBLE_TAP_HEART_PROBE type:DYYYSettingItemTypeSwitch]
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"隐藏全屏观看" key:@"DYYYHideEntry" type:DYYYSettingItemTypeSwitch],
@@ -811,6 +832,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         // 1.0.4 恢复默认龙头
         return @[ @"恢复默认龙头" ];
+    } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
+        // 1.0.8 主题预设：点一套就把现有颜色类 key 一次设好
+        return @[ @"无", @"金龙", @"冰蓝", @"樱粉", @"暗夜" ];
+    } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
+        // 1.0.8 进度条粗细
+        return @[ @"细", @"标准", @"粗" ];
     } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
         // 1.0.4 悬浮按钮自定义：动作候选只给已经存在的功能
@@ -855,6 +882,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认背景";
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
+        // 1.0.8 主题预设：没选过就是无
+        return value ?: @"无";
+    } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
+        // 1.0.8 进度条粗细：没选过就是标准
+        return value ?: @"标准";
     } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
         // 悬浮按钮动作：没配过就是默认
@@ -895,6 +928,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"恢复默认背景";
     } else if ([key isEqualToString:GHL_KEY_RESET_LOGO]) {
         return @"恢复默认龙头";
+    } else if ([key isEqualToString:GHL_KEY_THEME_PRESET]) {
+        return @"无";
+    } else if ([key isEqualToString:GHL_KEY_PROGRESS_BAR_THICKNESS]) {
+        return @"标准";
     } else if ([key isEqualToString:GHL_KEY_SPEED_BUTTON_TAP] || [key isEqualToString:GHL_KEY_SPEED_BUTTON_LONGPRESS] ||
                [key isEqualToString:GHL_KEY_CLEAR_BUTTON_TAP] || [key isEqualToString:GHL_KEY_CLEAR_BUTTON_LONGPRESS]) {
         return GHL_FLOAT_ACTION_DEFAULT;
@@ -1114,6 +1151,33 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [textField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingDidEnd];
         textField.tag = tag;
         cell.accessoryView = textField;
+    } else if (item.type == DYYYSettingItemTypeColor) {
+        // 1.0.8 调色盘：色块 + hex，点一行弹出系统调色盘，选完写回这个 key。
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        NSString *hex = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
+        if (![hex isKindOfClass:[NSString class]] || hex.length == 0) {
+            if ([item.key isEqualToString:GHL_KEY_PROGRESS_BAR_COLOR]) hex = @"D4AF37";
+            else hex = @"FFFFFF";
+        }
+        UIColor *color = [DYYYUtils colorFromSchemeHexString:hex targetWidth:28] ?: [UIColor whiteColor];
+
+        UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 110, 44)];
+        UIView *swatch = [[UIView alloc] initWithFrame:CGRectMake(0, 8, 28, 28)];
+        swatch.backgroundColor = color;
+        swatch.layer.cornerRadius = 6;
+        swatch.layer.borderWidth = 1.0 / [UIScreen mainScreen].scale;
+        swatch.layer.borderColor = [DYYYUtils dYYYSettingsSecondaryTextColorDarkMode:dark].CGColor;
+        [containerView addSubview:swatch];
+
+        UILabel *hexLabel = [[UILabel alloc] initWithFrame:CGRectMake(36, 0, 74, 44)];
+        hexLabel.text = [@"#" stringByAppendingString:hex];
+        hexLabel.font = [UIFont systemFontOfSize:13];
+        hexLabel.textColor = [DYYYUtils dYYYSettingsPrimaryTextColorDarkMode:dark];
+        hexLabel.textAlignment = NSTextAlignmentRight;
+        hexLabel.tag = tag;
+        [containerView addSubview:hexLabel];
+
+        cell.accessoryView = containerView;
     } else if (item.type == DYYYSettingItemTypePicker) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
 
@@ -1202,6 +1266,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     DYYYSettingItem *item = [self itemForIndexPath:indexPath];
     if (item.type == DYYYSettingItemTypePicker) {
         [self showUniversalPickerForIndexPath:indexPath];
+    } else if (item.type == DYYYSettingItemTypeColor) {
+        // 1.0.8 调色盘：点颜色行弹出系统调色盘。
+        [self ghlPresentColorPickerForItem:item];
     }
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 }
@@ -1265,6 +1332,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                                  pickerLabel.text = [self displayValueForKey:item.key value:option];
                                                              }
                                                          }
+
+                                                         // 1.0.8 主题预设：一次改了好几个颜色 key，整表刷新让各颜色行显示新 hex。
+                                                         if ([item.key isEqualToString:GHL_KEY_THEME_PRESET]) {
+                                                             GHLApplyThemePreset((NSString *)option);
+                                                             [self.tableView reloadData];
+                                                         }
                                                        }];
         [alert addAction:action];
     }
@@ -1279,6 +1352,48 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     }
 
     [self presentViewController:alert animated:YES completion:nil];
+}
+
+#pragma mark - 1.0.8 调色盘（UIColorPickerViewController，iOS 14+）
+
+// 点颜色行弹出系统调色盘，选完把 hex 写回原来那个 key（已有行为不变，只是入口变好用）。
+- (void)ghlPresentColorPickerForItem:(DYYYSettingItem *)item {
+    UIColorPickerViewController *picker = [[UIColorPickerViewController alloc] init];
+    NSString *hex = [[NSUserDefaults standardUserDefaults] objectForKey:item.key];
+    if (![hex isKindOfClass:[NSString class]] || hex.length == 0) {
+        if ([item.key isEqualToString:GHL_KEY_PROGRESS_BAR_COLOR]) hex = @"D4AF37";
+        else hex = @"FFFFFF";
+    }
+    picker.selectedColor = [DYYYUtils colorFromSchemeHexString:hex targetWidth:28] ?: [UIColor whiteColor];
+    picker.delegate = self;
+    self.pendingColorPickerKey = item.key;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)colorPickerViewControllerDidSelectColor:(UIColorPickerViewController *)viewController {
+    NSString *key = self.pendingColorPickerKey;
+    if (!key) return;
+    NSString *hex = [DYYYUtils dYYYHexStringFromColor:viewController.selectedColor];
+    [[NSUserDefaults standardUserDefaults] setObject:hex forKey:key];
+    // 实时刷新可见行的色块和 hex，不等关掉调色盘。
+    for (UITableViewCell *cell in self.tableView.visibleCells) {
+        NSIndexPath *indexPath = [self.tableView indexPathForCell:cell];
+        if (!indexPath) continue;
+        DYYYSettingItem *item = [self itemForIndexPath:indexPath];
+        if (![item.key isEqualToString:key]) continue;
+        UIView *containerView = cell.accessoryView;
+        if (!containerView || containerView.subviews.count < 2) continue;
+        UIView *swatch = containerView.subviews[0];
+        UILabel *hexLabel = (UILabel *)containerView.subviews[1];
+        if (![hexLabel isKindOfClass:[UILabel class]]) continue;
+        swatch.backgroundColor = viewController.selectedColor;
+        hexLabel.text = [@"#" stringByAppendingString:hex];
+    }
+}
+
+- (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)viewController {
+    self.pendingColorPickerKey = nil;
+    [self.tableView reloadData];
 }
 
 #pragma mark - Actions

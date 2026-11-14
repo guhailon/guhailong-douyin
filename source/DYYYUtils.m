@@ -2248,6 +2248,21 @@ static os_unfair_lock _staticColorCreationLock = OS_UNFAIR_LOCK_INIT;
     return [UIColor colorWithRed:red green:green blue:blue alpha:alpha];
 }
 
+// 1.0.8 美化：UIColor 转 RRGGBB 大写 hex（调色盘选完写回设置用）。
++ (NSString *)dYYYHexStringFromColor:(UIColor *)color {
+    if (!color) return @"FFFFFF";
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    if ([color getRed:&r green:&g blue:&b alpha:&a]) {
+        return [NSString stringWithFormat:@"%02X%02X%02X", (int)round(r * 255), (int)round(g * 255), (int)round(b * 255)];
+    }
+    CGFloat white = 0;
+    if ([color getWhite:&white alpha:&a]) {
+        int v = (int)round(white * 255);
+        return [NSString stringWithFormat:@"%02X%02X%02X", v, v, v];
+    }
+    return @"FFFFFF";
+}
+
 /**
  * @brief 私有辅助方法：生成一个随机颜色。
  * @return 随机生成的 UIColor 对象。

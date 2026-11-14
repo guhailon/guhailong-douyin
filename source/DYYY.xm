@@ -3147,6 +3147,9 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 
 %end
 
+// 1.0.8 弹幕字号缩放：以第一次看到的原生字号为基准（不叠加）。
+static char kDYYYDanmakuOrigFontSizeKey;
+
 %hook AWEDanmakuContentLabel
 - (void)setTextColor:(UIColor *)textColor {
     if (DYYYGetBool(@"DYYYEnableDanmuColor")) {
@@ -3160,7 +3163,48 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
     }
 }
 
+// 1.0.8 弹幕样式：字号按设定缩放（以第一次看到的原生字号为基准，不叠加）。
+- (void)setFont:(UIFont *)font {
+    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
+        NSString *scaleString = GHLGetString(GHL_KEY_DANMAKU_FONT_SCALE);
+        CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
+        if (scale < 0.5) scale = 0.5;
+        if (scale > 2.0) scale = 2.0;
+        if (fabs(scale - 1.0) > 0.01 && font) {
+            NSNumber *origSize = objc_getAssociatedObject(self, &kDYYYDanmakuOrigFontSizeKey);
+            if (!origSize) {
+                origSize = @(font.pointSize);
+                objc_setAssociatedObject(self, &kDYYYDanmakuOrigFontSizeKey, origSize, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            %orig([font fontWithSize:[origSize floatValue] * scale]);
+            return;
+        }
+    }
+    %orig;
+}
+
+// 1.0.8 弹幕样式：透明度按设定封顶（乘在抖音自己的透明度上，淡入淡出动画不受影响）。
+- (void)setAlpha:(CGFloat)alpha {
+    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
+        NSString *alphaString = GHLGetString(GHL_KEY_DANMAKU_ALPHA);
+        CGFloat cap = alphaString.length > 0 ? [alphaString floatValue] : 1.0;
+        if (cap > 0 && cap < 1.0) {
+            %orig(alpha * cap);
+            return;
+        }
+    }
+    %orig;
+}
+
 - (void)setStrokeWidth:(double)strokeWidth {
+    // 1.0.8 弹幕样式：描边宽度按设定走（没填就走原来的逻辑）。
+    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
+        NSString *strokeString = GHLGetString(GHL_KEY_DANMAKU_STROKE);
+        if (strokeString.length > 0) {
+            %orig([strokeString doubleValue]);
+            return;
+        }
+    }
     if (DYYYGetBool(@"DYYYEnableDanmuColor")) {
         %orig(FLT_MIN);
     } else {
@@ -3169,6 +3213,11 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 }
 
 - (void)setStrokeColor:(UIColor *)strokeColor {
+    // 1.0.8 弹幕样式：描边配了宽度就用深色描边，否则走原来的逻辑。
+    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE) && GHLGetString(GHL_KEY_DANMAKU_STROKE).length > 0) {
+        %orig([UIColor colorWithWhite:0 alpha:0.85]);
+        return;
+    }
     if (DYYYGetBool(@"DYYYEnableDanmuColor")) {
         %orig(nil);
     } else {
@@ -3176,6 +3225,46 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
     }
 }
 
+%end
+
+// 1.0.8 弹幕太多自动变淡：弹幕容器每 2 秒数一次在屏弹幕，超过 20 条就整体降到 0.55，
+// 降下来恢复 1.0；抖音自己把容器藏起来（alpha=0）时不动它。有界、有节流。
+static char kDYYYDanmakuFadeLastCheckKey;
+static char kDYYYDanmakuFadedByUsKey;
+
+static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
+    if (!view || cap == 0) return 0;
+    NSUInteger count = 0;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0 && count < cap) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        if ([candidate isKindOfClass:NSClassFromString(@"AWEDanmakuContentLabel")]) count++;
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+    return count;
+}
+
+%hook AWEDanmakuContainerView
+- (void)layoutSubviews {
+    %orig;
+    if (!GHLGetBool(GHL_KEY_DANMAKU_AUTO_FADE)) return;
+    NSDate *lastCheck = objc_getAssociatedObject(self, &kDYYYDanmakuFadeLastCheckKey);
+    if (lastCheck && [[NSDate date] timeIntervalSinceDate:lastCheck] < 2.0) return;
+    objc_setAssociatedObject(self, &kDYYYDanmakuFadeLastCheckKey, [NSDate date], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (self.alpha <= 0) return;
+    NSUInteger labelCount = DYYYCountDanmakuLabelsInView(self, 30);
+    BOOL fadedByUs = [objc_getAssociatedObject(self, &kDYYYDanmakuFadedByUsKey) boolValue];
+    if (labelCount > 20) {
+        if (self.alpha > 0.55) {
+            self.alpha = 0.55;
+            objc_setAssociatedObject(self, &kDYYYDanmakuFadedByUsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    } else if (fadedByUs) {
+        self.alpha = 1.0;
+        objc_setAssociatedObject(self, &kDYYYDanmakuFadedByUsKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
 %end
 
 %hook XIGDanmakuPlayerView
@@ -3341,11 +3430,73 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 
 %end
 
+// 1.0.8 进度条美化：加粗、圆角、默认金色 #D4AF37（跟品牌色一致）。
+// 只认像横条的子视图（高 ≤6pt、宽 ≥ 滑条一半、不是 UILabel）：最宽那条是轨道，
+// 其余是填充；只改高度/圆角/背景色，不动滑条本身的位置和手势。
+static void DYYYApplyProgressBarBeautifyToSlider(UIView *slider) {
+    if (!slider || !GHLGetBool(GHL_KEY_PROGRESS_BAR_BEAUTIFY)) return;
+    if (![NSThread isMainThread]) return;
+    CGFloat thickness = 5.0;
+    NSString *thicknessValue = GHLGetString(GHL_KEY_PROGRESS_BAR_THICKNESS);
+    if ([thicknessValue isEqualToString:@"细"]) thickness = 3.0;
+    else if ([thicknessValue isEqualToString:@"粗"]) thickness = 7.0;
+    NSString *colorHex = GHLGetString(GHL_KEY_PROGRESS_BAR_COLOR);
+    if (colorHex.length == 0) colorHex = @"D4AF37";
+    UIColor *fillColor = [DYYYUtils colorFromSchemeHexString:colorHex targetWidth:MAX(1.0, CGRectGetWidth(slider.bounds))];
+    if (!fillColor) fillColor = [DYYYUtils dYYYGoldAccentColor];
+
+    NSMutableArray<UIView *> *bars = [NSMutableArray array];
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:slider];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        if (candidate != slider && [candidate isKindOfClass:[UIView class]] && ![candidate isKindOfClass:[UILabel class]]) {
+            CGFloat h = CGRectGetHeight(candidate.bounds);
+            CGFloat w = CGRectGetWidth(candidate.bounds);
+            NSString *className = NSStringFromClass(candidate.class);
+            BOOL barLike = (h > 0 && h <= 6 && w >= CGRectGetWidth(slider.bounds) * 0.5) ||
+                           ([className containsString:@"Track"] && h > 0 && h <= 6);
+            if (barLike) [bars addObject:candidate];
+        }
+        // 只往下找两层（滑条本身一层、轨道一层），别翻整个互动层。
+        if (candidate == slider || [candidate.superview isEqual:slider]) [stack addObjectsFromArray:candidate.subviews];
+    }
+    if (bars.count == 0) return;
+    UIView *track = nil;
+    CGFloat maxWidth = 0;
+    for (UIView *bar in bars) {
+        if (CGRectGetWidth(bar.bounds) > maxWidth) {
+            maxWidth = CGRectGetWidth(bar.bounds);
+            track = bar;
+        }
+    }
+    CGFloat midY = CGRectGetMidY(slider.bounds);
+    for (UIView *bar in bars) {
+        // 把条子在滑条内垂直居中：先算目标 y（滑条坐标），再换算回条子父视图的坐标。
+        CGRect barInSlider = [bar.superview convertRect:bar.frame toView:slider];
+        CGFloat targetYInSlider = midY - thickness / 2.0;
+        CGPoint targetOriginInSuperview = [slider convertPoint:CGPointMake(CGRectGetMinX(barInSlider), targetYInSlider) toView:bar.superview];
+        CGRect frame = bar.frame;
+        frame.origin.y = targetOriginInSuperview.y;
+        frame.size.height = thickness;
+        bar.frame = frame;
+        bar.layer.cornerRadius = thickness / 2.0;
+        bar.layer.masksToBounds = YES;
+        if (bar == track && bars.count > 1) {
+            bar.backgroundColor = [UIColor colorWithWhite:1 alpha:0.25];
+        } else {
+            bar.backgroundColor = fillColor;
+        }
+    }
+}
+
 %hook AWEFeedProgressSlider
 
 - (void)layoutSubviews {
     %orig;
     DYYYApplyFloatClearProgressStateToView(self);
+    // 1.0.8 进度条美化（开关在设置里，默认关）。
+    DYYYApplyProgressBarBeautifyToSlider(self);
 }
 
 - (void)setAlpha:(CGFloat)alpha {
@@ -9531,6 +9682,97 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
+// 1.0.8 头像金边：视频页头像加一圈金边（跟龙头金边同色 #D4AF37）。
+// 关注状态从旁边的 StaticFollowAnimationView 读：✓ 可见 = 已关注（实心粗边），
+// + 可见 = 未关注（细边）；读不到关注状态就统一实心金边，并记一条日志。
+// 开关关了就把我们加过的边框清掉（只清我们标记过的，不动抖音自己的）。
+static char kDYYYAvatarGoldRingAppliedKey;
+static NSTimeInterval DYYYAvatarGoldRingLastLogTime = 0;
+
+static UIImageView *DYYYFindAvatarImageViewInView(UIView *view, NSInteger depth) {
+    if (!view || depth > 4) return nil;
+    UIImageView *best = nil;
+    CGFloat bestWidth = 0;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    NSMutableArray *depths = [NSMutableArray arrayWithObject:@0];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        NSInteger d = [[depths lastObject] integerValue];
+        [depths removeLastObject];
+        if (d > 0 && [candidate isKindOfClass:[UIImageView class]]) {
+            NSString *className = NSStringFromClass(candidate.class);
+            BOOL isBadge = [className containsString:@"Follow"] || [className containsString:@"follow"] || [className containsString:@"Plus"] ||
+                           [className containsString:@"plus"] || [className containsString:@"Animation"] || [className containsString:@"LOT"];
+            CGFloat w = CGRectGetWidth(candidate.bounds);
+            CGFloat h = CGRectGetHeight(candidate.bounds);
+            if (!isBadge && w >= 28 && fabs(w - h) <= 4 && w > bestWidth) {
+                best = (UIImageView *)candidate;
+                bestWidth = w;
+            }
+        }
+        if (d < 4) {
+            for (UIView *subview in candidate.subviews) {
+                [stack addObject:subview];
+                [depths addObject:@(d + 1)];
+            }
+        }
+    }
+    return best;
+}
+
+static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
+    if (!avatarView) return;
+    UIImageView *avatarImageView = DYYYFindAvatarImageViewInView(avatarView, 0);
+    if (!avatarImageView) return;
+    if (!GHLGetBool(GHL_KEY_AVATAR_GOLD_RING)) {
+        if (objc_getAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey)) {
+            avatarImageView.layer.borderWidth = 0;
+            objc_setAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        return;
+    }
+    // 关注状态：找 StaticFollowAnimationView，看 ✓ 还是 + 哪边可见。
+    BOOL followed = NO;
+    BOOL notFollowed = NO;
+    BOOL foundFollowView = NO;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:avatarView];
+    while (stack.count > 0 && !foundFollowView) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        if ([NSStringFromClass(candidate.class) isEqualToString:@"AWEPlayInteractionStaticFollowAnimationView"]) {
+            foundFollowView = YES;
+            AWEPlayInteractionStaticFollowAnimationView *followView = (AWEPlayInteractionStaticFollowAnimationView *)candidate;
+            UIImageView *tick = followView.tickImageView;
+            UIImageView *plus = followView.plusImageView;
+            if (tick && !tick.hidden && tick.alpha > 0.1) followed = YES;
+            if (plus && !plus.hidden && plus.alpha > 0.1) notFollowed = YES;
+            break;
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+    UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
+    CGFloat width = CGRectGetWidth(avatarImageView.bounds);
+    if (followed) {
+        avatarImageView.layer.borderColor = gold.CGColor;
+        avatarImageView.layer.borderWidth = 2.5;
+    } else if (notFollowed) {
+        avatarImageView.layer.borderColor = [gold colorWithAlphaComponent:0.6].CGColor;
+        avatarImageView.layer.borderWidth = 1.0;
+    } else {
+        avatarImageView.layer.borderColor = gold.CGColor;
+        avatarImageView.layer.borderWidth = 2.0;
+        NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+        if (now - DYYYAvatarGoldRingLastLogTime > 10.0) {
+            DYYYAvatarGoldRingLastLogTime = now;
+            GHLLog(@"头像金边：没读到关注状态，用统一实心金边");
+        }
+    }
+    avatarImageView.layer.cornerRadius = width / 2.0;
+    avatarImageView.layer.masksToBounds = YES;
+    objc_setAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 %hook AWEPlayInteractionUserAvatarView
 - (void)layoutSubviews {
     %orig;
@@ -9539,6 +9781,9 @@ static NSHashTable *processedParentViews = nil;
         DYYYHideAvatarVisualForSelector(self, NSSelectorFromString(@"userAvatarView"));
         DYYYApplyAvatarSurroundingSettingsForOwner(self);
     }
+
+    // 1.0.8 头像金边（开关在设置里，默认关）。
+    DYYYApplyAvatarGoldRingInView(self);
 
     DYYYApplyAvatarFollowPromptSettingsWithRetry(self);
 }
@@ -10745,6 +10990,79 @@ static void DYYYTabBarScheduleDelayedHideRecheck(AWENormalModeTabBar *tabBar) {
     });
 }
 
+// 1.0.8 底栏毛玻璃：底栏最底层垫一块跟随深浅色的毛玻璃（UIVisualEffectView，
+// 跟 1.0.5 头卡同一套做法），不拦截触摸；选中态按钮的文字/图标变金色。
+// 不碰 1.0.7 的隐藏逻辑：毛玻璃只是最底层的一个普通视图，不会被收进候选按钮，
+// 隐藏的按钮仍藏住，剩下的均匀重排照常。
+static char kDYYYTabBarGlassViewKey;
+static char kDYYYTabBarOrigLabelColorKey;
+static char kDYYYTabBarOrigTintColorKey;
+
+static void DYYYApplyTabBarSelectedGold(AWENormalModeTabBar *tabBar, BOOL enabled) {
+    NSMutableArray<UIView *> *candidates = [NSMutableArray array];
+    DYYYTabBarCollectButtonsInView(tabBar, 3, candidates);
+    UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
+    for (UIView *candidate in candidates) {
+        if (![candidate isKindOfClass:[UIButton class]]) continue;
+        UIButton *button = (UIButton *)candidate;
+        UILabel *label = nil;
+        NSMutableArray *stack = [NSMutableArray arrayWithObject:button];
+        while (stack.count > 0 && !label) {
+            UIView *v = stack.lastObject;
+            [stack removeLastObject];
+            if ([v isKindOfClass:[UILabel class]]) {
+                label = (UILabel *)v;
+                break;
+            }
+            [stack addObjectsFromArray:v.subviews];
+        }
+        // status == 2 表示选中（沿用“禁用首页刷新”里已有的判断）。
+        BOOL selected = NO;
+        if ([button respondsToSelector:@selector(status)]) {
+            selected = ([[button valueForKey:@"status"] integerValue] == 2);
+        }
+        if (enabled && selected) {
+            if (!objc_getAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey)) {
+                objc_setAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey, label.textColor ?: [UIColor whiteColor], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                id origTint = button.imageView.tintColor ?: (id)[NSNull null];
+                objc_setAssociatedObject(button, &kDYYYTabBarOrigTintColorKey, origTint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            if (label) label.textColor = gold;
+            button.imageView.tintColor = gold;
+        } else {
+            UIColor *origLabel = objc_getAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey);
+            if (origLabel && label) label.textColor = origLabel;
+            id origTint = objc_getAssociatedObject(button, &kDYYYTabBarOrigTintColorKey);
+            if (origTint) {
+                button.imageView.tintColor = (origTint == (id)[NSNull null]) ? nil : (UIColor *)origTint;
+            }
+        }
+    }
+}
+
+static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
+    if (!tabBar) return;
+    UIVisualEffectView *glass = objc_getAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey);
+    if (!GHLGetBool(GHL_KEY_TABBAR_GLASS)) {
+        if (glass) {
+            [glass removeFromSuperview];
+            objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        DYYYApplyTabBarSelectedGold(tabBar, NO);
+        return;
+    }
+    if (!glass) {
+        glass = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]];
+        glass.userInteractionEnabled = NO;
+        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    glass.frame = tabBar.bounds;
+    if (glass.superview != tabBar) [tabBar insertSubview:glass atIndex:0];
+    tabBar.backgroundColor = [UIColor clearColor];
+    DYYYApplyTabBarSelectedGold(tabBar, YES);
+}
+
 %hook AWENormalModeTabBarPlusButton
 
 - (void)setHidden:(BOOL)hidden {
@@ -10848,6 +11166,9 @@ static Class tabBarButtonClass = nil;
     // 再挂一个 0.5 秒后的补查，防止抖音在我们之后又把按钮显示回来。
     DYYYApplyTabBarHideSettings(self);
     DYYYTabBarScheduleDelayedHideRecheck(self);
+
+    // 1.0.8：底栏毛玻璃 + 选中态金色（只在最底层垫毛玻璃，不动隐藏逻辑）。
+    DYYYApplyTabBarGlassEffect(self);
 
     // 禁用首页刷新功能
     if (DYYYGetBool(@"DYYYDisableHomeRefresh")) {
@@ -11480,6 +11801,8 @@ static Class tabBarButtonClass = nil;
     if (!isSwitchOn) {
         %orig;
     }
+    // 1.0.8 双击爱心探针：双击后扫一遍互动层，认爱心动画的视图类（开关在设置里，默认关）。
+    GHLProbeDoubleTapHeartInView(self.view);
 }
 
 - (void)viewWillAppear:(BOOL)animated {

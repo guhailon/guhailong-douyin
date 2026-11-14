@@ -207,7 +207,7 @@ BOOL GHLPerformGestureAction(NSString *action) {
     return NO;
 }
 
-// 更新日志文本（1.0.1–1.0.7 各一行真实改动，以 git log 为准）。
+// 更新日志文本（1.0.1–1.0.8 各一行真实改动，以 git log 为准）。
 NSString *GHLChangelogText(void) {
     return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
            @"1.0.2：设置主页改白色单步直达，龙头招牌，语音四项探针。\n"
@@ -215,7 +215,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.4：导入/导出配置、恢复默认配置、下载管理、语音包收藏、深色模式、悬浮按钮自定义、更新日志、加群按钮、龙头和背景可换、界面视觉统一。\n"
            @"1.0.5：设置主页头卡改成毛玻璃，背景图从头卡里透出来；手势自定义（三击/双指双击/左滑/右滑）。\n"
            @"1.0.6：诊断日志改写到 App 自己的 Documents/DYYY/ 文件夹，沙盒里也能写出来；设置里加「顾海龙日志」，点进去能看日志、刷新、清空、分享。\n"
-           @"1.0.7：修底栏朋友和加号藏不住（不认类名改名、标签为空、按钮被容器包着都能认；头像下的关注加号按位置认），底栏诊断写进顾海龙日志。";
+           @"1.0.7：修底栏朋友和加号藏不住（不认类名改名、标签为空、按钮被容器包着都能认；头像下的关注加号按位置认），底栏诊断写进顾海龙日志。\n"
+           @"1.0.8：颜色行改系统调色盘，主题预设一键换（金龙/冰蓝/樱粉/暗夜），侧边栏图标大小/间距/圆角底，进度条加粗圆角默认金色，头像金边（关注实心/未关注细边），弹幕字号/描边/透明度+多时自动变淡，底栏毛玻璃+选中态金色；双击爱心换图标仍是探针（爱心动画类没找到，只记日志，需真机验证）。";
 }
 
 static void GHLCollectPlayerLayersInView(UIView *view, NSMutableArray<AVPlayerLayer *> *out) {
@@ -705,6 +706,48 @@ void GHLProbeAntiRecall(void) {
 
 #pragma mark - 手势：双击快进 / 三指双击清屏 / 边缘滑动切视频
 
+// 1.0.8 双击爱心探针：双击后 0.35 秒扫一遍互动层，记下可能是爱心动画的视图。
+// 背景：双击爱心是抖音 %orig 里弹出来的，AwemeHeaders 里没有爱心动画类，
+// 代码无法断定它是 Lottie 还是 UIImageView——先靠真机日志认类，再决定能不能换。
+static void GHLCollectHeartProbeCandidatesInView(UIView *view, NSMutableArray<NSString *> *out, NSInteger depth) {
+    if (!view || depth > 5 || out.count >= 10) return;
+    NSString *className = NSStringFromClass(view.class);
+    BOOL isLottie = [className isEqualToString:@"LOTAnimationView"];
+    BOOL isBigImage = [view isKindOfClass:[UIImageView class]] && CGRectGetWidth(view.bounds) >= 60 && CGRectGetHeight(view.bounds) >= 60;
+    if (isLottie || isBigImage) {
+        NSString *extra = @"";
+        if (isLottie) {
+            @try {
+                id animation = [view valueForKey:@"animation"];
+                if (animation) {
+                    NSString *name = nil;
+                    @try { name = [animation valueForKey:@"name"]; } @catch (__unused NSException *e) { }
+                    if (!name) { @try { name = [animation valueForKey:@"animationName"]; } @catch (__unused NSException *e2) { } }
+                    if (name.length > 0) extra = [NSString stringWithFormat:@" 动画=%@", name];
+                }
+            } @catch (__unused NSException *e) { }
+        }
+        [out addObject:[NSString stringWithFormat:@"%@ %.0fx%.0f 中心(%.0f,%.0f)%@", className, CGRectGetWidth(view.bounds), CGRectGetHeight(view.bounds), view.center.x, view.center.y, extra]];
+    }
+    for (UIView *subview in view.subviews) GHLCollectHeartProbeCandidatesInView(subview, out, depth + 1);
+}
+
+void GHLProbeDoubleTapHeartInView(UIView *view) {
+    if (!view || !GHLGetBool(GHL_KEY_DOUBLE_TAP_HEART_PROBE)) return;
+    __weak UIView *weakView = view;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      UIView *strongView = weakView;
+      if (!strongView || !strongView.window) return;
+      NSMutableArray<NSString *> *found = [NSMutableArray array];
+      GHLCollectHeartProbeCandidatesInView(strongView, found, 0);
+      if (found.count > 0) {
+          GHLLog(@"双击爱心探针：双击后 0.35 秒看到 %lu 个候选：%@", (unsigned long)found.count, [found componentsJoinedByString:@" | "]);
+      } else {
+          GHLLog(@"双击爱心探针：双击后 0.35 秒没看到 LOTAnimationView 或大图——爱心可能是更小的图或已播完消失");
+      }
+    });
+}
+
 static char kGHLGesturesInstalledKey;
 static char kGHLSidebarOrderAppliedKey;
 
@@ -971,6 +1014,129 @@ static void GHLApplySidebarOrderInView(UIView *view) {
             return;
         }
         [stack addObjectsFromArray:candidate.subviews];
+    }
+}
+
+#pragma mark - (44) 1.0.8 美化：主题预设
+
+// 主题预设一次写好现有颜色类 key（只写真实存在的 key，不编造；选完仍可在各行单独微调）。
+void GHLApplyThemePreset(NSString *preset) {
+    if (!preset || [preset isEqualToString:@"无"]) return;
+    NSDictionary<NSString *, NSString *> *values = nil;
+    if ([preset isEqualToString:@"金龙"]) {
+        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"FFD700", @"DYYYProgressLabelColor" : @"D4AF37", @"DYYYLabelColor" : @"D4AF37", GHL_KEY_PROGRESS_BAR_COLOR : @"D4AF37"};
+    } else if ([preset isEqualToString:@"冰蓝"]) {
+        values = @{@"DYYYVideoBGColor" : @"0A1628", @"DYYYDanmuColor" : @"7DD3FC", @"DYYYProgressLabelColor" : @"7DD3FC", @"DYYYLabelColor" : @"BAE6FD", GHL_KEY_PROGRESS_BAR_COLOR : @"38BDF8"};
+    } else if ([preset isEqualToString:@"樱粉"]) {
+        values = @{@"DYYYVideoBGColor" : @"1F0A14", @"DYYYDanmuColor" : @"FDA4AF", @"DYYYProgressLabelColor" : @"FDA4AF", @"DYYYLabelColor" : @"FBCFE8", GHL_KEY_PROGRESS_BAR_COLOR : @"F472B6"};
+    } else if ([preset isEqualToString:@"暗夜"]) {
+        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"E5E7EB", @"DYYYProgressLabelColor" : @"9CA3AF", @"DYYYLabelColor" : @"9CA3AF", GHL_KEY_PROGRESS_BAR_COLOR : @"6B7280"};
+    }
+    if (!values) return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    for (NSString *key in values) [defaults setObject:values[key] forKey:key];
+    [defaults synchronize];
+    GHLLog(@"主题预设：已应用 %@ 主题", preset);
+}
+
+#pragma mark - (44) 1.0.8 美化：右侧边栏（图标缩放 / 间距 / 圆角底）
+
+static char kGHLSidebarPillViewKey;
+static char kGHLSidebarBaselinePitchKey;
+static char kGHLSidebarBaselineCountKey;
+
+// 在 interaction 层里找装着 AWEFeedVideoButton 的容器（跟排序函数同一套找法）。
+static UIView *GHLFindSidebarButtonContainer(UIView *view, NSMutableArray<AWEFeedVideoButton *> *outButtons) {
+    if (!view) return nil;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
+    while (stack.count > 0) {
+        UIView *candidate = stack.lastObject;
+        [stack removeLastObject];
+        NSMutableArray *buttons = [NSMutableArray array];
+        for (UIView *subview in candidate.subviews) {
+            if ([subview isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")]) [buttons addObject:subview];
+        }
+        if (buttons.count >= 2) {
+            if (outButtons) [outButtons addObjectsFromArray:buttons];
+            return candidate;
+        }
+        [stack addObjectsFromArray:candidate.subviews];
+    }
+    return nil;
+}
+
+void GHLApplySidebarBeautifyInView(UIView *view) {
+    if (!view || !GHLGetBool(GHL_KEY_SIDEBAR_BEAUTIFY)) return;
+    if (![NSThread isMainThread]) return;
+    NSMutableArray<AWEFeedVideoButton *> *buttons = [NSMutableArray array];
+    UIView *container = GHLFindSidebarButtonContainer(view, buttons);
+    if (!container || buttons.count < 2) return;
+
+    // 图标缩放：只动 imageView 的 transform，不动按钮 frame，点按区域不变。
+    NSString *scaleString = GHLGetString(GHL_KEY_SIDEBAR_ICON_SCALE);
+    CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
+    if (scale < 0.5) scale = 0.5;
+    if (scale > 1.5) scale = 1.5;
+    BOOL pillOn = GHLGetBool(GHL_KEY_SIDEBAR_PILL_BG);
+    for (AWEFeedVideoButton *button in buttons) {
+        UIImageView *iconView = button.imageView;
+        if (iconView) {
+            iconView.transform = (fabs(scale - 1.0) > 0.01) ? CGAffineTransformMakeScale(scale, scale) : CGAffineTransformIdentity;
+        }
+        // 圆角底：每颗图标下面垫一块半透明圆角底，只包图标不包数字标签，不拦截触摸。
+        UIView *pill = objc_getAssociatedObject(button, &kGHLSidebarPillViewKey);
+        if (pillOn && iconView) {
+            if (!pill) {
+                pill = [[UIView alloc] init];
+                pill.userInteractionEnabled = NO;
+                pill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.28];
+                objc_setAssociatedObject(button, &kGHLSidebarPillViewKey, pill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                [button insertSubview:pill atIndex:0];
+            }
+            CGRect iconFrame = iconView.frame;
+            CGFloat pad = 8.0;
+            CGFloat pillHeight = CGRectGetHeight(iconFrame) + pad * 2;
+            pill.frame = CGRectMake(CGRectGetMidX(iconFrame) - pillHeight / 2, CGRectGetMidY(iconFrame) - pillHeight / 2, pillHeight, pillHeight);
+            pill.layer.cornerRadius = pillHeight / 2;
+            pill.hidden = NO;
+        } else if (pill) {
+            pill.hidden = YES;
+        }
+    }
+
+    // 间距：用首次看到的自然 pitch 作基准（只在美化第一次跑时记录，之后一直沿用），
+    // 每次按 基准 + 设定间距 重排，不会在多次 layout 里越加越大。
+    NSString *spacingString = GHLGetString(GHL_KEY_SIDEBAR_SPACING);
+    CGFloat spacing = spacingString.length > 0 ? [spacingString floatValue] : 0.0;
+    if (spacing < -30) spacing = -30;
+    if (spacing > 60) spacing = 60;
+    if (fabs(spacing) < 0.01) return;
+    NSArray *sorted = [buttons sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+      if (a.center.y < b.center.y) return NSOrderedAscending;
+      if (a.center.y > b.center.y) return NSOrderedDescending;
+      return NSOrderedSame;
+    }];
+    NSNumber *baselinePitch = objc_getAssociatedObject(container, &kGHLSidebarBaselinePitchKey);
+    NSNumber *baselineCount = objc_getAssociatedObject(container, &kGHLSidebarBaselineCountKey);
+    if (!baselinePitch || !baselineCount || [baselineCount integerValue] != (NSInteger)buttons.count) {
+        // 只在当前这组按钮还没基准时记录；此时位置是抖音原生排布（美化之前没动过它们）。
+        CGFloat totalGap = 0;
+        for (NSUInteger i = 1; i < sorted.count; i++) totalGap += ([sorted[i] center].y - [sorted[i - 1] center].y);
+        CGFloat pitch = (sorted.count > 1) ? totalGap / (sorted.count - 1) : 0;
+        if (pitch <= 0) return;
+        objc_setAssociatedObject(container, &kGHLSidebarBaselinePitchKey, @(pitch), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(container, &kGHLSidebarBaselineCountKey, @(buttons.count), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        baselinePitch = @(pitch);
+    }
+    CGFloat pitch = [baselinePitch floatValue] + spacing;
+    if (pitch < 20) pitch = 20;
+    CGFloat y = [sorted[0] center].y;
+    for (NSUInteger i = 0; i < sorted.count; i++) {
+        UIView *button = sorted[i];
+        CGPoint center = button.center;
+        center.y = y;
+        button.center = center;
+        y += pitch;
     }
 }
 
@@ -1273,6 +1439,8 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 - (void)viewDidLayoutSubviews {
     %orig;
     GHLApplySidebarOrderInView(self.view);
+    // 1.0.8：右侧边栏美化在排序之后跑（缩放/间距/圆角底）。
+    GHLApplySidebarBeautifyInView(self.view);
     GHLApplyInterfaceScaleInView(self.view);
     GHLApplyFakeStatsInView(self.view);
 }
@@ -1332,7 +1500,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.7 已加载（基于 DYYY MIT，仅自用）");
+        GHLLog(@"顾海龙抖音 1.0.8 已加载（基于 DYYY MIT，仅自用）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
