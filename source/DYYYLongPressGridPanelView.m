@@ -96,6 +96,14 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 @property(nonatomic, strong) UIScrollView *gridScrollView;
 @property(nonatomic, strong) NSMutableArray<UIButton *> *cells;
 @property(nonatomic, assign) BOOL didLogLayout; // 1.0.26：layout 日志每面板只记一次
+@property(nonatomic, assign) BOOL didLogSettings; // 1.0.27：设置日志每面板只记一次（设置没变就不重记）
+@property(nonatomic, copy, nullable) NSString *lastSettingsMaterial; // 1.0.27：上次记过的面板设置（比对用）
+@property(nonatomic, assign) CGFloat lastSettingsBlur;
+@property(nonatomic, copy, nullable) NSString *lastSettingsCellColor;
+@property(nonatomic, assign) CGFloat lastSettingsAlpha;
+@property(nonatomic, assign) BOOL lastSettingsHasBG;
+@property(nonatomic, strong, nullable) NSDate *bgCachedModDate; // 1.0.27：背景图文件上次读到的 mtime＋大小（没变就跳过重读）
+@property(nonatomic, assign) unsigned long long bgCachedFileSize;
 @property(nonatomic, assign) NSInteger gridColumns;     // 54 排列的列数（横向等列时为 4，仅作单行格宽参考）
 @property(nonatomic, assign) BOOL horizontalLayout;     // 54 横向等列：单行横滑
 @property(nonatomic, assign) CGFloat cellBackgroundAlpha; // 64 微透明：格子底透明度（默认 0.55，开了 0.40）
@@ -184,6 +192,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     _itemActionHandler = [itemActionHandler copy];
     _dismissHandler = [dismissHandler copy];
     _cells = [NSMutableArray array];
+    _didLogLayout = NO;
+    _didLogSettings = NO; // 1.0.27：设置日志每面板只记一次，实例新建时清零
 
     self.backgroundColor = [UIColor clearColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -346,6 +356,10 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     [super layoutSubviews];
     CGRect bounds = self.bounds;
     if (bounds.size.width <= 0) return;
+    // 1.0.27：格子保险——格子不在滚动区里时点按和渲染都没它，先补加回去。
+    for (UIButton *cell in self.cells) {
+        if (cell.superview != self.gridScrollView) [self.gridScrollView addSubview:cell];
+    }
     self.blurView.frame = bounds;
     if (self.backingView) self.backingView.frame = bounds;
     if (self.backgroundImageView) self.backgroundImageView.frame = bounds;
@@ -409,22 +423,61 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 #pragma mark - 1.0.26：面板设置日志 / 背景图刷新
 
 // Show 时记一行解析到的面板设置（材质/模糊度/格子颜色/透明度/背景图有无），下次日志不用猜。
+// 1.0.27：每面板实例只记一次；设置没变就不重记（Show 在 sheet 动画期间每帧都调，
+// -15.log 里一行设置日志刷了约 83 次）。
 - (void)ghl_logResolvedSettings {
     NSString *cellColor = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR] ?: @"白色";
+    NSString *material = GHLQuickPanelMaterial();
+    CGFloat blur = GHLQuickPanelBlurAmount();
+    BOOL hasBG = self.backgroundImageView != nil;
+    if (self.didLogSettings
+        && [material isEqualToString:self.lastSettingsMaterial]
+        && blur == self.lastSettingsBlur
+        && [cellColor isEqualToString:self.lastSettingsCellColor]
+        && self.cellBackgroundAlpha == self.lastSettingsAlpha
+        && hasBG == self.lastSettingsHasBG) {
+        return;
+    }
+    self.didLogSettings = YES;
+    self.lastSettingsMaterial = material;
+    self.lastSettingsBlur = blur;
+    self.lastSettingsCellColor = cellColor;
+    self.lastSettingsAlpha = self.cellBackgroundAlpha;
+    self.lastSettingsHasBG = hasBG;
     GHLLog(@"长按面板：材质=%@，模糊度=%.0f，格子颜色=%@，格子透明度=%.2f，背景图=%@",
-           GHLQuickPanelMaterial(), GHLQuickPanelBlurAmount(), cellColor, self.cellBackgroundAlpha,
-           self.backgroundImageView ? @"有" : @"无");
+           material, blur, cellColor, self.cellBackgroundAlpha,
+           hasBG ? @"有" : @"无");
 }
 
 // 每面板只记一次 bounds＋首格 frame（格子看不见时，日志能定论是布局还是渲染问题）。
+// 1.0.27：扩展成可见性诊断行——除 bounds＋首格 frame 外，再记 window、superview 是否等于
+// 当前面板页（vc 指针也记）、hidden、alpha、滚动区实际子视图数 vs 格子数；bounds 还没
+// 有效尺寸时不记（Show 在 viewDidLoad 里调时宽可能是 0，记了就把唯一一次机会占了）。
 - (void)ghl_logLayoutOnce {
     if (self.didLogLayout || self.cells.count == 0) return;
+    if (self.bounds.size.width <= 0) return;
     self.didLogLayout = YES;
-    GHLLog(@"长按面板：bounds=%@，首格 frame=%@", NSStringFromCGRect(self.bounds), NSStringFromCGRect(self.cells[0].frame));
+    UIViewController *hostVC = self.ghl_hostVC;
+    GHLLog(@"长按面板：bounds=%@，首格 frame=%@，window=%@，superview 是当前面板页=%@（vc=%p），hidden=%@，alpha=%.2f，滚动区子视图 %lu／格子 %lu",
+           NSStringFromCGRect(self.bounds), NSStringFromCGRect(self.cells[0].frame),
+           self.window ? @"有" : @"无",
+           (hostVC && self.superview == hostVC.view) ? @"是" : @"否", hostVC,
+           self.hidden ? @"是" : @"否", self.alpha,
+           (unsigned long)self.gridScrollView.subviews.count, (unsigned long)self.cells.count);
 }
 
 // 每次 Show 都刷新背景图：只在 init 读一次时，换图后旧面板一直沿用旧图（1.0.24 换图失败的主因）。
+// 1.0.27：文件没变就跳过重读（Show 在 sheet 动画期间每帧都调一次，每次都解一次 JPEG 是浪费；
+// 只比文件 mtime＋大小，换图后 mtime 会变，照样能刷到新图）。
 - (void)ghl_refreshBackgroundImage {
+    NSString *path = GHLCustomQuickPanelBackgroundPath();
+    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+    NSDate *modDate = attrs[NSFileModificationDate];
+    unsigned long long fileSize = [attrs[NSFileSize] unsignedLongLongValue];
+    if (self.backgroundImageView && modDate && self.bgCachedModDate
+        && [self.bgCachedModDate isEqualToDate:modDate] && self.bgCachedFileSize == fileSize) {
+        return; // 文件没变，图已经在位
+    }
     UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
     if (panelBG) {
         if (self.backgroundImageView) {
@@ -446,6 +499,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         [self.backgroundImageView removeFromSuperview];
         self.backgroundImageView = nil;
     }
+    self.bgCachedModDate = modDate;
+    self.bgCachedFileSize = fileSize;
 }
 
 #pragma mark - 交互

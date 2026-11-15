@@ -1175,6 +1175,18 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     // 点网格里会开子页的项（倍速、定时关闭）时 viewDidDisappear 误判收起、把表恢复显示，
     // 之后 Show 又在入口早退，再也没人重藏，重影就一直在）。
     if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) {
+        // 1.0.27：面板可能还挂在上一个（已不可见的）面板控制器上——-15.log 里四次长按点按全 0 次、
+        // 面板看不见，布局和背景图都正常，三种可能（挂错地方／被盖住／格子不在层级里）一次全修。
+        if (gDYYYLongPressGridPanel.superview != vc.view) {
+            [gDYYYLongPressGridPanel removeFromSuperview];
+            [vc.view addSubview:gDYYYLongPressGridPanel];
+            GHLLog(@"长按面板：面板重挂到当前面板页（原父视图不是当前面板页）");
+        }
+        [vc.view bringSubviewToFront:gDYYYLongPressGridPanel];
+        gDYYYLongPressGridPanel.frame = vc.view.bounds;
+        gDYYYLongPressGridPanel.ghl_hostVC = vc;
+        [gDYYYLongPressGridPanel layoutIfNeeded];
+        [gDYYYLongPressGridPanel ghl_logLayoutOnce];
         UITableView *existingTable = DYYYLongPressFindTableViewInView(vc.view);
         if (existingTable && !existingTable.hidden) {
             existingTable.hidden = YES;
@@ -1284,6 +1296,12 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     panel.frame = vc.view.bounds;
     [vc.view addSubview:panel];
     [panel setNeedsLayout];
+    // 1.0.27：新建也提到最前面＋立刻排一次版（别只 setNeedsLayout，等下一轮 layout pass
+    // 时 sheet 动画可能已经把原生视图压上来了）。
+    [vc.view bringSubviewToFront:panel];
+    panel.ghl_hostVC = vc;
+    [panel layoutIfNeeded];
+    [panel ghl_logLayoutOnce];
     // 1.0.26：新建面板也走同一套刷新＋记日志（init 只读一次图，双保险；设置值记一行，下次日志不用猜）。
     [panel ghl_refreshBackgroundImage];
     [panel ghl_logResolvedSettings];
@@ -1294,10 +1312,16 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
 static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
     if (!vc || !vc.view) return;
     DYYYLongPressGridPanelView *panel = gDYYYLongPressGridPanel;
-    if (panel && panel.superview == vc.view) {
-        panel.frame = vc.view.bounds;
-        [panel setNeedsLayout];
+    if (!panel) return;
+    // 1.0.27：面板不在当前面板页上（或被拿掉了）就重挂回来；任何情况下都提到最前面再重设 frame，
+    // 免得原生后加的视图把它盖住。
+    if (panel.superview != vc.view) {
+        [panel removeFromSuperview];
+        [vc.view addSubview:panel];
     }
+    [vc.view bringSubviewToFront:panel];
+    panel.frame = vc.view.bounds;
+    [panel setNeedsLayout];
 }
 
 %hook AWEModernLongPressPanelTableViewController

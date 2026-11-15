@@ -413,6 +413,7 @@ void GHLPreviewAwemeImagesForAwemeModel(AWEAwemeModel *model);
 // 51 快捷面板背景图（存在 Documents/DYYY/ghl-quick-panel-bg.jpg，不进仓库；
 // 读不到、损坏一律回退默认——面板照常用毛玻璃，不崩）
 UIImage *GHLCustomQuickPanelBackgroundImage(void);
+NSString *GHLCustomQuickPanelBackgroundPath(void); // 1.0.27：面板比 mtime＋大小用（文件没变就跳过重读）
 BOOL GHLSaveCustomQuickPanelBackgroundImage(UIImage *image); // 长边缩到 1242 → JPEG q85
 void GHLClearCustomQuickPanelBackground(void);
 BOOL GHLHasCustomQuickPanelBackground(void);

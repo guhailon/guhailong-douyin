@@ -551,7 +551,8 @@ void GHLClearCustomBackground(void) {
 // MARK: - 1.0.23 第二批（51 自定义背景图片）
 // 快捷操作面板（长按网格面板）的自选背景图，存 Documents/DYYY/ghl-quick-panel-bg.jpg；
 // 只给面板表面用，不动设置卡片（卡片是实心 A）。写法跟自选设置背景同一套。
-static NSString *GHLCustomQuickPanelBackgroundPath(void) {
+// 1.0.27：路径改公开（面板刷新背景图时要比文件 mtime＋大小，文件没变就跳过重读）。
+NSString *GHLCustomQuickPanelBackgroundPath(void) {
     return [GHLCustomAssetsDirectory() stringByAppendingPathComponent:@"ghl-quick-panel-bg.jpg"];
 }
 

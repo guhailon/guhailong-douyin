@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)ghl_logResolvedSettings;
 - (void)ghl_refreshBackgroundImage;
 
+// 1.0.27：可见性诊断——Show 时把当前面板控制器交给面板，layout 日志里一并记 superview
+// 是否等于当前面板页（vc 指针也记上），下次日志能分清面板是挂错地方、被盖住还是格子不在层级里。
+@property(nonatomic, weak, nullable) UIViewController *ghl_hostVC;
+- (void)ghl_logLayoutOnce;
+
 @end
 
 NS_ASSUME_NONNULL_END
