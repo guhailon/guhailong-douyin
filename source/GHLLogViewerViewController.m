@@ -31,10 +31,10 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     self.shareItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction target:self action:@selector(ghlShareLog)];
     self.navigationItem.rightBarButtonItems = @[ refreshItem, self.shareItem ];
 
-    // 1.0.20：搜索框（过滤日志行，搜「画中画」「错误」等；右上角图标可能被导航栏底色糊掉，
+    // 1.0.20：搜索框（过滤日志行，搜「语音包」「错误」等；右上角图标可能被导航栏底色糊掉，
     // 文字按钮不会——复制放到底部工具列，和清空放一起）。
     UISearchBar *searchBar = [[UISearchBar alloc] init];
-    searchBar.placeholder = @"搜索日志，如：画中画、错误";
+    searchBar.placeholder = @"搜索日志，如：语音包、错误";
     searchBar.delegate = self;
     searchBar.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:searchBar];

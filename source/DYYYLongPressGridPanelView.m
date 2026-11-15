@@ -59,11 +59,12 @@ static NSInteger GHLQuickPanelColumns(void) {
     }
     return 3;
 }
-// 56 背景模糊度 0-100（默认 58，跟他演示的 58% 一致；实现成毛玻璃视图的 alpha）。
+// 56 背景模糊度 0-100（实现成毛玻璃视图的 alpha）。
+// 1.0.28：默认改回 100（1.0.22 满强度；1.0.23 默认 58 是重影的来源之一）。
 // 1.0.26：钳下限 20（防调到 0 全透，面板糊黑空）。
 static CGFloat GHLQuickPanelBlurAmount(void) {
     NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_BLUR];
-    if (!v || v.length == 0) return 58;
+    if (!v || v.length == 0) return 100;
     CGFloat f = [v floatValue];
     if (f < 20) f = 20;
     if (f > 100) f = 100;
@@ -77,7 +78,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         if (outLiquidTint) *outLiquidTint = YES;
         return UIBlurEffectStyleSystemThickMaterial;
     }
-    return UIBlurEffectStyleSystemMaterial; // 磨砂（默认）
+    return UIBlurEffectStyleExtraLight; // 磨砂（默认）：1.0.28 改回 1.0.22 的 ExtraLight 满强度磨砂
 }
 
 @interface DYYYLongPressGridPanelView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
@@ -89,7 +90,6 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 @property(nonatomic, strong, nullable) UIPanGestureRecognizer *dismissPan;
 
 @property(nonatomic, strong) UIVisualEffectView *blurView;
-@property(nonatomic, strong, nullable) UIView *backingView; // 1.0.26：不透浅色底板（实白），垫在毛玻璃下面
 @property(nonatomic, strong, nullable) UIImageView *backgroundImageView; // 51 自选背景图（在毛玻璃下面，糊出来）
 @property(nonatomic, strong, nullable) UIView *liquidTintView;           // 53 液态玻璃的淡白 tint
 @property(nonatomic, strong) UIImageView *dragonImageView;
@@ -117,7 +117,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 // 按 actionType 找 SF Symbol（金色线条图标，和效果图一致）；找不到就按标题关键字兜底
 // （1.0.15 起原生项也进网格，原生项没有约定的 actionType，按标题认图标）；
 // 最后兜底下载图标。
-// actionType 见 DYYYLongPressPanel.xm：666-679 是 DYYY 长按项，686-695 是顾海龙长按项。
+// actionType 见 DYYYLongPressPanel.xm：666-679 是 DYYY 长按项，686-696 是顾海龙长按项。
 + (nullable UIImage *)ghl_iconForActionType:(NSInteger)actionType title:(nullable NSString *)title {
     NSArray<NSString *> *names = nil;
     switch (actionType) {
@@ -136,7 +136,6 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         case 676: names = @[ @"timer", @"clock" ]; break; // 定时关闭 / 取消定时
         case 686: names = @[ @"music.note", @"waveform" ]; break; // 提取原声
         case 687: names = @[ @"link.badge.plus", @"link" ]; break; // 复制无水印链接
-        case 688: names = @[ @"rectangle.on.rectangle", @"pip" ]; break; // 画中画播放
         case 689: names = @[ @"speaker.wave.2", @"waveform" ]; break; // 语音包试听
         case 690: names = @[ @"square.and.arrow.up" ]; break; // 语音包读文案并分享
         case 691: names = @[ @"person.crop.circle", @"person" ]; break; // 保存头像
@@ -144,6 +143,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         case 693: names = @[ @"square.and.arrow.up", @"music.note" ]; break; // 分享音频
         case 694: names = @[ @"chart.bar.doc.horizontal", @"doc.text" ]; break; // 获取作品数据
         case 695: names = @[ @"photo", @"eye" ]; break; // 图片预览
+        case 696: names = @[ @"square.and.arrow.down", @"arrow.down.to.line", @"music.note" ]; break; // 导入至语音包
         default:
             // 未知 actionType（多半是抖音原生项）：按标题关键字认图标，认不出再兜底下载图标。
             // 1.0.16：原生标题补映射（之前 10/12 个原生标题全掉进下载箭头兜底，皇上不要统一箭头）——
@@ -213,18 +213,6 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     } else {
         _cellBackgroundAlpha = GHLGetBool(GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT) ? 0.40 : 0.55;
     }
-
-    // 1.0.26：不透浅色底板（实白）垫在毛玻璃下面——面板自己没有实底色，底色全靠毛玻璃糊
-    // 背后的东西；1.0.24 藏表后背后只剩没设颜色的黑空，糊出来就是黑。有了这层底，
-    // 底板永远是亮的，藏表照样藏、重影照样不回来。
-    _backingView = [[UIView alloc] init];
-    _backingView.backgroundColor = [UIColor whiteColor];
-    _backingView.userInteractionEnabled = NO;
-    _backingView.layer.cornerRadius = 24;
-    _backingView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
-    _backingView.layer.masksToBounds = YES;
-    _backingView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self addSubview:_backingView];
 
     // 51 自选背景图（在毛玻璃下面，糊出来；没选就只有毛玻璃）。
     UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
@@ -361,7 +349,6 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         if (cell.superview != self.gridScrollView) [self.gridScrollView addSubview:cell];
     }
     self.blurView.frame = bounds;
-    if (self.backingView) self.backingView.frame = bounds;
     if (self.backgroundImageView) self.backgroundImageView.frame = bounds;
     if (self.liquidTintView) self.liquidTintView.frame = bounds;
 
@@ -490,9 +477,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
             iv.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
             iv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
             iv.frame = self.bounds;
-            // 插在底板上面、毛玻璃下面。
-            if (self.backingView) [self insertSubview:iv aboveSubview:self.backingView];
-            else [self insertSubview:iv atIndex:0];
+            // 插在最下面、毛玻璃下面（1.0.28：白底板已删）。
+            [self insertSubview:iv atIndex:0];
             _backgroundImageView = iv;
         }
     } else if (self.backgroundImageView) {

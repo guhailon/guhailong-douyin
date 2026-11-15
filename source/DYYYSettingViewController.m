@@ -25,9 +25,13 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 @property(nonatomic, copy) NSString *key;
 @property(nonatomic, assign) DYYYSettingItemType type;
 @property(nonatomic, copy, nullable) NSString *placeholder;
+// 1.0.28：行提示文案（有值时开关左边并排一个 ⓘ 按钮，点它弹这段文案）。
+@property(nonatomic, copy, nullable) NSString *infoText;
 
 + (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type;
 + (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type placeholder:(nullable NSString *)placeholder;
++ (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type infoText:(nullable NSString *)infoText;
++ (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type placeholder:(nullable NSString *)placeholder infoText:(nullable NSString *)infoText;
 
 @end
 
@@ -38,11 +42,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 }
 
 + (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type placeholder:(nullable NSString *)placeholder {
+    return [self itemWithTitle:title key:key type:type placeholder:placeholder infoText:nil];
+}
+
++ (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type infoText:(nullable NSString *)infoText {
+    return [self itemWithTitle:title key:key type:type placeholder:nil infoText:infoText];
+}
+
++ (instancetype)itemWithTitle:(NSString *)title key:(NSString *)key type:(DYYYSettingItemType)type placeholder:(nullable NSString *)placeholder infoText:(nullable NSString *)infoText {
     DYYYSettingItem *item = [[DYYYSettingItem alloc] init];
     item.title = title;
     item.key = key;
     item.type = type;
     item.placeholder = placeholder;
+    item.infoText = infoText;
     return item;
 }
 
@@ -275,9 +288,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             // 顾海龙抖音新增功能（22 个，(31) 语音包：xuu 式管理器，内置本机音色 + Fish Audio 在线音色）
             [DYYYSettingItem itemWithTitle:@"睡眠定时" key:GHL_KEY_SLEEP_TIMER type:DYYYSettingItemTypePicker],
-            // 1.0.20：旧的「画中画 + 后台播放」一键拆成两个——切后台触发画中画／后台听视频，
-            // 各管各的（以前一个开关同时管触发和听声，关了静音就没画中画触发）。
-            [DYYYSettingItem itemWithTitle:@"切后台触发画中画" key:GHL_KEY_BACKGROUND_AUDIO type:DYYYSettingItemTypeSwitch],
+            // 1.0.28：画中画下架（系统回调至今 0 次，从没成功过）；后台听视频是独立机制，留着。
             [DYYYSettingItem itemWithTitle:@"后台听视频" key:GHL_KEY_BACKGROUND_LISTEN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"快进手势（长按倍速/双击左右快进10秒）" key:GHL_KEY_SEEK_GESTURES type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"关键词过滤总开关" key:GHL_KEY_KEYWORD_FILTER type:DYYYSettingItemTypeSwitch],
@@ -288,23 +299,16 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"一键清爽模式" key:GHL_KEY_CLEAN_MODE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"评论关键词屏蔽（逗号分隔）" key:GHL_KEY_COMMENT_BLOCK_KEYWORDS type:DYYYSettingItemTypeTextField placeholder:@"如：喷子,引战"],
             [DYYYSettingItem itemWithTitle:@"长评论自动展开" key:GHL_KEY_COMMENT_AUTO_EXPAND type:DYYYSettingItemTypeSwitch],
-            // 1.0.23：跳过 AD 章节（清单 2 号，探测）——广告章节没有可确认的识别点，
-            // 开关开后只在日志里 dump 章节模型字段，不跳过；等真机日志定下识别字段再接。
-            [DYYYSettingItem itemWithTitle:@"跳过 AD 章节（探测，需真机日志验证）" key:GHL_KEY_SKIP_AD_CHAPTER type:DYYYSettingItemTypeSwitch],
             // 1.0.23：评论文字变蓝（清单 5 号）——只改评论正文颜色，用户名/时间不动；
             // 正文标签是启发式定位的，需真机验证。
             [DYYYSettingItem itemWithTitle:@"评论文字变蓝" key:GHL_KEY_BLUE_COMMENT_TEXT type:DYYYSettingItemTypeSwitch],
             // 1.0.23 第二批（影片清单 42–78 号，Lee 勾中并进同一版）：
             // 48 自动连播——按视频时长累计，播完切下一个（2 秒巡检采样，需真机验证）。
             [DYYYSettingItem itemWithTitle:@"自动连播" key:GHL_KEY_AUTO_PLAY_NEXT type:DYYYSettingItemTypeSwitch],
-            // 59 仅看一次开启下载按钮——探测：查看器类没找到，开关只做探针日志。
-            [DYYYSettingItem itemWithTitle:@"仅看一次开启下载按钮（探测，需真机日志验证）" key:GHL_KEY_VIEW_ONCE_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             // 61 推荐页跳过购物视频——按电商标签认，只在推荐页。
             [DYYYSettingItem itemWithTitle:@"推荐页跳过购物视频" key:GHL_KEY_SKIP_SHOPPING type:DYYYSettingItemTypeSwitch],
             // 70 双击消息快捷回复——消息列表/聊天页双击消息，打开输入框（需真机验证）。
             [DYYYSettingItem itemWithTitle:@"双击消息快捷回复" key:GHL_KEY_IM_DOUBLE_TAP_REPLY type:DYYYSettingItemTypeSwitch],
-            // 71 消息界面点加号弹出相册图片——探测：加号按钮类没确认，开关只记探针日志。
-            [DYYYSettingItem itemWithTitle:@"消息界面点加号弹出相册图片（探测，需真机日志验证）" key:GHL_KEY_IM_PLUS_ALBUM_PROBE type:DYYYSettingItemTypeSwitch],
             // 73 续火花自动发消息——长按联系人头像才触发，模板在下面填（用 | 分隔多条）。
             [DYYYSettingItem itemWithTitle:@"续火花自动发消息（长按联系人头像）" key:GHL_KEY_STREAK_AUTO_SEND type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"续火花模板（用 | 分隔多条）" key:GHL_KEY_STREAK_TEMPLATES type:DYYYSettingItemTypeTextField placeholder:@"如：宝贝早安|火花不能断"],
@@ -331,20 +335,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"弹幕浮层（评论飘在视频上）" key:GHL_KEY_COMMENT_DANMAKU type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"侧边栏自定义排序" key:GHL_KEY_SIDEBAR_REORDER type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"侧边栏顺序（逗号分隔，从上到下）" key:GHL_KEY_SIDEBAR_ORDER type:DYYYSettingItemTypeTextField placeholder:@"如：评论,点赞,分享,收藏"],
-            [DYYYSettingItem itemWithTitle:@"消息防撤回（实验，需真机日志验证）" key:GHL_KEY_ANTI_RECALL type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"视频截图去水印" key:GHL_KEY_SCREENSHOT_CLEAN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"楼中楼一键展开" key:GHL_KEY_EXPAND_REPLIES type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"视频原声提取" key:GHL_KEY_EXTRACT_AUDIO type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"语音包（选音色发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
-            [DYYYSettingItem itemWithTitle:@"语音包管理（列表/搜索/试听）" key:GHL_KEY_VOICE_PACKAGE_MANAGER type:DYYYSettingItemTypePicker],
-            // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：探针，未验证——
-            // 语音转发/语音秒数/替换语音评论没有可验证的 hook 点；保存语音评论的
-            // AWECommentAudioModel 已确认有 audioFilePath（本地文件路径），1.0.25 起
-            // 开关连到长按菜单的保存代码（本地文件优先，拿不到再走 content 解析）。
-            [DYYYSettingItem itemWithTitle:@"语音消息转发（实验，需真机日志验证）" key:GHL_KEY_VOICE_FORWARD type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"设置语音秒数（实验，需真机日志验证）" key:GHL_KEY_VOICE_DURATION type:DYYYSettingItemTypeTextField placeholder:@"默认60"],
-            [DYYYSettingItem itemWithTitle:@"替换语音评论（实验，需真机日志验证）" key:GHL_KEY_VOICE_REPLACE_COMMENT type:DYYYSettingItemTypeSwitch],
+            // 1.0.28：长按导入至语音包（开后长按视频就能把当前作品的音频存进语音包）。
+            [DYYYSettingItem itemWithTitle:@"导入至语音包" key:GHL_KEY_IMPORT_TO_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch infoText:@"启用后，长按视频点击导入至语音包，输入你要设置的语音名称，则将当前作品的音频导入到语音包"],
+            // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：1.0.28 下架转发/秒数/替换三项
+            // （没做成）；保存语音评论的 AWECommentAudioModel 已确认有 audioFilePath
+            // （本地文件路径），1.0.25 起开关连到长按菜单的保存代码（本地文件优先，
+            // 拿不到再走 content 解析）。
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
             // 1.0.4 下载管理页入口
@@ -361,13 +362,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"自动点赞" key:GHL_KEY_AUTO_LIKE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"自动点赞每会话上限" key:GHL_KEY_AUTO_LIKE_MAX type:DYYYSettingItemTypeTextField placeholder:@"默认100"],
             [DYYYSettingItem itemWithTitle:@"自动抢红包" key:GHL_KEY_AUTO_RED_PACKET type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"抢红包黑名单（作者抖音号，逗号分隔）" key:GHL_KEY_RED_PACKET_BLACKLIST type:DYYYSettingItemTypeTextField placeholder:@"如：123456,789012"],
             [DYYYSettingItem itemWithTitle:@"抢红包延迟（秒）" key:GHL_KEY_RED_PACKET_DELAY type:DYYYSettingItemTypeTextField placeholder:@"默认1"],
             [DYYYSettingItem itemWithTitle:@"抢到红包自动回复" key:GHL_KEY_RED_PACKET_AUTO_REPLY type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"自动回复内容" key:GHL_KEY_RED_PACKET_REPLY_TEXT type:DYYYSettingItemTypeTextField placeholder:@"默认谢谢老板"],
             [DYYYSettingItem itemWithTitle:@"自动开直播抽奖" key:GHL_KEY_AUTO_LIVE_LOTTERY type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"隐藏“正在输入”（实验，未验证）" key:GHL_KEY_HIDE_TYPING type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"隐藏已读回执（实验，未验证）" key:GHL_KEY_HIDE_READ_RECEIPT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"不上报访客记录" key:GHL_KEY_DISABLE_VISIT_REPORT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"评论语音播放（实验，未验证）" key:GHL_KEY_COMMENT_VOICE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"评论语音保存（实验，未验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
@@ -396,15 +394,13 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"顶栏透明" key:GHL_KEY_TOP_BAR_TRANSPARENT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"顶栏透明度（0-1小数）" key:GHL_KEY_TOP_BAR_TRANSPARENCY type:DYYYSettingItemTypeTextField placeholder:@"默认0.5"],
             [DYYYSettingItem itemWithTitle:@"隐藏状态栏" key:GHL_KEY_HIDE_STATUS_BAR type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"防阅后即焚（实验，未验证）" key:GHL_KEY_ANTI_BURN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"改数字显示（点赞/播放数）" key:GHL_KEY_FAKE_STATS type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"点赞数改成" key:GHL_KEY_FAKE_LIKE_COUNT type:DYYYSettingItemTypeTextField placeholder:@"如：99999"],
             [DYYYSettingItem itemWithTitle:@"播放数改成" key:GHL_KEY_FAKE_PLAY_COUNT type:DYYYSettingItemTypeTextField placeholder:@"如：100万"],
             [DYYYSettingItem itemWithTitle:@"改直播间人数显示" key:GHL_KEY_FAKE_LIVE_USER_COUNT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"直播间人数改成" key:GHL_KEY_FAKE_LIVE_USER_COUNT_VALUE type:DYYYSettingItemTypeTextField placeholder:@"如：10万"],
             [DYYYSettingItem itemWithTitle:@"音频分享（长按面板）" key:GHL_KEY_AUDIO_SHARE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"直播音频单独静音" key:GHL_KEY_LIVE_AUDIO_MUTE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"评论音频单独静音（实验，未验证）" key:GHL_KEY_COMMENT_AUDIO_MUTE type:DYYYSettingItemTypeSwitch]
+            [DYYYSettingItem itemWithTitle:@"直播音频单独静音" key:GHL_KEY_LIVE_AUDIO_MUTE type:DYYYSettingItemTypeSwitch]
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"视频背景颜色" key:@"DYYYVideoBGColor" type:DYYYSettingItemTypeColor],
@@ -647,7 +643,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"长按面板生成视频" key:@"DYYYLongPressCreateVideo" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板复制文案" key:@"DYYYLongPressCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板复制链接" key:@"DYYYLongPressCopyLink" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"长按面板接口解析" key:@"DYYYLongPressApiDownload" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板定时关闭" key:@"DYYYLongPressTimerClose" type:DYYYSettingItemTypeSwitch],
             // 1.0.23 第二批：快捷面板外观（只用在长按网格面板表面，不动设置卡片）——
             // 51 背景图、53 材质三选一、54 排列、56 模糊度、64 微透明。
@@ -667,7 +662,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"长按面板过滤作者" key:@"DYYYLongPressFilterUser" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板保存视频" key:@"DYYYDoubleTapDownload" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板保存音频" key:@"DYYYDoubleTapDownloadAudio" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"双击面板接口解析" key:@"DYYYDoubleInterfaceDownload" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板制作视频" key:@"DYYYDoubleCreateVideo" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板复制文案" key:@"DYYYDoubleTapCopyDesc" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板打开评论" key:@"DYYYDoubleTapComment" type:DYYYSettingItemTypeSwitch],
@@ -852,11 +846,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         // 睡眠定时选项
         return @[ @"关闭", @"15分钟", @"30分钟", @"60分钟" ];
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
-        // 语音包音色选项（动态：内置本机音色 + 已缓存的在线音色，见 GHLFeatures.h）
-        return GHLVoicePackageIDs();
-    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
-        // 语音包管理器入口（点开进列表页，值本身无意义）
-        return @[ @"打开语音包管理器" ];
+        // 1.0.28：语音包音色行不再弹 Picker（点开直接进语音包页），这里不再给选项。
+        return @[];
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         // 1.0.4 下载管理页入口
         return @[ @"打开下载管理" ];
@@ -937,8 +928,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return value ?: @"关闭";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
         return GHLVoicePackageDisplayNameForID(value) ?: @"未选择";
-    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
-        return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
     } else if ([key isEqualToString:GHL_KEY_MEMO_PAGE]) {
@@ -1006,8 +995,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"关闭";
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
         return GHLVoicePackageIDs().firstObject ?: @"sys:default-zh-CN";
-    } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
-        return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
     } else if ([key isEqualToString:GHL_KEY_MEMO_PAGE]) {
@@ -1282,7 +1269,23 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         switchView.onTintColor = [DYYYUtils dYYYGoldAccentColor];
         [switchView addTarget:self action:@selector(switchToggled:) forControlEvents:UIControlEventValueChanged];
         switchView.tag = tag;
-        cell.accessoryView = switchView;
+        if (item.infoText.length > 0) {
+            // 1.0.28：带 (i) 提示的开关行——开关左边并排一个 ⓘ 按钮，点它弹提示文案。
+            UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 90, 44)];
+            UIButton *infoButton = [UIButton buttonWithType:UIButtonTypeSystem];
+            infoButton.frame = CGRectMake(0, 8, 28, 28);
+            [infoButton setTitle:@"ⓘ" forState:UIControlStateNormal];
+            infoButton.titleLabel.font = [UIFont systemFontOfSize:20];
+            [infoButton setTitleColor:[DYYYUtils dYYYGoldAccentColor] forState:UIControlStateNormal];
+            infoButton.tag = tag;
+            [infoButton addTarget:self action:@selector(ghlInfoButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
+            [container addSubview:infoButton];
+            switchView.frame = CGRectMake(36, 6.5, 51, 31);
+            [container addSubview:switchView];
+            cell.accessoryView = container;
+        } else {
+            cell.accessoryView = switchView;
+        }
     } else if (item.type == DYYYSettingItemTypeTextField) {
         UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 120, 30)];
         textField.borderStyle = UITextBorderStyleRoundedRect;
@@ -1421,6 +1424,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
         return;
     }
+    // 1.0.28：语音包音色行点开直接进极简语音包页，不再弹系统 Picker（试听在页里点行就有）。
+    if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
+        GHLPresentSimpleVoicePackagePageFromViewController(self);
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        return;
+    }
     if (item.type == DYYYSettingItemTypePicker) {
         [self showUniversalPickerForIndexPath:indexPath];
     } else if (item.type == DYYYSettingItemTypeColor) {
@@ -1443,10 +1452,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                        handler:^(UIAlertAction *_Nonnull action) {
                                                          // 保存到对应的key
                                                          [[NSUserDefaults standardUserDefaults] setObject:option forKey:item.key];
-                                                         // 顾海龙抖音：选完睡眠定时立即重启动时；选完语音包音色立即试听；选管理器打开列表页
-                                                         if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_MANAGER]) {
-                                                             GHLPresentVoicePackageManagerFromViewController(self);
-                                                         } else if ([item.key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
+                                                         // 顾海龙抖音：选完睡眠定时立即重启动时
+                                                         if ([item.key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
                                                              // 1.0.4 下载管理页
                                                              DYYYDownloadManagerViewController *downloadVC = [[DYYYDownloadManagerViewController alloc] init];
                                                              [self.navigationController pushViewController:downloadVC animated:YES];
@@ -1497,8 +1504,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                          } else if ([item.key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
                                                              // 1.0.23 第二批：67 显示功能按钮换档，立即刷新浮动按钮显隐/标题
                                                              [FloatingSpeedButton reloadConfiguration];
-                                                         } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
-                                                             GHLPreviewVoicePackage((NSString *)option);
                                                          }
 
                                                          // 更新对应的cell显示
@@ -1576,6 +1581,21 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 #pragma mark - Actions
 
+// 1.0.28：带 (i) 提示的开关行——点 ⓘ 弹提示文案（不改开关状态）。
+- (void)ghlInfoButtonTapped:(UIButton *)sender {
+    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:sender.tag % 1000 inSection:sender.tag / 1000];
+    DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
+    if (!item.infoText.length) return;
+    [DYYYBottomAlertView showAlertWithTitle:item.title
+                                    message:item.infoText
+                                  avatarURL:nil
+                           cancelButtonText:@"知道了"
+                          confirmButtonText:nil
+                               cancelAction:nil
+                                closeAction:nil
+                              confirmAction:nil];
+}
+
 - (void)switchToggled:(UISwitch *)sender {
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:sender.tag % 1000 inSection:sender.tag / 1000];
     DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
@@ -1612,11 +1632,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [defaults setBool:sender.isOn forKey:@"DYYYForceDownloadCommentImage"];
     } else if ([item.key isEqualToString:GHL_KEY_COMMENT_DANMAKU]) {
         [defaults setBool:sender.isOn forKey:@"DYYYCommentShowDanmaku"];
-    } else if ([item.key isEqualToString:GHL_KEY_ANTI_RECALL]) {
-        if (sender.isOn) GHLProbeAntiRecall();
-    } else if ([item.key isEqualToString:GHL_KEY_VIEW_ONCE_DOWNLOAD]) {
-        // 1.0.23 第二批：59 仅看一次下载——探测：开后 dump 相关类，只记日志。
-        if (sender.isOn) GHLProbeViewOnce();
     } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE]) {
         if (sender.isOn) GHLProbeLiveVoiceSender();
     } else if ([item.key isEqualToString:GHL_KEY_BACKGROUND_LISTEN]) {

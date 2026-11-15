@@ -289,29 +289,18 @@ NSString *GHLChangelogText(void) {
            @"1.0.24：长按面板字重影修好（网格盖上后把底下抖音原生长按列表藏起来，收起恢复；糊 58%、格子微透明不变）；设置卡背景图改全屏（自定义背景图铺满整个卡片背后，导航栏、列表、完成按钮都在图上，行底半透明白）；语音包和在线音色并成一个统一语音包页（内置／在线／导入同在一张表，统一搜索，文件夹分组，导入导出，点行试听；导入的录音点一下就播放，不能用来合成文字）；双击下载（视频左半边双击直接保存、右半边弹菜单；双击弹窗可精简成只留下载）；首页下移（底栏高度可调）和底部字体大小可调；语音包导入（mp4/mov 选入后转音频进语音包，音频直接复制）；下载面板可调（长按网格格子高度／左右边距／格子透明度／格子颜色都能在设置里调）；保存相册详细（保存时附作品信息：视频 ID、时长、点赞/评论/分享/收藏/播放数、音乐名；开关在常用功能，默认关）；文案备忘录（本地备忘列表，点行复制，左滑删除；定时自动发送不做）；保存他人语音仍是探测（评论语音的类没定位到，保存路径建不出来，只记日志，等真机探针）；接口保存默认接 Lee 给的原画质接口（装完不用填就能点，设置里能改能清空；解析多字段容错，首次解析成功把 data 的字段名记进日志，没真视频验过成功格式，以日志为准）；关于页 QQ 行改成个人号「QQ：2309103548」（2309103548 是个人 QQ，群是 1130823454）；冻住调查：静态＋日志分析结论写进日志（巡检耗时随时间平坦、主线程是突然堵住 111 秒、音视频是缓冲排空后慢慢停；看门狗补记巡检停滞和冻住前最后活动；冻住本身这版没修）。\n"
            @"1.0.25：关于页拿掉两行（恢复横幅、版本检查都不再提供；远程模式那项不动）；日志改名「抖音日志」（关于页那行、日志页标题、复制日志的日志行都改）；按作者记倍速的功能整个取消（设置行、开关、记录和恢复逻辑都拿掉）；长按重影重做（每次打开网格都重藏原生列表，收起时网格拿掉、原生列表恢复显示，点开子页返回不再误判收起）；评论语音保存接线修好（设置页开关终于连到长按菜单的保存代码，本地文件优先复制）；评论语音保存探针：长按语音评论时记 audioFilePath 与 content（为下版保存准备）；底栏高度加钳制（错填大数不再压没视频，启动时记一行底栏高度日志）。\n"
            @"1.0.26：长按面板黑修好一半——毛玻璃下面垫一层不透白底，底板不再依赖背后糊什么，藏表照样藏、重影照样不回来；模糊度钳下限 20（防调到 0 全透）；每次长按都记一行面板设置（材质／模糊度／格子颜色／透明度／背景图有无）和一行面板 bounds＋首格 frame（格子看不见时日志能定论是布局还是渲染；浅色底只解决底黑那半，格子本身看不见的根因还没钉死，等真机点按测试）；快捷面板背景图每次长按都刷新（换图不用杀掉重开，存图成功／失败也记日志）；空文件夹也显示分区（建成功弹提示）；在线音色长按加「下载试听音频」（存进「我的导入」，存的只是一句固定试听句的录音，不是音色本身，离线不能合成任意文字）；在线列表拉取失败时分区脚注留提示，不再静默失败。\n"
-           @"1.0.27：长按面板可见性三修——面板挂错控制器就重挂到当前面板页、每次都提到最前面、格子不在滚动区就补加回去（-15.log 证实布局跑过、背景图也读到了，面板就是看不见也点不到，挂错地方／被盖住／格子不在层级里三种可能一次全修；下次日志的可见性诊断行才能证实是哪一种）；面板设置日志每面板只记一次、背景图文件没变就跳过重读（Show 在 sheet 动画期间每帧都调，-15.log 里一行刷了约 83 次）；新建文件夹立刻落盘（杀进程／更新也不丢）；管理器打开时记一行搜索词＋可见分区＋自建文件夹列表。";
+           @"1.0.27：长按面板可见性三修——面板挂错控制器就重挂到当前面板页、每次都提到最前面、格子不在滚动区就补加回去（-15.log 证实布局跑过、背景图也读到了，面板就是看不见也点不到，挂错地方／被盖住／格子不在层级里三种可能一次全修；下次日志的可见性诊断行才能证实是哪一种）；面板设置日志每面板只记一次、背景图文件没变就跳过重读（Show 在 sheet 动画期间每帧都调，-15.log 里一行刷了约 83 次）；新建文件夹立刻落盘（杀进程／更新也不丢）；管理器打开时记一行搜索词＋可见分区＋自建文件夹列表。\n"
+           @"1.0.28：长按面板恢复 1.0.22 样式（ExtraLight 满强度磨砂、格子白底 0.55、3 列固定；藏表/白底板/重挂置顶三样全拆，升级后第一次启动清掉旧面板外观值）；语音包管理砍掉，换成极简语音包页（★收藏/内置/在线/我的导入，搜索/试听/选中/刷新在线，长按只收藏）；长按导入至语音包（开关默认开，格子点它输名字就把当前视频的音频存进语音包）；下架没做成的功能（探针行、画中画、接口解析入口、抢红包黑名单等）。";
 }
 
-// ===== 画中画查找（1.0.15 重写）=====
-// 皇上 20:14：点「画中画播放」一直报“没找到播放的视频”，哪怕视频正在播——
-// 旧 finder 只在 keyWindow 里找一层 AVPlayerLayer，他那版抖音的播放器根本不在那儿。
-// 新 finder 分三路，按顺序试（详细日志只在画中画要用的那次记，平时调用不记，
-// 免得 2 秒巡检（直播静音开着时）把日志刷爆）：
-//   A. 全部窗口（所有 scene 的窗口，不只 keyWindow）里递归找 AVPlayerLayer
-//      （图层树也递归——旧代码只查 view.layer.sublayers 一层，包在容器图层里的就漏了）；
-//   B. 播放器控制器（AWEAwemePlayVideoViewController 等）里 KVC 探针找 AVPlayer / AVPlayerLayer
-//      （键名按惯例猜，每个键都 try/catch，拿不到就记一行，不崩）；
-//   C. 有 AVPlayer 没图层时，用播放器新建一个 AVPlayerLayer 再建 PiP 控制器（见 GHLStartPiP）。
-//   D. （1.0.16 兜底）A/B/C 全空时，用当前视频链接自起一个 AVPlayer 做画中画
-//      （见 GHLStartFallbackPiP；从头播，接不上进度，链接可能是短效签名）。
-//      直播分支（1.0.17）：在直播间时从 room model 取 HLS 拉流地址走同一套兜底；
-//      只有 FLV/RTMP 时记一行，不转封装。
-// 什么都没找到时，日志写明现场（窗口数、各类图层数、探针结果），方便下一步判断——
+// ===== 播放器查找（1.0.15；1.0.28：画中画下架后只剩 A 路）=====
+// 全部窗口（所有 scene 的窗口，不只 keyWindow）里递归找 AVPlayerLayer
+// （图层树也递归——旧代码只查 view.layer.sublayers 一层，包在容器图层里的就漏了）。
+// 供快进/静音/截图/直播静音这些要找当前播放器用的；详细日志只在 verbose 时记，
+// 平时调用不记，免得 2 秒巡检（直播静音开着时）把日志刷爆。
+// 什么都没找到时，日志写明现场（窗口数、各类图层数），方便下一步判断——
 // 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
-// 系统画中画挂不上现有播放器，才走 D 路兜底。
-
-// 前向声明（实现在下面）。
-static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out);
+// 而不是 AVPlayerLayer。
 
 // 全部窗口（去重）：sharedApplication.windows 再加每个 UIWindowScene 的 windows。
 static NSArray<UIWindow *> *GHLAllAppWindows(void) {
@@ -330,11 +319,6 @@ static NSArray<UIWindow *> *GHLAllAppWindows(void) {
     return windows;
 }
 
-// 1.0.21：A 路排除自己的宿主图层——宿主 view 和合成图层的声明必须放在 finder 前面
-// （以前在 600 行以后，finder 看不到，自己的兜底图层会被当成系统播放器捡起来，
-// 8.log 18:21:26 实锤的竞态：前一次 D 路兜底还在 KVO 加载，A 路把它捡起来又调了一次 start）。
-static UIView *ghlPiPLayerHostView = nil; // 合成图层宿主 view（挂在窗口里，320x180）
-static AVPlayerLayer *ghlPiPSyntheticLayer = nil; // C/D 路新建的图层（控制器会留住，这里再强引用一份）
 
 // 递归收图层：AVPlayerLayer 直接收；AVSampleBufferDisplayLayer / Metal / GL 图层只计数
 // （诊断用：它们出现说明抖音在用自有播放器渲染，而不是 AVPlayerLayer）。
@@ -342,9 +326,6 @@ static void GHLCollectPlayerLayersInLayer(CALayer *layer, NSMutableArray<AVPlaye
     if (!layer) return;
     for (CALayer *sublayer in layer.sublayers ?: @[]) {
         if ([sublayer isKindOfClass:[AVPlayerLayer class]]) {
-            // 1.0.21：跳过自己的宿主图层——那是上次 D 路兜底自起播放器的图层，
-            // 不是抖音系统的播放器；捡起来再调 start 就是 8.log 里的竞态。
-            if (sublayer == (CALayer *)ghlPiPSyntheticLayer || sublayer.superlayer == ghlPiPLayerHostView.layer) continue;
             [out addObject:(AVPlayerLayer *)sublayer];
         } else if ([sublayer isKindOfClass:[AVSampleBufferDisplayLayer class]]) {
             if (sampleBufferLayerCount) (*sampleBufferLayerCount)++;
@@ -398,14 +379,14 @@ static AVPlayerLayer *GHLFindPlayingAVPlayerLayerVerbose(BOOL verbose, NSInteger
           }
           if (!found) found = firstWithPlayer ?: firstLayer;
           if (verbose) {
-              GHLLog(@"画中画查找 A 路：扫了 %ld 个窗口（%@），AVPlayerLayer %lu 个（带播放器 %ld 个）/ AVSampleBufferDisplayLayer %ld 个 / Metal 或 GL 图层 %ld 个，结论：%@",
+              GHLLog(@"播放器查找 A 路：扫了 %ld 个窗口（%@），AVPlayerLayer %lu 个（带播放器 %ld 个）/ AVSampleBufferDisplayLayer %ld 个 / Metal 或 GL 图层 %ld 个，结论：%@",
                      (long)windowCount, [windowClasses componentsJoinedByString:@"、"],
                      (unsigned long)layers.count, (long)withPlayerCount,
                      (long)sampleBufferCount, (long)metalCount,
                      found ? (found.player && found.player.rate > 0 ? @"找到正在播的图层" : @"找到图层（没在播或没挂播放器）") : @"一个 AVPlayerLayer 都没有");
           }
       } @catch (__unused NSException *exception) {
-          if (verbose) GHLLog(@"画中画查找 A 路：遍历窗口时异常");
+          if (verbose) GHLLog(@"播放器查找 A 路：遍历窗口时异常");
       }
     };
     if ([NSThread isMainThread]) {
@@ -420,137 +401,6 @@ static AVPlayerLayer *GHLFindPlayingAVPlayerLayerVerbose(BOOL verbose, NSInteger
 
 AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
     return GHLFindPlayingAVPlayerLayerVerbose(NO, NULL, NULL);
-}
-
-// 1.0.16：运行时 VC 类名全 dump（判别播放器控制器是不是改名了——B 路只认 3 个类名，
-// 控制器改名会让 B 路永远 0 个；这一行打出来就能看到底有没有播放器控制器、叫什么）。
-// 只在 verbose 时调（画中画查找那次），平时不记。
-static void GHLCollectAllViewControllerClassesInVC(UIViewController *vc, NSMutableSet<NSString *> *out) {
-    if (!vc || !out) return;
-    [out addObject:NSStringFromClass([vc class])];
-    for (UIViewController *child in vc.childViewControllers) {
-        GHLCollectAllViewControllerClassesInVC(child, out);
-    }
-    if (vc.presentedViewController) GHLCollectAllViewControllerClassesInVC(vc.presentedViewController, out);
-}
-
-// B 路：在播放器控制器上 KVC 探针找 AVPlayer / AVPlayerLayer（verbose 时记结果）。
-// 键名是按惯例猜的：拿不到就记一行，不崩；拿到了先验类再用。
-static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLayer) {
-    static NSArray<NSString *> *playerKeys = nil;
-    static NSArray<NSString *> *layerKeys = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      playerKeys = @[@"player", @"avPlayer", @"videoPlayer", @"currentPlayer", @"playerController", @"videoController", @"mediaPlayer", @"enginePlayer"];
-      layerKeys = @[@"playerLayer", @"videoLayer", @"avPlayerLayer"];
-    });
-    __block AVPlayer *foundPlayer = nil;
-    __block AVPlayerLayer *foundLayer = nil;
-    void (^probe)(void) = ^{
-      @try {
-          NSArray<UIWindow *> *windows = GHLAllAppWindows();
-          NSMutableArray *playerVCs = [NSMutableArray array];
-          NSMutableArray<NSString *> *vcClasses = [NSMutableArray array];
-          for (UIWindow *window in windows) {
-              UIViewController *root = window.rootViewController;
-              while (root.presentedViewController) root = root.presentedViewController;
-              GHLFindPlayerViewControllersInVC(root, playerVCs);
-          }
-          for (UIViewController *vc in playerVCs) {
-              [vcClasses addObject:NSStringFromClass([vc class])];
-          }
-          if (verbose) {
-              GHLLog(@"画中画查找 B 路：播放器控制器 %lu 个（%@）", (unsigned long)playerVCs.count, playerVCs.count > 0 ? [vcClasses componentsJoinedByString:@"、"] : @"无");
-              // 1.0.16：窗口里控制器类名全 dump（B 路 0 个时看看到底有没有播放器控制器、叫什么）——
-              // 40 个封顶，免得一行太长；只在画中画查找那次记。
-              NSMutableSet<NSString *> *allVCClasses = [NSMutableSet set];
-              for (UIWindow *window in windows) {
-                  UIViewController *root = window.rootViewController;
-                  while (root.presentedViewController) root = root.presentedViewController;
-                  GHLCollectAllViewControllerClassesInVC(root, allVCClasses);
-              }
-              NSArray<NSString *> *sortedVCClasses = [[allVCClasses allObjects] sortedArrayUsingSelector:@selector(compare:)];
-              if (sortedVCClasses.count > 40) sortedVCClasses = [sortedVCClasses subarrayWithRange:NSMakeRange(0, 40)];
-              GHLLog(@"画中画查找 B 路：窗口里控制器共 %lu 类：%@", (unsigned long)allVCClasses.count, [sortedVCClasses componentsJoinedByString:@"、"]);
-          }
-          // 1.0.17：键存在但值不是播放器/图层时补记一行（之前是盲点：只记命中，键存在但类型不对时静默跳过）。
-          // 只在 verbose 时记，8 条封顶，免得刷屏。
-          __block NSInteger mismatchLogCount = 0;
-          for (UIViewController *vc in playerVCs) {
-              if (foundPlayer || foundLayer) break;
-              for (NSString *key in layerKeys) {
-                  @try {
-                      id value = [vc valueForKey:key];
-                      if ([value isKindOfClass:[AVPlayerLayer class]]) {
-                          foundLayer = (AVPlayerLayer *)value;
-                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayerLayer", NSStringFromClass([vc class]), key);
-                          break;
-                      } else if (value && verbose && mismatchLogCount < 8) {
-                          mismatchLogCount++;
-                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayerLayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
-                      }
-                  } @catch (__unused NSException *exception) {
-                  }
-              }
-              if (foundLayer) break;
-              for (NSString *key in playerKeys) {
-                  @try {
-                      id value = [vc valueForKey:key];
-                      if ([value isKindOfClass:[AVPlayer class]]) {
-                          foundPlayer = (AVPlayer *)value;
-                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayer", NSStringFromClass([vc class]), key);
-                          break;
-                      } else if (value && verbose && mismatchLogCount < 8) {
-                          mismatchLogCount++;
-                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
-                      }
-                  } @catch (__unused NSException *exception) {
-                  }
-              }
-          }
-          if (verbose && !foundPlayer && !foundLayer) {
-              GHLLog(@"画中画查找 B 路：KVC 探针什么都没拿到");
-          }
-      } @catch (__unused NSException *exception) {
-          if (verbose) GHLLog(@"画中画查找 B 路：遍历控制器时异常");
-      }
-    };
-    if ([NSThread isMainThread]) {
-        probe();
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), probe);
-    }
-    if (outLayer) *outLayer = foundLayer;
-    return foundPlayer;
-}
-
-// 画中画专用：A 路（图层）→ B 路（控制器探针），返回 AVPlayer；
-// 有图层时通过 outLayer 一起返回（没有时 outLayer 置 nil，调用方用播放器新建图层）。
-// 详细日志只在这里记（平时快进/静音/截图调用的安静版不记，免得刷屏）。
-static AVPlayer *GHLFindPlayingAVPlayerForPiP(AVPlayerLayer **outLayer) {
-    AVPlayerLayer *layer = GHLFindPlayingAVPlayerLayerVerbose(YES, NULL, NULL);
-    AVPlayer *player = layer.player;
-    if (player) {
-        if (outLayer) *outLayer = layer;
-        return player;
-    }
-    if (layer) {
-        // 图层找到了但上面没挂播放器：记一笔，再走 B 路。
-        GHLLog(@"画中画查找：找到 AVPlayerLayer 但 player 是 nil，继续 B 路探针");
-    }
-    AVPlayerLayer *probeLayer = nil;
-    AVPlayer *probePlayer = GHLProbePlayerFromPlayerVCs(YES, &probeLayer);
-    if (probeLayer) {
-        if (outLayer) *outLayer = probeLayer;
-        return probeLayer.player;
-    }
-    if (probePlayer) {
-        if (outLayer) *outLayer = nil;
-        return probePlayer;
-    }
-    if (outLayer) *outLayer = nil;
-    GHLLog(@"画中画查找：A 路 B 路都没找到播放器（图层和 KVC 探针都是空）");
-    return nil;
 }
 
 AVPlayer *GHLFindPlayingAVPlayer(void) {
@@ -648,840 +498,11 @@ void GHLApplyNightMode(BOOL on) {
     });
 }
 
-#pragma mark - (2) 画中画
-
-static AVPictureInPictureController *ghlPiPController = nil;
-// （1.0.21：ghlPiPSyntheticLayer 的声明挪到 finder 前面了，A 路排除自己图层要用。）
-
-// ===== 画中画兜底 D 路（1.0.16）=====
-// 抖音自有播放器（Metal 渲染）没有 AVPlayerLayer，A/B/C 全空时只能自起播放器。
-// 老实边界：从头播（接不上进度）、链接可能是带签名的短效链接（过期播不了）、
-// 后台/锁屏/与原视频声音冲突都要真机验证。player/item 都强引用留住（画中画停了
-// 也不放，下次同视频复用）；item 就绪（KVO status）后再 startPictureInPicture。
-static AVPlayer *ghlPiPFallbackPlayer = nil;
-static AVPlayerItem *ghlPiPFallbackItem = nil;
-static BOOL ghlPiPFallbackObserving = NO;
-static BOOL ghlPiPFallbackStarted = NO;
-static char kGHLPiPFallbackKVOContext;
-
-// 画中画 start 回调标记：didStart/失败任一到就置 YES；每次调 startPictureInPicture 前清掉。
-// 3 秒都没回调＝系统根本没接上（1.0.18 日志：8 次调用 0 成功、7 次没任何回调；
-// 8.log：没窗口的兜底一直响到会话结束），看门狗就把兜底播放器停掉，别让它在后台一直出声。
-static BOOL ghlPiPStartCallbackReceived = NO;
-static CFAbsoluteTime ghlPiPLastStartTime = 0;
-// （1.0.21：ghlPiPLayerHostView 的声明挪到 finder 前面了，A 路排除自己图层要用。）
-// 1.0.21：第 7 项去重——上次切后台触发的时间（不管有没有调 start）；10 秒内重复触发直接丢弃。
-// （8.log：D 里 4 秒内重复触发 5 次，每次都重建兜底播放器，旧看门狗全被新播放器顶掉。
-//  旧的冷却只看上次 start，没调 start 时挡不住——通知中心下拉也会触发 WillResignActive，
-//  回来又 DidBecomeActive 清掉 guard，一拉一回就是一次新触发。）
-static CFAbsoluteTime ghlPiPLastTriggerTime = 0;
-// 1.0.21：兜底播放器建的时候 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）。
-// 建的时候在后台、就绪时已回前台＝用户回来了，别再启动画中画，直接停掉兜底（免得两个声音叠着响）。
-static BOOL ghlPiPFallbackCreatedWhileBackground = NO;
-
-// 前向声明（定义在下面 GHLStartPiP 前；GHLPiPDelegate 的 KVO 回调里先用到）。
-static void GHLCleanupFallbackPiPObserver(void);
-static void GHLCleanupFallbackPiPPlayer(void);
-static void GHLNotePiPStartAttempted(void);
-static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason); // 1.0.21：3 秒看门狗／后台任务结束时的共用停播
-
-// 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
-// ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
-// GHLStartPiP() 一次都没跑过（皇上 19:53「滑出抖音没有小窗」的根因）。
-// 现在把 token 存进 file-static 变量（照 DYYY.xm 的 dyyy*Token 写法），
-// applicationWillTerminate 时移除（见 %ctor 后面的 %hook AppDelegate）。
+// %ctor 里 addObserverForName:usingBlock: 的返回值要存进 file-static 变量——
+// ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销
+// （照 DYYY.xm 的 dyyy*Token 写法）。
 static id ghlScreenshotObserverToken = nil;
 static id ghlVolumeObserverToken = nil;
-static id ghlPiPWillResignActiveToken = nil;
-static id ghlPiPDidEnterBackgroundToken = nil;
-static id ghlPiPDidBecomeActiveToken = nil;
-// 一次后台只触发一次画中画：WillResignActive 先触发，DidEnterBackground 兜底时
-// 靠它跳过；回到前台（DidBecomeActive）再清掉，下次切后台重新触发。
-static BOOL ghlPiPTriggeredForCurrentBackground = NO;
-// 兜底路径的后台任务：DidEnterBackground 里起画中画时 App 随时被挂起，
-// 开一个后台任务撑到系统回调（didStart/失败）或 10 秒超时。
-static UIBackgroundTaskIdentifier ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
-
-static void GHLEndPiPBackgroundTask(void) {
-    if (ghlPiPBackgroundTask == UIBackgroundTaskInvalid) return;
-    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
-    ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
-    [[UIApplication sharedApplication] endBackgroundTask:task];
-}
-
-// 1.0.20：兜底画中画的后台任务——WillResignActive 和 DidEnterBackground 两条路都开
-// （以前只在 DidEnterBackground 的兜底分支开；正常流程 WillResignActive 先触发，
-// D 路等 item 就绪要几秒，App 已在后台，没任务撑着随时被挂起）。
-static void GHLBeginPiPBackgroundTaskIfNeeded(void) {
-    if (ghlPiPTriggeredForCurrentBackground) return;
-    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
-    if (ghlPiPBackgroundTask != UIBackgroundTaskInvalid) return;
-    ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-      // 1.0.21：系统要收回后台时间了——画中画还没出来就先停兜底，别让它没窗口一直响。
-      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务到期");
-      GHLEndPiPBackgroundTask();
-    }];
-    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      // 1.0.21：10 秒到了——没出来就停兜底，再结束这个任务（只结束自己这一份，
-      // 别动后来新开的任务；以前直接调 GHLEndPiPBackgroundTask，会误结束新任务）。
-      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务 10 秒到");
-      if (ghlPiPBackgroundTask == task) GHLEndPiPBackgroundTask();
-    });
-}
-
-static void GHLRemovePiPObservers(void) {
-    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    if (ghlScreenshotObserverToken) {
-        [center removeObserver:ghlScreenshotObserverToken];
-        ghlScreenshotObserverToken = nil;
-    }
-    if (ghlVolumeObserverToken) {
-        [center removeObserver:ghlVolumeObserverToken];
-        ghlVolumeObserverToken = nil;
-    }
-    if (ghlPiPWillResignActiveToken) {
-        [center removeObserver:ghlPiPWillResignActiveToken];
-        ghlPiPWillResignActiveToken = nil;
-    }
-    if (ghlPiPDidEnterBackgroundToken) {
-        [center removeObserver:ghlPiPDidEnterBackgroundToken];
-        ghlPiPDidEnterBackgroundToken = nil;
-    }
-    if (ghlPiPDidBecomeActiveToken) {
-        [center removeObserver:ghlPiPDidBecomeActiveToken];
-        ghlPiPDidBecomeActiveToken = nil;
-    }
-}
-
-// 1.0.21：第 7 项——音频状态一行（切后台触发／已进后台／将终止三处共用，格式统一才好对照）。
-// 两路会叠加：兜底播放器在播＋抖音自己的后台音频（status 2）同时响，日志里要分得清。
-// （status 是 setListenVideoStatus 钩子记下的改写后值；-1 表示还没见过。）
-static void GHLLogAudioState(NSString *when) {
-    GHLLog(@"%@：音频状态：兜底播放器%@（%@），抖音后台听视频 status=%ld（开关 %@／%@），PiP 回调%@／小窗%@",
-           when,
-           ghlPiPFallbackPlayer ? @"在" : @"不在",
-           (ghlPiPFallbackPlayer && ghlPiPFallbackPlayer.rate > 0) ? @"在播" : @"没播",
-           (long)GHLCurrentListenVideoStatus(),
-           GHLGetBool(GHL_KEY_BACKGROUND_LISTEN) ? @"开" : @"关",
-           [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableBackgroundListen"] ? @"开" : @"关",
-           ghlPiPStartCallbackReceived ? @"有" : @"无",
-           (ghlPiPController && ghlPiPController.pictureInPictureActive) ? @"已出" : @"没出");
-}
-
-// 切后台时触发一次画中画（开关关着就不触发；已触发过就跳过，等回到前台再重置）。
-static void GHLTriggerPiPForBackground(void) {
-    if (ghlPiPTriggeredForCurrentBackground) return;
-    // 1.0.21：第 7 项去重——距上次触发不足 10 秒直接丢弃，不要重复建兜底播放器
-    // （8.log：D 里 4 秒内重复触发 5 次；旧冷却只看上次 start，没调 start 时挡不住——
-    //  通知中心下拉也会触发 WillResignActive，回来又 DidBecomeActive 清掉 guard，
-    //  一拉一回就是一次新触发，每次都重建兜底，旧看门狗全被新播放器顶掉）。
-    if (ghlPiPLastTriggerTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastTriggerTime < 10) {
-        GHLLog(@"画中画：距上次触发不足 10 秒，丢弃重复触发");
-        return;
-    }
-    // 1.0.20：距上次 start 未满 10 秒直接忽略（6.log 17:18 七秒连触三次，
-    // 第三次 start 才 1 秒就被切后台 3 秒重查误杀；冷却后同一次后台只会触发一次）。
-    if (ghlPiPLastStartTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 10) {
-        GHLLog(@"画中画：距上次启动不足 10 秒，跳过这次切后台触发");
-        return;
-    }
-    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
-    ghlPiPTriggeredForCurrentBackground = YES;
-    ghlPiPLastTriggerTime = CFAbsoluteTimeGetCurrent();
-    // 1.0.21：第 7 项——每次切后台触发记一行音频状态。
-    GHLLogAudioState(@"画中画：切后台触发");
-    // 1.0.16：切后台触发也记调用方（判别是网格点按还是切后台）。
-    GHLStartPiPWithCaller(@"切后台");
-}
-
-// 画中画 delegate：系统回调如实记日志（startPictureInPicture 只表示已调用，
-// 小窗真出来要等 didStart；失败也只在这里才知道）。
-@interface GHLPiPDelegate : NSObject <AVPictureInPictureControllerDelegate>
-+ (instancetype)sharedDelegate;
-@end
-
-@implementation GHLPiPDelegate
-
-+ (instancetype)sharedDelegate {
-    static GHLPiPDelegate *shared = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      shared = [[self alloc] init];
-    });
-    return shared;
-}
-
-- (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
-    GHLLog(@"画中画：系统已开始画中画");
-    ghlPiPStartCallbackReceived = YES;
-    GHLEndPiPBackgroundTask();
-}
-
-- (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
-    GHLLog(@"画中画：系统启动失败：%@", error.localizedDescription ?: @"未知错误");
-    ghlPiPStartCallbackReceived = YES;
-    GHLEndPiPBackgroundTask();
-    // 兜底播放器：画中画没接上就不能让它继续放，否则切后台后声音一直讲
-    // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）；只清兜底播放器，C 路用的原播放器不动。
-    if (pictureInPictureController == ghlPiPController && ghlPiPFallbackPlayer) {
-        GHLCleanupFallbackPiPPlayer();
-    }
-}
-
-- (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
-    GHLLog(@"画中画：已退出画中画");
-    // 兜底播放器是自己起的：小窗关了就停播，别让它在后台继续出声。
-    if (ghlPiPFallbackPlayer) [ghlPiPFallbackPlayer pause];
-    GHLEndPiPBackgroundTask();
-}
-
-// 兜底 item 的 KVO：就绪后再 startPictureInPicture（没就绪就直接调大概率失败）。
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
-    if (context == &kGHLPiPFallbackKVOContext) {
-        AVPlayerItem *item = (AVPlayerItem *)object;
-        if (item != ghlPiPFallbackItem) return; // 已换视频，旧 item 的回调不管
-        if (item.status == AVPlayerItemStatusReadyToPlay) {
-            if (!ghlPiPFallbackStarted) {
-                ghlPiPFallbackStarted = YES;
-                // 1.0.21：KVO 回调不在主线程跑（AVFoundation 内部线程），startPictureInPicture
-                // 必须回主线程调——后台线程调很可能系统根本不接（0 回调的嫌疑之一）。
-                // 兜底是切后台建的、就绪时已回前台＝用户回来了：别启动，直接停掉兜底
-                // （免得兜底和抖音自己的声音叠着响）。
-                GHLRunOnMain(^{
-                  if (!ghlPiPFallbackPlayer || !ghlPiPController) return; // 已经被停了（看门狗／3 秒检查）
-                  if (ghlPiPFallbackCreatedWhileBackground &&
-                      [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
-                      GHLLog(@"画中画：兜底就绪时已回前台，不启动画中画，停掉兜底播放器");
-                      GHLCleanupFallbackPiPPlayer();
-                      return;
-                  }
-                  [ghlPiPFallbackPlayer play];
-                  [ghlPiPController startPictureInPicture];
-                  GHLNotePiPStartAttempted();
-                  GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
-                });
-            }
-            GHLCleanupFallbackPiPObserver(); // 就绪了就不用再监听
-        } else if (item.status == AVPlayerItemStatusFailed) {
-            GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
-            [DYYYUtils showToast:@"画中画启动失败"];
-            GHLCleanupFallbackPiPPlayer();
-        }
-        return;
-    }
-    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-}
-
-@end
-
-// 画中画前先把音频会话切到 playback 并激活（抖音原播放器没走这条路时 PiP 容易没声音）。
-// 正常路和兜底路共用。只在类别不是 playback 时才改（只改类别、不动别的设置；失败如实记日志，不硬来）。
-static void GHLPreparePiPAudioSession(void) {
-    AVAudioSession *session = [AVAudioSession sharedInstance];
-    if (![session.category isEqualToString:AVAudioSessionCategoryPlayback]) {
-        NSString *oldCategory = session.category ?: @"未知";
-        NSError *categoryError = nil;
-        [session setCategory:AVAudioSessionCategoryPlayback error:&categoryError];
-        if (categoryError) {
-            GHLLog(@"画中画：音频会话改 playback 失败：%@", categoryError.localizedDescription);
-        } else {
-            GHLLog(@"画中画：音频会话已改成 playback（原来 %@）", oldCategory);
-        }
-    }
-    NSError *activeError = nil;
-    [session setActive:YES error:&activeError];
-    if (activeError) {
-        GHLLog(@"画中画：音频会话激活失败：%@", activeError.localizedDescription);
-    }
-}
-
-// 兜底 D 路（1.0.16）：A/B/C 全空时用当前视频链接自起一个 AVPlayer 做画中画。
-// 老实边界：会从头播（接不上当前进度）；播放地址可能是带签名的短效链接（过期播不了）；
-// 后台行为、锁屏控制、与抖音原播放器的声音冲突都要真机验证。
-// 直播分支（1.0.17）：直播间没有 video.playURL，改从 room model 取 HLS 拉流地址
-// （见 GHLProbeLiveStreamURL）；只有 FLV/RTMP 时记一行，不转封装。
-
-// 当前视频的播放地址（复用保存视频那套取法：video.playURL.originURLList 首个；
-// 图集视频走当前图的 clipVideo.playURL）。
-static NSURL *GHLCurrentVideoPlayURL(void) {
-    AWEAwemeModel *model = GHLCurrentAwemeModel();
-    if (!model) return nil;
-    @try {
-        AWEVideoModel *videoModel = model.video;
-        if (videoModel && videoModel.playURL && videoModel.playURL.originURLList.count > 0) {
-            NSString *urlString = videoModel.playURL.originURLList.firstObject;
-            if (urlString.length > 0) return [NSURL URLWithString:urlString];
-        }
-        if (model.awemeType == 68 && model.albumImages.count > 0 && model.currentImageIndex > 0 && model.currentImageIndex <= (NSInteger)model.albumImages.count) {
-            AWEImageAlbumImageModel *imageModel = model.albumImages[model.currentImageIndex - 1];
-            if (imageModel.clipVideo && imageModel.clipVideo.playURL) {
-                return [imageModel.clipVideo.playURL getDYYYSrcURLDownload];
-            }
-        }
-    } @catch (__unused NSException *exception) {
-    }
-    return nil;
-}
-
-// ===== 1.0.17：直播画中画探针（D 路直播分支用）=====
-// 背景（2026-11-14 21:45 定死，GuHaiLongDouyin-3.log）：照片里卡住的小窗是抖音自己的
-// 原生小窗，咱们一次都没启动过，修不了；普通视频走 1.0.16 的 D 路兜底能绕过去，
-// 但直播间没有 video.playURL，D 路覆盖不了直播。
-// 探针只在两处跑：画中画查找发生在直播间时、进直播间时各一次——绝不进 2 秒巡检，
-// 免得刷屏。日志只记栏位名＋URL 长度＋前 60 字符，不记完整签名 URL。
-// AVPlayer 只能播 HLS（.m3u8），不能播 FLV/RTMP：只有 FLV/RTMP 时如实记一行，不转封装。
-
-// 递归收全部 VC（对象，不是类名）：子 VC + presented VC 都走。
-static void GHLCollectAllViewControllersInVC(UIViewController *vc, NSMutableArray<UIViewController *> *out) {
-    if (!vc || !out) return;
-    [out addObject:vc];
-    for (UIViewController *child in vc.childViewControllers) {
-        GHLCollectAllViewControllersInVC(child, out);
-    }
-    if (vc.presentedViewController) GHLCollectAllViewControllersInVC(vc.presentedViewController, out);
-}
-
-// 对象属性名清单（往上走 3 层父类，去重，60 个封顶）。
-static NSArray<NSString *> *GHLPropertyNamesOfObject(id obj) {
-    NSMutableArray<NSString *> *names = [NSMutableArray array];
-    NSMutableSet<NSString *> *seen = [NSMutableSet set];
-    Class cls = [obj class];
-    for (NSInteger level = 0; level < 3 && cls && cls != [NSObject class]; level++) {
-        unsigned int count = 0;
-        objc_property_t *props = class_copyPropertyList(cls, &count);
-        for (unsigned int i = 0; i < count && names.count < 60; i++) {
-            NSString *name = [NSString stringWithUTF8String:property_getName(props[i])];
-            if (name.length > 0 && ![seen containsObject:name]) {
-                [seen addObject:name];
-                [names addObject:name];
-            }
-        }
-        free(props);
-        cls = class_getSuperclass(cls);
-    }
-    return names;
-}
-
-// URL 分类：看内容，不看栏位名（栏位名可能骗人，内容不会）。
-static NSString *GHLClassifyStreamURLString(NSString *urlString) {
-    if (!urlString || urlString.length == 0) return nil;
-    NSString *lower = urlString.lowercaseString;
-    if ([lower containsString:@"m3u8"] || [lower containsString:@"hls"]) return @"HLS";
-    if ([lower containsString:@"flv"]) return @"FLV";
-    if ([lower containsString:@"rtmp"]) return @"RTMP";
-    return @"其他";
-}
-
-// 前 60 字符（不记完整签名 URL）。
-static NSString *GHLTruncatedURLString(NSString *urlString) {
-    if (!urlString) return @"";
-    if (urlString.length <= 60) return urlString;
-    return [urlString substringToIndex:60];
-}
-
-// 一个候选值里找拉流地址：字符串直接分类；数组取首个字符串；字典在里面按
-// hls/flv/rtmp 键找一层；其他对象枚举它的字符串属性（只找一层嵌套，HLS 优先）。
-// 命中记进 hits（@{key,type,where,url}），HLS 地址另记进 hlsURLs。
-static void GHLCollectStreamURLHitFromValue(id value, NSString *key, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs) {
-    if (!value) return;
-    NSString *urlString = nil;
-    NSString *hitKey = key;
-    if ([value isKindOfClass:[NSString class]]) {
-        urlString = (NSString *)value;
-    } else if ([value isKindOfClass:[NSArray class]]) {
-        for (id element in (NSArray *)value) {
-            if ([element isKindOfClass:[NSString class]] && ((NSString *)element).length > 0) {
-                urlString = (NSString *)element;
-                break;
-            }
-        }
-    } else if ([value isKindOfClass:[NSDictionary class]]) {
-        for (NSString *subKey in @[@"hls_pull_url", @"flv_pull_url", @"rtmp_pull_url", @"pull_url", @"url"]) {
-            id sub = ((NSDictionary *)value)[subKey];
-            if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
-                urlString = (NSString *)sub;
-                hitKey = [NSString stringWithFormat:@"%@.%@", key, subKey];
-                break;
-            }
-        }
-    } else if ([value isKindOfClass:[NSObject class]]) {
-        // 嵌套对象（比如 stream_url 对象）：先找名字带 hls 的属性，再找任意 url/pull/stream/play 属性。
-        NSArray<NSString *> *props = GHLPropertyNamesOfObject(value);
-        for (NSInteger pass = 0; pass < 2 && !urlString; pass++) {
-            for (NSString *prop in props) {
-                NSString *lower = prop.lowercaseString;
-                BOOL isURLish = [lower containsString:@"url"] || [lower containsString:@"pull"] || [lower containsString:@"stream"] || [lower containsString:@"play"];
-                if (!isURLish) continue;
-                if (pass == 0 && ![lower containsString:@"hls"]) continue;
-                @try {
-                    id sub = [value valueForKey:prop];
-                    if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
-                        urlString = (NSString *)sub;
-                        hitKey = [NSString stringWithFormat:@"%@.%@", key, prop];
-                        break;
-                    }
-                } @catch (__unused NSException *exception) {
-                }
-            }
-        }
-    }
-    if (!urlString || urlString.length == 0) return;
-    NSString *type = GHLClassifyStreamURLString(urlString);
-    if (!type) return;
-    [hits addObject:@{@"key": hitKey, @"type": type, @"where": where, @"url": urlString}];
-    if ([type isEqualToString:@"HLS"] && ![hlsURLs containsObject:urlString]) [hlsURLs addObject:urlString];
-}
-
-// 探一个模型对象：先按候选键逐个试，再把对象全部字符串属性里名字带 url/pull/stream/play 的都扫一遍
-// （候选键没覆盖到的也抓出来）。
-// 1.0.18：再往下探一层——1.0.17 定死：IESLiveRoomService 上用键 roomModel 拿到的是服务外壳，
-// 真正的房间数据在它里面的 roomModel 属性里，之前从不往下探。容器键只认这几个，深度只多一层，
-// 同一个对象不重复探（probed 按指针去重），避免循环引用兜圈子。
-static void GHLProbeStreamURLOnModelDeep(id model, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs, NSMutableSet<NSNumber *> *probed, NSInteger depth) {
-    if (!model || ![model isKindOfClass:[NSObject class]]) return;
-    NSNumber *ptr = @((uintptr_t)(__bridge void *)model);
-    if ([probed containsObject:ptr]) return;
-    [probed addObject:ptr];
-    static NSArray<NSString *> *urlKeys = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      urlKeys = @[@"hls_pull_url", @"hlsPullUrl", @"pullUrl", @"pull_url", @"streamUrl", @"stream_url", @"playUrl", @"play_url", @"flv_pull_url", @"flvPullUrl", @"rtmp_pull_url", @"rtmpPullUrl", @"hls_url", @"hlsUrl", @"liveUrl", @"url", @"playbackUrl", @"streamURL", @"pullStreamUrl", @"pullURL", @"originPullUrl"];
-    });
-    for (NSString *key in urlKeys) {
-        @try {
-            id value = [model valueForKey:key];
-            GHLCollectStreamURLHitFromValue(value, key, where, hits, hlsURLs);
-        } @catch (__unused NSException *exception) {
-        }
-    }
-    NSArray<NSString *> *propNames = GHLPropertyNamesOfObject(model);
-    for (NSString *prop in propNames) {
-        NSString *lower = prop.lowercaseString;
-        if (![lower containsString:@"url"] && ![lower containsString:@"pull"] && ![lower containsString:@"stream"] && ![lower containsString:@"play"]) continue;
-        if ([urlKeys containsObject:prop]) continue; // 第 1 步试过了
-        @try {
-            id value = [model valueForKey:prop];
-            GHLCollectStreamURLHitFromValue(value, prop, where, hits, hlsURLs);
-        } @catch (__unused NSException *exception) {
-        }
-    }
-    if (depth >= 1) return; // 只多探一层，不无限下探
-    static NSArray<NSString *> *containerKeys = nil;
-    static dispatch_once_t onceToken2;
-    dispatch_once(&onceToken2, ^{
-      containerKeys = @[@"roomModel", @"room", @"roomInfo", @"liveRoom", @"api"];
-    });
-    for (NSString *key in containerKeys) {
-        @try {
-            id nested = [model valueForKey:key];
-            if (!nested || ![nested isKindOfClass:[NSObject class]]) continue;
-            if ([nested isKindOfClass:[NSString class]] || [nested isKindOfClass:[NSArray class]] || [nested isKindOfClass:[NSDictionary class]]) continue;
-            NSString *nestedClass = NSStringFromClass([nested class]);
-            if ([nestedClass hasPrefix:@"UI"] || [nestedClass hasPrefix:@"NS"] || [nestedClass hasPrefix:@"__NS"]) continue;
-            NSNumber *nestedPtr = @((uintptr_t)(__bridge void *)nested);
-            if ([probed containsObject:nestedPtr]) continue;
-            GHLLog(@"直播画中画探针：下探一层 %@（%@，键 %@）", nestedClass, where, key);
-            GHLProbeStreamURLOnModelDeep(nested, [NSString stringWithFormat:@"%@.%@", where, key], hits, hlsURLs, probed, depth + 1);
-        } @catch (__unused NSException *exception) {
-        }
-    }
-}
-
-// 保持旧调用形式：新探一层从深度 0 开始，共用同一套去重集合。
-static void GHLProbeStreamURLOnModel(id model, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs, NSMutableSet<NSNumber *> *probed) {
-    GHLProbeStreamURLOnModelDeep(model, where, hits, hlsURLs, probed ?: [NSMutableSet set], 0);
-}
-
-// 1.0.17：直播间拉流地址探针。返回 HLS 拉流地址（NSURL），没有 HLS 时返回 nil。
-// 跑两处：画中画查找发生在直播间时、进直播间时各一次（不在 2 秒巡检里跑）。
-static NSURL *GHLProbeLiveStreamURL(void) {
-    NSMutableArray<NSDictionary *> *hits = [NSMutableArray array];
-    NSMutableArray<NSString *> *hlsURLs = [NSMutableArray array];
-    // 1) 直播间 VC（类名含 Live，全树走，不只顶层）
-    NSMutableArray<UIViewController *> *liveVCs = [NSMutableArray array];
-    for (UIWindow *window in GHLAllAppWindows()) {
-        UIViewController *root = window.rootViewController;
-        while (root.presentedViewController) root = root.presentedViewController;
-        NSMutableArray<UIViewController *> *all = [NSMutableArray array];
-        GHLCollectAllViewControllersInVC(root, all);
-        for (UIViewController *vc in all) {
-            if ([NSStringFromClass([vc class]) rangeOfString:@"Live"].location != NSNotFound) {
-                if (![liveVCs containsObject:vc] && liveVCs.count < 5) [liveVCs addObject:vc];
-            }
-        }
-    }
-    NSMutableArray<NSString *> *liveVCNames = [NSMutableArray array];
-    for (UIViewController *vc in liveVCs) [liveVCNames addObject:NSStringFromClass([vc class])];
-    GHLLog(@"直播画中画探针：直播间 VC %lu 个（前 5）：%@", (unsigned long)liveVCs.count, liveVCNames.count > 0 ? [liveVCNames componentsJoinedByString:@"、"] : @"无");
-    static NSArray<NSString *> *modelKeys = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      modelKeys = @[@"roomModel", @"liveRoomModel", @"room", @"model", @"liveModel", @"roomInfo", @"liveRoom", @"currentRoomModel", @"roomData", @"liveRoomInfo", @"roomViewModel", @"liveRoomViewModel", @"awemeModel", @"aweme"];
-    });
-    NSMutableSet<NSNumber *> *probedModels = [NSMutableSet set];
-    for (UIViewController *vc in liveVCs) {
-        NSString *vcName = NSStringFromClass([vc class]);
-        for (NSString *key in modelKeys) {
-            @try {
-                id model = [vc valueForKey:key];
-                if (!model || ![model isKindOfClass:[NSObject class]]) continue;
-                NSNumber *ptr = @((uintptr_t)(__bridge void *)model);
-                if ([probedModels containsObject:ptr]) continue;
-                // 去重集合由 GHLProbeStreamURLOnModelDeep 统一加（下探一层也共用同一套）。
-                NSString *modelClass = NSStringFromClass([model class]);
-                if ([modelClass hasPrefix:@"UI"] || [modelClass hasPrefix:@"NS"] || [modelClass hasPrefix:@"__NS"]) continue;
-                NSArray<NSString *> *props = GHLPropertyNamesOfObject(model);
-                GHLLog(@"直播画中画探针：在 %@ 上找到模型 %@（键 %@），属性 %lu 个：%@", vcName, modelClass, key, (unsigned long)props.count, props.count > 0 ? [props componentsJoinedByString:@"、"] : @"无");
-                GHLProbeStreamURLOnModel(model, [NSString stringWithFormat:@"%@.%@", vcName, key], hits, hlsURLs, probedModels);
-            } @catch (__unused NSException *exception) {
-            }
-        }
-    }
-    // 2) 当前视频模型也探一下（直播间里 feed 的 model 可能是直播 aweme）
-    AWEAwemeModel *aweme = GHLCurrentAwemeModel();
-    if (aweme) {
-        GHLProbeStreamURLOnModel(aweme, @"当前视频模型", hits, hlsURLs, probedModels);
-    }
-    // 3) 命中汇总（按 URL 去重，只记栏位名＋长度＋前 60 字）
-    NSMutableSet<NSString *> *seenURLs = [NSMutableSet set];
-    for (NSDictionary *hit in hits) {
-        NSString *url = hit[@"url"];
-        if ([seenURLs containsObject:url]) continue;
-        [seenURLs addObject:url];
-        GHLLog(@"直播画中画探针：栏位 %@ 命中 %@（%@，长 %lu，前 60 字：%@）", hit[@"key"], hit[@"type"], hit[@"where"], (unsigned long)((NSString *)url).length, GHLTruncatedURLString(url));
-    }
-    if (hlsURLs.count > 0) {
-        NSURL *hlsURL = [NSURL URLWithString:hlsURLs.firstObject];
-        if (hlsURL) {
-            GHLLog(@"直播画中画探针：HLS 地址已确认（%lu 条），画中画用第一条", (unsigned long)hlsURLs.count);
-            return hlsURL;
-        }
-        GHLLog(@"直播画中画探针：找到疑似 HLS 地址但拼不成 NSURL（见上面栏位行）");
-    }
-    BOOL hasFLVOrRTMP = NO;
-    for (NSDictionary *hit in hits) {
-        if ([hit[@"type"] isEqualToString:@"FLV"] || [hit[@"type"] isEqualToString:@"RTMP"]) { hasFLVOrRTMP = YES; break; }
-    }
-    if (hasFLVOrRTMP) {
-        GHLLog(@"直播画中画探针：只有 FLV/RTMP，没有 HLS，系统画中画做不了（AVPlayer 播不了 FLV/RTMP，不转封装）");
-    } else {
-        GHLLog(@"直播画中画探针：没找到任何拉流地址（模型/栏位见上面）");
-    }
-    return nil;
-}
-
-// 1.0.18：探针改后台线程跑——之前是主线程同步，KVC getter 万一耗时会堵 UI
-// （皇上 22:44–22:45：画面冻住、声音继续、慢慢变卡）。
-// 探针本体只读窗口/VC 树＋KVC，全部 try/catch；日志写盘本身就是异步队列，
-// 所以后台线程记日志安全；完成回调回主线程。
-static dispatch_queue_t GHLProbeQueue(void) {
-    static dispatch_queue_t queue;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      queue = dispatch_queue_create("com.guhailong.douyin.liveprobe", DISPATCH_QUEUE_SERIAL);
-    });
-    return queue;
-}
-
-static void GHLProbeLiveStreamURLAsync(void (^completion)(NSURL * _Nullable hlsURL)) {
-    dispatch_async(GHLProbeQueue(), ^{
-      NSURL *url = nil;
-      @try {
-          url = GHLProbeLiveStreamURL();
-      } @catch (__unused NSException *exception) {
-          GHLLog(@"直播画中画探针：后台跑探针时异常，按拿不到地址处理");
-      }
-      NSURL *foundURL = url;
-      GHLRunOnMain(^{
-        if (completion) completion(foundURL);
-      });
-    });
-}
-
-static void GHLCleanupFallbackPiPObserver(void) {
-    if (ghlPiPFallbackObserving && ghlPiPFallbackItem) {
-        @try {
-            [ghlPiPFallbackItem removeObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" context:&kGHLPiPFallbackKVOContext];
-        } @catch (__unused NSException *exception) {
-        }
-        ghlPiPFallbackObserving = NO;
-    }
-}
-
-static void GHLCleanupFallbackPiPPlayer(void) {
-    GHLCleanupFallbackPiPObserver();
-    if (ghlPiPFallbackPlayer) {
-        [ghlPiPFallbackPlayer pause];
-        GHLLog(@"兜底播放器：已停止");
-    }
-    ghlPiPFallbackPlayer = nil;
-    ghlPiPFallbackItem = nil;
-    ghlPiPFallbackStarted = NO;
-    // 控制器和合成图层也一起清掉，别留一个死的控制器给复用路
-    // （复用路只在 player/item 还在时才走，清掉后不会误用）。
-    if (ghlPiPSyntheticLayer) [ghlPiPSyntheticLayer removeFromSuperlayer];
-    ghlPiPSyntheticLayer = nil;
-    ghlPiPController = nil;
-}
-
-// 合成图层挂到窗口里：1.0.20 改成正常可见尺寸（320×180，放在 feed 底部、底栏上方，
-// 不挡操作）再启动——1.0.19 的 2×2 小宿主 11 次调用 0 回调，系统很可能要求图层真正可见
-// （每次 start 系统都建了 hosted window，就是不显示、不回调）。这只是最可能的方向，
-// 真机测了才算；宿主尺寸记进日志。
-static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
-    if (!layer) return;
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    if (!window) return;
-    if (!ghlPiPLayerHostView) {
-        ghlPiPLayerHostView = [[UIView alloc] init];
-        ghlPiPLayerHostView.backgroundColor = [UIColor clearColor];
-        ghlPiPLayerHostView.userInteractionEnabled = NO;
-        GHLLog(@"画中画：宿主改成可见尺寸 320x180（放在 feed 底部、底栏上方）");
-    }
-    CGFloat hostW = 320;
-    CGFloat hostH = 180;
-    CGFloat safeBottom = 0;
-    if (@available(iOS 11.0, *)) safeBottom = window.safeAreaInsets.bottom;
-    CGFloat tabBarH = 83; // 底栏大约 83pt（含 Home Indicator 区）；宿主贴在底栏上方
-    CGFloat hostX = (window.bounds.size.width - hostW) / 2;
-    CGFloat hostY = window.bounds.size.height - safeBottom - tabBarH - hostH - 8;
-    if (hostY < 0) hostY = 0;
-    ghlPiPLayerHostView.frame = CGRectMake(hostX, hostY, hostW, hostH);
-    if (ghlPiPLayerHostView.window != window) [window addSubview:ghlPiPLayerHostView];
-    [window bringSubviewToFront:ghlPiPLayerHostView];
-    [layer removeFromSuperlayer];
-    layer.frame = ghlPiPLayerHostView.bounds;
-    [ghlPiPLayerHostView.layer addSublayer:layer];
-}
-
-// 1.0.21：画中画没出来时的兜底停播（共用）：兜底在、没回调、小窗没起来，就停掉并记原因。
-// 调用点：3 秒看门狗、后台任务结束时、后台任务过期时——三处兜底，不只靠主线程定时器。
-// （8.log 实锤：8 秒看门狗有时根本没跑——start 调得晚，看门狗排到后台任务结束后，
-//  App 已挂起，主线程定时器不跑，兜底就一直响到会话结束。去重（第 7 项）修了重复建播放器
-//  顶掉看门狗的那一半；任务结束时停修了看门狗排到任务结束后的那一半。）
-static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason) {
-    if (!ghlPiPFallbackPlayer) return;
-    if (ghlPiPStartCallbackReceived) return;
-    if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
-    GHLLog(@"画中画没出来，已停兜底播放器（%@）", reason);
-    GHLCleanupFallbackPiPPlayer();
-}
-
-// 每次调 startPictureInPicture 后都记一下：3 秒后还没回调（didStart/失败都没来），
-// 当系统没接上，停掉兜底播放器（复用路/KVO 路/超时路都走这里）。
-// 1.0.21：8 秒改 3 秒——硬上限是「调 start 后 3 秒内没回调就必停」，别让没窗口的兜底多响 5 秒。
-static void GHLWatchPiPStartTimeout(void) {
-    __block AVPictureInPictureController *controller = ghlPiPController;
-    __block AVPlayer *player = ghlPiPFallbackPlayer;
-    __block CFAbsoluteTime startTime = ghlPiPLastStartTime;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      if (ghlPiPStartCallbackReceived) return;
-      if (controller != ghlPiPController || player != ghlPiPFallbackPlayer) return; // 已换过一轮，不管
-      if (startTime != ghlPiPLastStartTime) return;                                 // 又调了一次 start，后面的看门狗会处理
-      GHLStopFallbackPlayerIfPiPNotStarted(@"调 start 后 3 秒没系统回调");
-    });
-}
-
-// 调 startPictureInPicture 前统一记一笔（清回调标记＋记时间＋挂看门狗）。
-static void GHLNotePiPStartAttempted(void) {
-    ghlPiPStartCallbackReceived = NO;
-    ghlPiPLastStartTime = CFAbsoluteTimeGetCurrent();
-    GHLWatchPiPStartTimeout();
-}
-
-// 兜底启动：就绪后再 startPictureInPicture（KVO 监听 item.status）。
-// 返回 YES 表示兜底已接手（正在等就绪或已启动），调用方不用再报“没找到播放的视频”。
-// videoURL 由调用方取好（普通视频同步取，直播间后台探针取——见 GHLStartFallbackPiP）。
-static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
-    if (!videoURL) {
-        if (isLive) {
-            GHLLog(@"画中画兜底：直播间拿不到 HLS 拉流地址，画中画开不了（原因见上面探针行）");
-        } else {
-            GHLLog(@"画中画兜底：当前视频拿不到播放地址，画中画开不了");
-        }
-        return NO;
-    }
-    // 同一个视频重复点：复用已建好的兜底播放器，直接播＋开画中画。
-    if (ghlPiPFallbackPlayer && ghlPiPFallbackItem && ghlPiPFallbackItem.asset) {
-        NSURL *existingURL = ((AVURLAsset *)ghlPiPFallbackItem.asset).URL;
-        if (existingURL && [existingURL.absoluteString isEqualToString:videoURL.absoluteString]) {
-            GHLLog(@"画中画兜底：复用已建好的自起播放器（从头播）");
-            [ghlPiPFallbackPlayer play];
-            if (ghlPiPController && !ghlPiPController.pictureInPictureActive) {
-                [ghlPiPController startPictureInPicture];
-                GHLNotePiPStartAttempted();
-                GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
-            }
-            return YES;
-        }
-    }
-    // 换视频：先清掉旧兜底（KVO 一定要先摘掉再放 item，否则野指针崩）。
-    GHLCleanupFallbackPiPPlayer();
-    if (isLive) {
-        GHLLog(@"画中画兜底：直播画中画用 HLS 拉流地址自起播放器（从头播，接不上直播进度；拉流地址可能是短效签名，过期播不了；后台/锁屏/与原直播声音冲突待真机验证）");
-    } else {
-        GHLLog(@"画中画兜底：没找到系统播放器，用当前视频链接自起播放器（从头播，接不上进度；原视频声音可能同时响）");
-    }
-    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
-    AVPlayer *player = [AVPlayer playerWithPlayerItem:item];
-    ghlPiPFallbackItem = item;
-    ghlPiPFallbackPlayer = player;
-    ghlPiPFallbackStarted = NO;
-    // 1.0.21：记下建兜底时 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）——
-    // 就绪时若已回前台就不启动（见上面 KVO 分支）。
-    ghlPiPFallbackCreatedWhileBackground = ([UIApplication sharedApplication].applicationState != UIApplicationStateActive);
-    GHLPreparePiPAudioSession();
-    AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
-    ghlPiPSyntheticLayer = layer;
-    GHLAttachPiPLayerToHostView(layer); // 图层必须挂进窗口，系统才肯启动画中画（1.0.18 没挂，7 次没回调）
-    @try {
-        ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
-        ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
-    } @catch (NSException *exception) {
-        [DYYYUtils showToast:@"画中画启动失败"];
-        GHLLog(@"画中画兜底启动失败：%@", exception.reason);
-        GHLCleanupFallbackPiPPlayer();
-        return NO;
-    }
-    // item 就绪后再 start：没就绪就直接调大概率失败（delegate 会记失败原因）。
-    if (item.status == AVPlayerItemStatusReadyToPlay) {
-        [player play];
-        [ghlPiPController startPictureInPicture];
-        GHLNotePiPStartAttempted();
-        ghlPiPFallbackStarted = YES;
-        GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
-    } else if (item.status == AVPlayerItemStatusFailed) {
-        GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
-        [DYYYUtils showToast:@"画中画启动失败"];
-        GHLCleanupFallbackPiPPlayer();
-        return NO;
-    } else {
-        [item addObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:&kGHLPiPFallbackKVOContext];
-        ghlPiPFallbackObserving = YES;
-        [player play];
-        // 8 秒还没就绪也试一次（弱网时 item 可能一直卡在 Unknown；试了不行 delegate 会记失败）。
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-          if (ghlPiPFallbackPlayer == player && !ghlPiPFallbackStarted && ghlPiPFallbackItem == item) {
-              if (item.status == AVPlayerItemStatusReadyToPlay) return; // KVO 那边会处理
-              // 1.0.21：同 KVO 分支——兜底是切后台建的、8 秒后已回前台就别启动，直接停掉。
-              if (ghlPiPFallbackCreatedWhileBackground &&
-                  [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
-                  GHLLog(@"画中画：兜底 8 秒未就绪且已回前台，不启动画中画，停掉兜底播放器");
-                  GHLCleanupFallbackPiPPlayer();
-                  return;
-              }
-              if (!ghlPiPController) return;
-              GHLLog(@"画中画兜底：等播放器就绪超时，直接试一次 startPictureInPicture");
-              [ghlPiPController startPictureInPicture];
-              GHLNotePiPStartAttempted();
-              ghlPiPFallbackStarted = YES;
-              GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
-          }
-        });
-    }
-    return YES;
-}
-
-// 兜底入口：普通视频同步取 playURL；直播间走后台探针（1.0.18，5 秒超时）。
-// 直播间返回 YES 表示已接手（正在等探针结果），调用方不用再报“没找到播放的视频”；
-// 超时或拿不到地址时，回调里记一行＋弹一次提示，不无限制等。
-static BOOL GHLStartFallbackPiP(void) {
-    BOOL isLive = GHLIsInLiveRoom();
-    if (!isLive) {
-        return GHLStartFallbackPiPWithURL(GHLCurrentVideoPlayURL(), NO);
-    }
-    // 1.0.17：直播间先走直播分支（room model 的 HLS 拉流地址），不走普通视频的 playURL——
-    // 直播间没有 video.playURL，普通路拿不到地址。
-    __block BOOL probeFinished = NO;
-    GHLProbeLiveStreamURLAsync(^(NSURL *hlsURL) {
-      if (probeFinished) return; // 已超时处理过，迟来的结果不再动
-      probeFinished = YES;
-      if (!GHLStartFallbackPiPWithURL(hlsURL, YES)) {
-          [DYYYUtils showToast:@"没找到播放的视频"];
-      }
-    });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      if (probeFinished) return;
-      probeFinished = YES;
-      GHLLog(@"画中画兜底：直播探针超时（5 秒没回），按拿不到地址处理");
-      [DYYYUtils showToast:@"没找到播放的视频"];
-    });
-    return YES;
-}
-
-void GHLStartPiP(void) {
-    GHLStartPiPWithCaller(nil);
-}
-
-void GHLStartPiPWithCaller(NSString *caller) {
-    GHLRunOnMain(^{
-      GHLLog(@"画中画：触发（%@）", caller.length > 0 ? caller : @"未知");
-      // 1.0.21：记下触发时 App 的状态——窗口还可见时调 start 才有意义，
-      // 切后台后才调（窗口已不可见）是 0 回调的嫌疑之一；WillResignActive 时是“不活跃”。
-      UIApplicationState appState = [UIApplication sharedApplication].applicationState;
-      GHLLog(@"画中画：触发时 App 状态：%@", appState == UIApplicationStateActive ? @"前台" : (appState == UIApplicationStateInactive ? @"不活跃（正在切后台）" : @"后台"));
-      // 1.0.17：查找日志加一行是否在直播间（直播的查找现场跟普通视频不一样）。
-      GHLLog(@"画中画查找：是否在直播间：%@", GHLIsInLiveRoom() ? @"是" : @"否");
-      if (![AVPictureInPictureController isPictureInPictureSupported]) {
-          [DYYYUtils showToast:@"当前设备不支持画中画"];
-          GHLLog(@"画中画：设备不支持");
-          return;
-      }
-      if (ghlPiPController.pictureInPictureActive) {
-          GHLLog(@"画中画：已经在画中画里了");
-          return;
-      }
-      // 1.0.15：找播放器（A 路图层 → B 路控制器探针，详细日志见“画中画查找”）；
-      // 有播放器没图层时，用播放器新建一个图层再建 PiP 控制器。
-      AVPlayerLayer *realLayer = nil;
-      AVPlayer *player = GHLFindPlayingAVPlayerForPiP(&realLayer);
-      if (!player) {
-          // 1.0.16：A/B/C 全空时走 D 路兜底（自起 AVPlayer），兜底也开不了才报没找到。
-          if (GHLStartFallbackPiP()) return;
-          [DYYYUtils showToast:@"没找到播放的视频"];
-          GHLLog(@"画中画：没找到播放器（查找经过见上面“画中画查找”的日志）");
-          return;
-      }
-      AVPlayerLayer *layer = realLayer;
-      if (!layer) {
-          layer = [AVPlayerLayer playerLayerWithPlayer:player];
-          ghlPiPSyntheticLayer = layer;
-          GHLAttachPiPLayerToHostView(layer); // 新建的图层也要挂进窗口，不然 start 调了也没回调
-          GHLLog(@"画中画：没找到现成图层，用播放器新建了一个图层再建 PiP 控制器");
-      }
-      @try {
-          GHLPreparePiPAudioSession();
-          ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
-          ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
-          [ghlPiPController startPictureInPicture];
-          // 1.0.20：A／C 路以前调完 start 没记时间戳——切后台 3 秒重查拿旧时间一算，
-          // 新 start 才 1 秒就被误杀（6.log 17:18:30 实锤）。三路统一记一笔。
-          GHLNotePiPStartAttempted();
-          // 只表示已调用，不是小窗真的出来了——真出来/失败看 delegate 回调。
-          GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
-      } @catch (NSException *exception) {
-          [DYYYUtils showToast:@"画中画启动失败"];
-          GHLLog(@"画中画启动失败：%@", exception.reason);
-      }
-    });
-}
-
-// 播放器控制器查找（画中画 B 路探针用）。
-static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out) {
-    if (!vc) return;
-    if ([vc isKindOfClass:NSClassFromString(@"AWEAwemePlayVideoViewController")] ||
-        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerFeedPlayerViewController")] ||
-        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerViewController_Merge")]) {
-        [out addObject:vc];
-    }
-    for (UIViewController *child in vc.childViewControllers) {
-        GHLFindPlayerViewControllersInVC(child, out);
-    }
-    if (vc.presentedViewController) GHLFindPlayerViewControllersInVC(vc.presentedViewController, out);
-}
-
-#pragma mark - (6) 一键清爽模式 / (12) 直播间净化（开关联动）
 
 // 直播间净化涉及的上游隐藏键
 static NSArray<NSString *> *GHLLiveHideKeys(void) {
@@ -1806,26 +827,6 @@ void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model) {
                                     });
                                   }];
                                 }];
-}
-
-#pragma mark - (24) 私信防撤回（探针）
-
-void GHLProbeAntiRecall(void) {
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    NSMutableArray<NSString *> *hits = [NSMutableArray array];
-    for (unsigned int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if ([name containsString:@"Recall"] || [name containsString:@"Revoke"] || [name containsString:@"Withdraw"]) {
-            [hits addObject:name];
-            if (hits.count >= 50) break;
-        }
-    }
-    free(classes);
-    GHLLog(@"私信防撤回探针：疑似撤回相关类 %lu 个：%@", (unsigned long)hits.count, hits);
-    if (hits.count == 0) {
-        GHLLog(@"私信防撤回探针：没找到撤回相关的类，功能待真机进一步验证，开关目前只做记录");
-    }
 }
 
 #pragma mark - 手势：双击快进 / 三指双击清屏 / 边缘滑动切视频
@@ -2659,7 +1660,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.27 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.28 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2675,80 +1676,17 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
                         usingBlock:^(NSNotification *note) {
                           GHLHandleVolumeChange(note);
                         }];
-        // 画中画：主触发改到 WillResignActive（还在前台时启动；DidEnterBackground
-        // 再调 startPictureInPicture 就太晚了）；DidEnterBackground 留作兜底，
-        // 一次后台只触发一次（GHLTriggerPiPForBackground 里的 guard）；回到前台重置。
-        ghlPiPWillResignActiveToken = [center addObserverForName:UIApplicationWillResignActiveNotification
-                            object:nil
-                             queue:[NSOperationQueue mainQueue]
-                        usingBlock:^(NSNotification *note) {
-                          // 1.0.20：先开后台任务再触发（D 路等 item 就绪要几秒，App 已在后台）。
-                          GHLBeginPiPBackgroundTaskIfNeeded();
-                          GHLTriggerPiPForBackground();
-                        }];
-        ghlPiPDidEnterBackgroundToken = [center addObserverForName:UIApplicationDidEnterBackgroundNotification
-                            object:nil
-                             queue:[NSOperationQueue mainQueue]
-                        usingBlock:^(NSNotification *note) {
-                          // 1.0.21：第 7 项——进后台时先记一行音频状态（和切后台触发那行对照）。
-                          GHLLogAudioState(@"应用已进后台");
-                          // 兜底：开关开着、还没触发过时，先开个后台任务撑到系统回调
-                          // （或 10 秒超时），再触发。
-                          GHLBeginPiPBackgroundTaskIfNeeded();
-                          GHLTriggerPiPForBackground();
-                          // 1.0.19：切后台时画中画没接上，兜底播放器不能留着继续放
-                          // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）。
-                          // 3 秒后再查一次（给系统回调留时间；只清已经调过 start、回调又没来的那次，
-                          // item 还没就绪的别动——KVO 就绪后还会调 start，看门狗会接手）。
-                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            if (!ghlPiPFallbackPlayer || !ghlPiPFallbackStarted) return;
-                            if (ghlPiPStartCallbackReceived) return;
-                            if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
-                            if (CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 3) return;
-                            GHLLog(@"画中画：切后台时没接上（3 秒没回调），停掉兜底播放器");
-                            GHLCleanupFallbackPiPPlayer();
-                          });
-                        }];
-        ghlPiPDidBecomeActiveToken = [center addObserverForName:UIApplicationDidBecomeActiveNotification
-                            object:nil
-                             queue:[NSOperationQueue mainQueue]
-                        usingBlock:^(NSNotification *note) {
-                          ghlPiPTriggeredForCurrentBackground = NO;
-                        }];
         GHLStartHousekeepingTimer();
         GHLStartMainThreadWatchdog(); // 1.0.21：第 6 项——冻住看门狗（诊断用，只抓证据）
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
           if (GHLGetBool(GHL_KEY_NIGHT_MODE)) GHLApplyNightMode(YES);
-          if (GHLGetBool(GHL_KEY_ANTI_RECALL)) GHLProbeAntiRecall();
-          if (GHLGetBool(GHL_KEY_HIDE_TYPING) || GHLGetBool(GHL_KEY_HIDE_READ_RECEIPT) || GHLGetBool(GHL_KEY_ANTI_BURN)) GHLProbePrivacyFeatures();
           if (GHLGetBool(GHL_KEY_COMMENT_VOICE)) GHLProbeCommentVoice();
-          if (GHLGetBool(GHL_KEY_VOICE_FORWARD) || GHLGetBool(GHL_KEY_VOICE_DURATION) || GHLGetBool(GHL_KEY_VOICE_REPLACE_COMMENT) || GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) GHLProbeVoiceFeatures();
+          if (GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) GHLProbeVoiceFeatures();
           if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD) || GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT)) GHLProbeLiveRoom();
           GHLRestartSleepTimer();
         });
     }
 }
-
-// 1.0.15：进程退出时移除 %ctor 里注册的监听（照 DYYY.xm 的 DYYYRemoveAppLifecycleObservers 写法）。
-%hook AppDelegate
-- (void)applicationWillTerminate:(UIApplication *)application {
-    // 1.0.21：第 7 项——进程要没了，尽力停兜底＋停画中画。先记一行音频状态（和切后台触发／
-    // 已进后台那两行对照），再停。诚实边界：彻底划掉是 SIGKILL，WillTerminate 未必跑得到；
-    // 跑到了就停，跑不到时声音若还在响，就是系统画中画会话在终止后存活，那是 iOS 行为，
-    // 不是咱们能停的——日志里要分得清（所以先记状态再停）。
-    GHLLogAudioState(@"应用将终止");
-    if (ghlPiPController && ghlPiPController.pictureInPictureActive) {
-        [ghlPiPController stopPictureInPicture];
-        GHLLog(@"应用将终止：画中画已停");
-    }
-    if (ghlPiPFallbackPlayer) {
-        GHLCleanupFallbackPiPPlayer(); // 里面会记「兜底播放器：已停止」
-        GHLLog(@"应用将终止：兜底播放器已停");
-    }
-    GHLRemovePiPObservers();
-    %orig;
-}
-%end
 
 #pragma mark - (31) 语音包（xuu 式管理器，代码全部自己写）
 // 行为参考（只学流程，不碰对方代码）：语音包列表（按文件夹/分类、按名字搜）→ 选一个
@@ -2775,6 +1713,18 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     info.source = source;
     info.systemVoiceIdentifier = systemVoiceIdentifier;
     info.fishModelId = fishModelId;
+    return info;
+}
+
+// 1.0.24：导入档构造。1.0.28 补实现——以前只有声明没有实现，
+// 导入档一进 GHLVoicePackageList 就会 unrecognized selector 闪退（之前一直没导入过才没爆出来）。
++ (instancetype)customPackageWithName:(NSString *)name filePath:(NSString *)filePath folder:(NSString *)folder {
+    GHLVoicePackageInfo *info = [[self alloc] init];
+    info.voiceId = [@"custom:" stringByAppendingString:filePath.lastPathComponent];
+    info.displayName = name ?: filePath.lastPathComponent ?: @"";
+    info.category = (folder.length > 0) ? folder : @"我的导入";
+    info.source = GHLVoicePackageSourceCustom;
+    info.audioFilePath = filePath;
     return info;
 }
 
@@ -2836,12 +1786,12 @@ static NSArray<GHLVoicePackageInfo *> *GHLFishAudioVoicePackages(void) {
     return list;
 }
 
-#pragma mark - 1.0.24：导入的语音（自定义档）+ 文件夹
+#pragma mark - 1.0.24：导入的语音（自定义档）
 
 // 导入的语音存在 App 沙盒 Documents/DYYY/VoicePackages/，记录在 NSUserDefaults
-//（GHL_KEY_CUSTOM_VOICES：字典数组 @{@"name", @"file", @"folder"}）。
+//（GHL_KEY_CUSTOM_VOICES：字典数组 @{@"name", @"file"}；1.0.28：文件夹已砍，导入档都归“我的导入”）。
 // 导入的是一段录好的音频，点一下就播放，不能像内置/在线那样合成任意文字——
-// 所以它不进设置页的 TTS 选取器（GHLVoicePackageIDs 只给能合成的），只在管理器里播。
+// 所以它不进设置页的 TTS 选取器（GHLVoicePackageIDs 只给能合成的），只在语音包页里播。
 NSString *GHLCustomVoicePackagesDirectory(void) {
     NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
     NSString *dir = [documents stringByAppendingPathComponent:@"DYYY/VoicePackages"];
@@ -2871,172 +1821,21 @@ static void GHLSaveCustomVoiceRecords(NSArray<NSDictionary *> *records) {
 }
 
 // 文件夹列表：我的导入在前，自建文件夹按建的顺序排。
-NSArray<NSString *> *GHLCustomVoiceFolders(void) {
-    NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithObject:@"我的导入"];
-    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
-    if ([stored isKindOfClass:[NSArray class]]) {
-        for (id item in stored) {
-            if ([item isKindOfClass:[NSString class]] && [(NSString *)item length] > 0 && ![folders containsObject:item]) {
-                [folders addObject:item];
-            }
-        }
-    }
-    return folders;
-}
-
 static NSArray<GHLVoicePackageInfo *> *GHLCustomVoicePackages(void) {
     NSMutableArray<GHLVoicePackageInfo *> *list = [NSMutableArray array];
     NSString *dir = GHLCustomVoicePackagesDirectory();
-    NSArray<NSString *> *folderOrder = GHLCustomVoiceFolders();
     for (NSDictionary *record in GHLCustomVoiceRecords()) {
         NSString *path = [dir stringByAppendingPathComponent:record[@"file"]];
         if (![[NSFileManager defaultManager] fileExistsAtPath:path]) continue; // 文件没了就跳过（记录留着，文件回来还能用）
-        [list addObject:[GHLVoicePackageInfo customPackageWithName:record[@"name"] filePath:path folder:record[@"folder"]]];
+        [list addObject:[GHLVoicePackageInfo customPackageWithName:record[@"name"] filePath:path folder:@"我的导入"]];
     }
+    // 1.0.28：文件夹已砍，导入档都归“我的导入”，只按名字排。
     [list sortUsingComparator:^NSComparisonResult(GHLVoicePackageInfo *a, GHLVoicePackageInfo *b) {
-        NSUInteger ia = [folderOrder indexOfObject:a.category];
-        NSUInteger ib = [folderOrder indexOfObject:b.category];
-        if (ia == NSNotFound) ia = folderOrder.count;
-        if (ib == NSNotFound) ib = folderOrder.count;
-        if (ia != ib) return ia < ib ? NSOrderedAscending : NSOrderedDescending;
-        return [a.displayName localizedStandardCompare:b.displayName];
+      return [a.displayName localizedStandardCompare:b.displayName];
     }];
     return list;
 }
 
-void GHLCreateVoiceFolder(NSString *name) {
-    NSString *trimmed = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (trimmed.length == 0) {
-        [DYYYUtils showToast:@"文件夹名字是空的"];
-        return;
-    }
-    if ([trimmed isEqualToString:@"内置"] || [trimmed isEqualToString:@"在线"] || [trimmed isEqualToString:@"我的导入"] || [trimmed isEqualToString:@"★ 收藏"]) {
-        [DYYYUtils showToast:@"这个名字是系统留用的，换一个"];
-        return;
-    }
-    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
-    NSMutableArray<NSString *> *folders = [NSMutableArray array];
-    if ([stored isKindOfClass:[NSArray class]]) {
-        for (id item in stored) {
-            if ([item isKindOfClass:[NSString class]]) [folders addObject:item];
-        }
-    }
-    if ([folders containsObject:trimmed]) {
-        [DYYYUtils showToast:@"已经有这个文件夹了"];
-        return;
-    }
-    [folders addObject:trimmed];
-    [[NSUserDefaults standardUserDefaults] setObject:folders forKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
-    // 1.0.27：立刻落盘（只 setObject 不 synchronize 时，杀进程／更新那一刻系统还没写盘，
-    // 新建的文件夹就丢了；-15.log 里「你好」建完没显示，落盘是嫌疑之一）。
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    // 1.0.26：建成功弹一句提示（以前成功了什么都不说，空文件夹又不显示，看着像建失败）。
-    [DYYYUtils showToast:[NSString stringWithFormat:@"已新建文件夹「%@」", trimmed]];
-    GHLLog(@"语音包文件夹：新建「%@」", trimmed);
-}
-
-void GHLDeleteVoiceFolder(NSString *name) {
-    if (!name || name.length == 0) return;
-    // 里面的导入语音回“我的导入”。
-    NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
-    for (NSUInteger i = 0; i < records.count; i++) {
-        NSMutableDictionary *record = [records[i] mutableCopy];
-        if ([record[@"folder"] isEqualToString:name]) {
-            record[@"folder"] = @"我的导入";
-            records[i] = record;
-        }
-    }
-    GHLSaveCustomVoiceRecords(records);
-    // 内置/在线音色指派到这个文件夹的也清掉（回默认分类）。
-    NSMutableDictionary *map = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP] ?: @{}];
-    for (NSString *key in [map allKeys]) {
-        if ([map[key] isEqualToString:name]) [map removeObjectForKey:key];
-    }
-    [[NSUserDefaults standardUserDefaults] setObject:map forKey:GHL_KEY_VOICE_FOLDER_MAP];
-    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
-    NSMutableArray<NSString *> *folders = [NSMutableArray array];
-    if ([stored isKindOfClass:[NSArray class]]) {
-        for (id item in stored) {
-            if ([item isKindOfClass:[NSString class]] && ![item isEqualToString:name]) [folders addObject:item];
-        }
-    }
-    [[NSUserDefaults standardUserDefaults] setObject:folders forKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
-    GHLLog(@"语音包文件夹：已删「%@」（里面的语音回“我的导入”）", name);
-}
-
-void GHLMoveVoiceToFolder(NSString *voiceId, NSString *folder) {
-    if (!voiceId || voiceId.length == 0) return;
-    NSString *target = [folder stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if ([voiceId hasPrefix:@"custom:"]) {
-        // 导入的语音：改记录里的 folder（空 = 回“我的导入”）。
-        NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
-        for (NSUInteger i = 0; i < records.count; i++) {
-            NSString *candidateId = [@"custom:" stringByAppendingString:records[i][@"file"]];
-            if (![candidateId isEqualToString:voiceId]) continue;
-            NSMutableDictionary *record = [records[i] mutableCopy];
-            record[@"folder"] = (target.length > 0 ? target : @"我的导入");
-            records[i] = record;
-            break;
-        }
-        GHLSaveCustomVoiceRecords(records);
-        GHLLog(@"语音包：%@ 已移到「%@」", voiceId, target.length > 0 ? target : @"我的导入");
-        return;
-    }
-    // 内置/在线音色：记指派表（空 = 移出，回默认分类）。
-    NSMutableDictionary *map = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP] ?: @{}];
-    if (target.length == 0) {
-        [map removeObjectForKey:voiceId];
-    } else {
-        map[voiceId] = target;
-    }
-    [[NSUserDefaults standardUserDefaults] setObject:map forKey:GHL_KEY_VOICE_FOLDER_MAP];
-    GHLLog(@"语音包：%@ 已移到「%@」", voiceId, target.length > 0 ? target : @"默认分类");
-}
-
-NSString *GHLFolderForVoiceId(NSString *voiceId) {
-    if (!voiceId) return nil;
-    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
-        if ([info.voiceId isEqualToString:voiceId]) return info.category;
-    }
-    return nil;
-}
-
-void GHLDeleteCustomVoice(NSString *voiceId) {
-    if (!voiceId || ![voiceId hasPrefix:@"custom:"]) return;
-    NSString *file = [voiceId substringFromIndex:[@"custom:" length]];
-    NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
-    NSMutableArray<NSDictionary *> *kept = [NSMutableArray array];
-    for (NSDictionary *record in records) {
-        if (![record[@"file"] isEqualToString:file]) [kept addObject:record];
-    }
-    GHLSaveCustomVoiceRecords(kept);
-    [[NSFileManager defaultManager] removeItemAtPath:[GHLCustomVoicePackagesDirectory() stringByAppendingPathComponent:file] error:nil];
-    // 收藏/选中里清掉（选中了它就回默认中文音色）。
-    NSMutableSet<NSString *> *favorites = [NSMutableSet setWithSet:GHLVoiceFavorites()];
-    if ([favorites containsObject:voiceId]) {
-        [favorites removeObject:voiceId];
-        [[NSUserDefaults standardUserDefaults] setObject:[favorites allObjects] forKey:GHL_KEY_VOICE_FAVORITES];
-    }
-    if ([[[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_VOICE_PACKAGE_ID] isEqualToString:voiceId]) {
-        [[NSUserDefaults standardUserDefaults] setObject:@"sys:default-zh-CN" forKey:GHL_KEY_VOICE_PACKAGE_ID];
-    }
-    GHLLog(@"语音包：已删导入的「%@」", file);
-}
-
-NSString *GHLFileSizeText(NSString *path) {
-    if (!path || path.length == 0) return @"";
-    NSError *error = nil;
-    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:&error];
-    unsigned long long bytes = [attrs[NSFileSize] unsignedLongLongValue];
-    if (bytes < 1024) return [NSString stringWithFormat:@"%llu B", bytes];
-    if (bytes < 1024 * 1024) return [NSString stringWithFormat:@"%.0f KB", bytes / 1024.0];
-    return [NSString stringWithFormat:@"%.1f MB", bytes / (1024.0 * 1024.0)];
-}
-
-// 导入一个文件进语音包：已经是音频（m4a/mp3/wav/aac/caf/aiff）就直接复制；
-// 视频（mp4/mov 等）只抽音频轨转成 .m4a（AVAssetExportSession，AppleM4A 预设，
-// 复用 DYYYManager 里 AVAssetReader/Writer 转码的同一思路：音频轨 AAC 44.1k）。
-// 完成回调在主线程跑（成功时 name 是显示名）。
 void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)) {
     if (!url) {
         if (done) done(NO, nil);
@@ -3057,7 +1856,7 @@ void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSStrin
     };
     void (^registerVoice)(NSString *, NSString *) = ^(NSString *fileName, NSString *displayName) {
         NSMutableArray *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
-        [records addObject:@{@"name": displayName, @"file": fileName, @"folder": @"我的导入"}];
+        [records addObject:@{@"name": displayName, @"file": fileName}];
         GHLSaveCustomVoiceRecords(records);
         GHLLog(@"语音包导入：已导入「%@」（%@）", displayName, fileName);
         [DYYYUtils showToast:[NSString stringWithFormat:@"已导入「%@」", displayName]];
@@ -3105,43 +1904,103 @@ void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSStrin
     }];
 }
 
-// 导出：把导入的语音文件分享出去（voiceIds 为空 = 全部；只导导入档，不导内置/在线）。
-void GHLExportCustomVoices(UIViewController *presenter, NSArray<NSString *> *voiceIds) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (GHLVoicePackageInfo *info in GHLCustomVoicePackages()) {
-        if (voiceIds.count > 0 && ![voiceIds containsObject:info.voiceId]) continue;
-        if (info.audioFilePath.length > 0) [urls addObject:[NSURL fileURLWithPath:info.audioFilePath]];
-    }
-    if (urls.count == 0) {
-        [DYYYUtils showToast:@"没有能导出的导入语音"];
+
+// 1.0.28：长按导入至语音包——下载当前视频、抽音轨成 .m4a 存进语音包，名字是皇上输的那个。
+// 链路复用 GHLExtractOriginalAudioForAwemeModel 那条（h264URL 优先、playURL 兜底 →
+// [DYYYManager downloadMediaWithProgress:] → AVAssetExportSession AppleM4A），
+// 落盘复用 1.0.24 导入那套（Documents/DYYY/VoicePackages/，同名加序号）。
+void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name) {
+    if (!model || !model.video) {
+        [DYYYUtils showToast:@"拿不到当前视频，导不出来"];
+        GHLLog(@"长按导入语音包：awemeModel 为空");
         return;
     }
-    GHLRunOnMain(^{
-      UIActivityViewController *activity = [[UIActivityViewController alloc] initWithActivityItems:urls applicationActivities:nil];
-      if (activity.popoverPresentationController) {
-          activity.popoverPresentationController.sourceView = presenter.view;
-          activity.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(presenter.view.bounds), CGRectGetMidY(presenter.view.bounds), 1, 1);
-      }
-      [presenter presentViewController:activity animated:YES completion:nil];
-      GHLLog(@"语音包导出：已分享 %lu 个文件", (unsigned long)urls.count);
-    });
+    NSURL *videoURL = nil;
+    if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
+    } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
+        videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
+    }
+    if (!videoURL) {
+        [DYYYUtils showToast:@"拿不到视频地址，导不出来"];
+        GHLLog(@"长按导入语音包：拿不到视频地址");
+        return;
+    }
+    // 文件名消毒：名字是皇上输的，斜杠和控制字符不能进文件名。
+    NSString *safeName = [[name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] stringByReplacingOccurrencesOfString:@"/" withString:@" "];
+    safeName = [[safeName componentsSeparatedByCharactersInSet:[NSCharacterSet controlCharacterSet]] componentsJoinedByString:@""];
+    if (safeName.length == 0) safeName = @"导入的语音";
+    NSString *dir = GHLCustomVoicePackagesDirectory();
+    NSString *(^uniqueFileName)(NSString *) = ^NSString *(NSString *base) {
+        NSString *candidate = [NSString stringWithFormat:@"%@.m4a", base];
+        NSInteger n = 2;
+        while ([[NSFileManager defaultManager] fileExistsAtPath:[dir stringByAppendingPathComponent:candidate]]) {
+            candidate = [NSString stringWithFormat:@"%@ %ld.m4a", base, (long)n];
+            n++;
+        }
+        return candidate;
+    };
+    NSString *fileName = uniqueFileName(safeName);
+    NSURL *outputURL = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:fileName]];
+    [DYYYUtils showToast:@"正在下载视频并提取音频…"];
+    [DYYYManager downloadMediaWithProgress:videoURL
+                                 mediaType:MediaTypeVideo
+                                     audio:nil
+                                  progress:nil
+                                completion:^(BOOL success, NSURL *fileURL) {
+                                  if (!success || !fileURL) {
+                                      GHLRunOnMain(^{
+                                        [DYYYUtils showToast:@"视频下载失败，音频没导出来"];
+                                      });
+                                      GHLLog(@"长按导入语音包：视频下载失败");
+                                      return;
+                                  }
+                                  AVURLAsset *asset = [AVURLAsset URLAssetWithURL:fileURL options:nil];
+                                  if (![[asset tracksWithMediaType:AVMediaTypeAudio] count]) {
+                                      GHLRunOnMain(^{
+                                        [DYYYUtils showToast:@"这个视频没有音轨"];
+                                      });
+                                      GHLLog(@"长按导入语音包：视频没有音轨");
+                                      return;
+                                  }
+                                  AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
+                                  if (!exportSession) {
+                                      GHLLog(@"长按导入语音包：建导出会话失败");
+                                      GHLRunOnMain(^{
+                                        [DYYYUtils showToast:@"导不出来，建导出会话失败"];
+                                      });
+                                      return;
+                                  }
+                                  exportSession.outputURL = outputURL;
+                                  exportSession.outputFileType = AVFileTypeAppleM4A;
+                                  [exportSession exportAsynchronouslyWithCompletionHandler:^{
+                                    if (exportSession.status != AVAssetExportSessionStatusCompleted) {
+                                        GHLLog(@"长按导入语音包：导出失败 %@", exportSession.error.localizedDescription);
+                                        [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
+                                        GHLRunOnMain(^{
+                                          [DYYYUtils showToast:@"导入失败，转音频没成功"];
+                                        });
+                                        return;
+                                    }
+                                    AVURLAsset *outAsset = [AVURLAsset assetWithURL:outputURL];
+                                    NSTimeInterval duration = CMTimeGetSeconds(outAsset.duration);
+                                    if (!isfinite(duration) || duration < 0) duration = 0;
+                                    NSMutableArray *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+                                    [records addObject:@{@"name": safeName, @"file": fileName}];
+                                    GHLSaveCustomVoiceRecords(records);
+                                    GHLLog(@"长按导入语音包：已导入「%@」（%@，%.1f 秒）", safeName, fileName, duration);
+                                    GHLRunOnMain(^{
+                                      [DYYYUtils showToast:[NSString stringWithFormat:@"已导入语音包「%@」", safeName]];
+                                    });
+                                  }];
+                                }];
 }
 
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void) {
-    // 1.0.24：内置/在线音色被移进文件夹时，category 就是文件夹名（指派表 GHL_KEY_VOICE_FOLDER_MAP）；
-    // 没指派就回默认分类（内置/在线）；导入档自带文件夹（默认“我的导入”）。
-    NSDictionary *folderMap = [[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP];
+    // 1.0.28：文件夹已砍，分类固定（内置/在线/我的导入）。
     NSMutableArray<GHLVoicePackageInfo *> *all = [NSMutableArray array];
-    for (GHLVoicePackageInfo *info in GHLBuiltInVoicePackages()) {
-        NSString *folder = folderMap[info.voiceId];
-        info.category = ([folder isKindOfClass:[NSString class]] && folder.length > 0) ? folder : @"内置";
-        [all addObject:info];
-    }
-    for (GHLVoicePackageInfo *info in GHLFishAudioVoicePackages()) {
-        NSString *folder = folderMap[info.voiceId];
-        info.category = ([folder isKindOfClass:[NSString class]] && folder.length > 0) ? folder : @"在线";
-        [all addObject:info];
-    }
+    [all addObjectsFromArray:GHLBuiltInVoicePackages()];
+    [all addObjectsFromArray:GHLFishAudioVoicePackages()];
     [all addObjectsFromArray:GHLCustomVoicePackages()];
     return all;
 }
@@ -3479,23 +2338,22 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     tryFetch(0);
 }
 
-#pragma mark 语音包管理器（列表/分类/搜索/试听/选中）
+#pragma mark 极简语音包页（★收藏/内置/在线/我的导入，搜索/试听/选中/刷新在线）
 
 // 1.0.26：上次拉取在线列表失败过没（刷新成功后清掉；在线分区脚注靠它留一行失败提示，不再静默失败）。
 static BOOL ghlOnlineFetchFailed = NO;
 
-@interface GHLVoicePackageManagerViewController : UITableViewController <UISearchBarDelegate>
+@interface GHLSimpleVoicePackageViewController : UITableViewController <UISearchBarDelegate>
 @property(nonatomic, strong) UISearchBar *searchBar;
 @property(nonatomic, copy) NSString *searchText;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
-@property(nonatomic, strong, nullable) DYYYBackupPickerDelegate *voicePickerDelegate; // 1.0.24：导入语音的文件选择器代理（要留着，不然选完没人接）
 @end
 
-@implementation GHLVoicePackageManagerViewController
+@implementation GHLSimpleVoicePackageViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"语音包管理";
+    self.title = @"语音包";
     self.searchText = @"";
     self.searchBar = [[UISearchBar alloc] init];
     self.searchBar.placeholder = @"搜名字或 voiceId";
@@ -3503,13 +2361,9 @@ static BOOL ghlOnlineFetchFailed = NO;
     self.searchBar.delegate = self;
     self.tableView.tableHeaderView = self.searchBar;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"完成" style:UIBarButtonItemStyleDone target:self action:@selector(ghlDismiss)];
-    // 1.0.24：右上角 +（导入语音 / 新建文件夹 / 导出全部 / 删除文件夹）+ 刷新在线。
-    self.navigationItem.rightBarButtonItems = @[
-        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(ghlAddButtonTapped)],
-        [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)]
-    ];
-    // 1.0.24：长按一行出菜单（收藏/移文件夹/分享/删除）。
+    // 1.0.28：右上角只留「刷新在线」（+ 菜单、导入、文件夹、导出、试听下载全随旧管理器砍掉）。
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+    // 1.0.28：长按一行只留收藏/取消收藏。
     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlRowLongPressed:)];
     [self.tableView addGestureRecognizer:longPress];
     [self ghlApplyAppearance];
@@ -3534,10 +2388,6 @@ static BOOL ghlOnlineFetchFailed = NO;
     self.tableView.backgroundColor = self.backgroundImage ? [UIColor clearColor] : [UIColor systemGroupedBackgroundColor];
 }
 
-- (void)ghlDismiss {
-    [self dismissViewControllerAnimated:YES completion:nil];
-}
-
 - (void)ghlRefreshOnline {
     NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) {
@@ -3559,96 +2409,7 @@ static BOOL ghlOnlineFetchFailed = NO;
     });
 }
 
-// 1.0.24：右上角 + 菜单（导入语音 / 新建文件夹 / 导出全部 / 删除文件夹）。
-- (void)ghlAddButtonTapped {
-    __weak __typeof(self) weakSelf = self;
-    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ADD_MENU_LAST
-                                       optionsArray:@[@"导入语音文件", @"新建文件夹", @"导出全部导入的语音", @"删除文件夹…"]
-                                         headerText:@"语音包"
-                                     onPresentingVC:self
-                                   selectionChanged:^(NSString *selectedValue) {
-        __strong __typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        if ([selectedValue isEqualToString:@"导入语音文件"]) {
-            [strongSelf ghlImportVoiceFile];
-        } else if ([selectedValue isEqualToString:@"新建文件夹"]) {
-            [strongSelf ghlCreateFolder];
-        } else if ([selectedValue isEqualToString:@"导出全部导入的语音"]) {
-            GHLExportCustomVoices(strongSelf, nil);
-        } else if ([selectedValue isEqualToString:@"删除文件夹…"]) {
-            [strongSelf ghlDeleteFolder];
-        }
-    }];
-}
-
-// 1.0.24：导入语音文件（mp4/mov 转音频，其他音频直接复制；见 GHLImportVoiceAudioFileAtURL）。
-- (void)ghlImportVoiceFile {
-    self.voicePickerDelegate = [[DYYYBackupPickerDelegate alloc] init];
-    __weak __typeof(self) weakSelf = self;
-    self.voicePickerDelegate.completionBlock = ^(NSURL *url) {
-      __strong __typeof(weakSelf) strongSelf = weakSelf;
-      if (!strongSelf) return;
-      GHLImportVoiceAudioFileAtURL(url, ^(BOOL success, NSString *name) {
-        (void)success;
-        (void)name;
-        [strongSelf.tableView reloadData];
-      });
-    };
-    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.movie", @"public.audio"] inMode:UIDocumentPickerModeImport];
-    picker.delegate = self.voicePickerDelegate;
-    [self presentViewController:picker animated:YES completion:nil];
-}
-
-// 1.0.24：新建文件夹（名字查重、留用名都由 GHLCreateVoiceFolder 把关）。
-- (void)ghlCreateFolder {
-    __weak __typeof(self) weakSelf = self;
-    DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"新建文件夹" defaultText:@"" placeholder:@"文件夹名字"];
-    inputView.onConfirm = ^(NSString *text) {
-      __strong __typeof(weakSelf) strongSelf = weakSelf;
-      if (!strongSelf) return;
-      GHLCreateVoiceFolder(text);
-      [strongSelf.tableView reloadData];
-    };
-    inputView.onCancel = ^{};
-    [inputView show];
-}
-
-// 1.0.24：删除文件夹（只能删自建的；里面的语音回“我的导入”）。
-- (void)ghlDeleteFolder {
-    NSArray<NSString *> *folders = GHLCustomVoiceFolders();
-    NSMutableArray<NSString *> *deletable = [NSMutableArray array];
-    for (NSString *folder in folders) {
-        if (![folder isEqualToString:@"我的导入"]) [deletable addObject:folder];
-    }
-    if (deletable.count == 0) {
-        [DYYYUtils showToast:@"还没有自建文件夹"];
-        return;
-    }
-    __weak __typeof(self) weakSelf = self;
-    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ADD_MENU_LAST
-                                       optionsArray:deletable
-                                         headerText:@"删哪个文件夹？"
-                                     onPresentingVC:self
-                                   selectionChanged:^(NSString *selectedValue) {
-        __strong __typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        [DYYYBottomAlertView showAlertWithTitle:@"删掉这个文件夹？"
-                                        message:[NSString stringWithFormat:@"「%@」会删掉，里面的语音回“我的导入”，文件本身不删。", selectedValue]
-                                      avatarURL:nil
-                               cancelButtonText:@"取消"
-                              confirmButtonText:@"删除"
-                                   cancelAction:nil
-                                    closeAction:nil
-                                  confirmAction:^{
-            __strong __typeof(weakSelf) strongSelf2 = weakSelf;
-            if (!strongSelf2) return;
-            GHLDeleteVoiceFolder(selectedValue);
-            [strongSelf2.tableView reloadData];
-        }];
-    }];
-}
-
-// 1.0.24：长按一行出菜单（收藏/移文件夹/分享/删除）。
+// 1.0.28：长按一行只留收藏/取消收藏（确认框点一下就好，不再出多项菜单）。
 - (void)ghlRowLongPressed:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan) return;
     CGPoint point = [gesture locationInView:self.tableView];
@@ -3660,137 +2421,43 @@ static BOOL ghlOnlineFetchFailed = NO;
     if (indexPath.row < 0 || indexPath.row >= (NSInteger)packages.count) return;
     GHLVoicePackageInfo *info = packages[indexPath.row];
     __weak __typeof(self) weakSelf = self;
-    NSMutableArray<NSString *> *options = [NSMutableArray array];
-    [options addObject:GHLIsVoiceFavorite(info.voiceId) ? @"取消收藏" : @"收藏"];
-    [options addObject:@"移入文件夹…"];
-    // 1.0.26：在线音色长按加「下载试听音频」——存下来的只是一句固定试听句的录音，
-    // 不是那个音色本身，离线不能拿它合成任意文字（诚实边界写在选项名和成功提示里）。
-    if (info.source == GHLVoicePackageSourceFishAudio) {
-        [options addObject:@"下载试听音频（仅一句录音）"];
-    }
-    if (info.source == GHLVoicePackageSourceCustom) {
-        [options addObject:@"分享/导出"];
-        [options addObject:@"删除"];
-    }
-    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ROW_MENU_LAST
-                                       optionsArray:options
-                                         headerText:info.displayName
-                                     onPresentingVC:self
-                                   selectionChanged:^(NSString *selectedValue) {
-        __strong __typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        if ([selectedValue isEqualToString:@"收藏"] || [selectedValue isEqualToString:@"取消收藏"]) {
-            GHLSetVoiceFavorite(info.voiceId, !GHLIsVoiceFavorite(info.voiceId));
-            [strongSelf.tableView reloadData];
-        } else if ([selectedValue isEqualToString:@"移入文件夹…"]) {
-            [strongSelf ghlMoveVoiceToFolderSheet:info];
-        } else if ([selectedValue isEqualToString:@"下载试听音频（仅一句录音）"]) {
-            [strongSelf ghlDownloadTrialAudioForVoice:info];
-        } else if ([selectedValue isEqualToString:@"分享/导出"]) {
-            GHLExportCustomVoices(strongSelf, @[info.voiceId]);
-        } else if ([selectedValue isEqualToString:@"删除"]) {
-            [strongSelf ghlDeleteCustomVoiceConfirm:info];
-        }
-    }];
-}
-
-// 1.0.26：下载试听音频——把试听句合成出来，存进「我的导入」。
-// 存下来的只是一句固定试听句的录音，不是那个音色本身，离线不能拿它合成任意文字。
-- (void)ghlDownloadTrialAudioForVoice:(GHLVoicePackageInfo *)info {
-    if (info.source != GHLVoicePackageSourceFishAudio || info.fishModelId.length == 0) return;
-    __weak __typeof(self) weakSelf = self;
-    // 试听句和点行试听同一句（GHLPreviewVoicePackage）。
-    NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", info.displayName];
-    [DYYYUtils showToast:@"正在合成试听音频…"];
-    GHLSynthesizeWithFishAudio(sample, info.fishModelId, ^(NSURL *fileURL) {
-      if (!fileURL) return; // 合成失败时合成函数自己弹 toast＋记日志
-      // 导入函数按文件名取名：先拷一份带音色名的临时文件，导入后名字才好看。
-      NSString *friendlyName = [NSString stringWithFormat:@"%@ 试听.mp3", info.displayName];
-      NSURL *namedURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:friendlyName];
-      [[NSFileManager defaultManager] removeItemAtURL:namedURL error:nil];
-      NSError *copyError = nil;
-      if (![[NSFileManager defaultManager] copyItemAtURL:fileURL toURL:namedURL error:&copyError]) {
-          GHLLog(@"语音包下载试听：改名复制失败 %@，直接导原文件", copyError.localizedDescription);
-          namedURL = fileURL; // 复制失败就直接导原文件，名字难看一点而已
-      }
-      GHLRunOnMain(^{
-        GHLImportVoiceAudioFileAtURL(namedURL, ^(BOOL success, NSString *name) {
-          if (!success) return;
-          GHLLog(@"语音包下载试听：「%@」已存进「我的导入」（只是一句试听录音，不是音色本身，离线不能合成任意文字）", name ?: info.displayName);
-          [DYYYUtils showToast:@"已存进「我的导入」：只是一句试听录音，不是音色本身，离线不能合成任意文字"];
-          __strong __typeof(weakSelf) strongSelf = weakSelf;
-          if (strongSelf) [strongSelf.tableView reloadData];
-        });
-      });
-    });
-}
-
-// 1.0.24：移入文件夹（选“移出文件夹”就回默认分类/我的导入）。
-- (void)ghlMoveVoiceToFolderSheet:(GHLVoicePackageInfo *)info {
-    __weak __typeof(self) weakSelf = self;
-    NSMutableArray<NSString *> *options = [NSMutableArray arrayWithObject:@"移出文件夹"];
-    [options addObjectsFromArray:GHLCustomVoiceFolders()];
-    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ROW_MENU_LAST
-                                       optionsArray:options
-                                         headerText:[NSString stringWithFormat:@"把「%@」移到…", info.displayName]
-                                     onPresentingVC:self
-                                   selectionChanged:^(NSString *selectedValue) {
-        __strong __typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        if ([selectedValue isEqualToString:@"移出文件夹"]) {
-            GHLMoveVoiceToFolder(info.voiceId, nil);
-        } else {
-            GHLMoveVoiceToFolder(info.voiceId, selectedValue);
-        }
-        [strongSelf.tableView reloadData];
-    }];
-}
-
-// 1.0.24：删导入的语音（记录 + 文件一起删，确认后才动手）。
-- (void)ghlDeleteCustomVoiceConfirm:(GHLVoicePackageInfo *)info {
-    __weak __typeof(self) weakSelf = self;
-    [DYYYBottomAlertView showAlertWithTitle:@"删掉这个语音？"
-                                    message:[NSString stringWithFormat:@"「%@」会从语音包和文件里一起删掉。", info.displayName]
+    BOOL favorited = GHLIsVoiceFavorite(info.voiceId);
+    [DYYYBottomAlertView showAlertWithTitle:info.displayName
+                                    message:favorited ? @"取消收藏这个音色？" : @"收藏这个音色？收藏的会排在最前面。"
                                   avatarURL:nil
                            cancelButtonText:@"取消"
-                          confirmButtonText:@"删除"
+                          confirmButtonText:favorited ? @"取消收藏" : @"收藏"
                                cancelAction:nil
                                 closeAction:nil
                               confirmAction:^{
         __strong __typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
-        GHLDeleteCustomVoice(info.voiceId);
+        GHLSetVoiceFavorite(info.voiceId, !favorited);
         [strongSelf.tableView reloadData];
     }];
 }
 
-// 当前要显示的列表（有搜索词就按搜索结果，否则全量）
 - (NSArray<GHLVoicePackageInfo *> *)ghlVisiblePackages {
     return GHLSearchVoicePackages(self.searchText);
 }
 
+// 1.0.28：分区固定四档，顺序 ★收藏/内置/在线/我的导入；
+// 搜索时只留有行的分区；不搜索时在线和我的导入没行也显示（脚注说明怎么拿）。
 - (NSArray<NSString *> *)ghlVisibleCategories {
     NSMutableArray<NSString *> *categories = [NSMutableArray array];
-    // 1.0.4：收藏置顶一个分区（只有收藏了、且收藏的音色还在当前列表里才出现）。
     NSSet<NSString *> *favorites = GHLVoiceFavorites();
-    if (favorites.count > 0) {
-        for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
-            if ([favorites containsObject:info.voiceId]) {
-                [categories addObject:@"★ 收藏"];
-                break;
-            }
-        }
-    }
+    BOOL searching = self.searchText.length > 0;
+    BOOL hasFavorite = NO, hasBuiltIn = NO, hasOnline = NO, hasCustom = NO;
     for (GHLVoicePackageInfo *info in [self ghlVisiblePackages]) {
-        if (![categories containsObject:info.category]) [categories addObject:info.category];
+        if ([favorites containsObject:info.voiceId]) hasFavorite = YES;
+        if ([info.category isEqualToString:@"内置"]) hasBuiltIn = YES;
+        else if ([info.category isEqualToString:@"在线"]) hasOnline = YES;
+        else if ([info.category isEqualToString:@"我的导入"]) hasCustom = YES;
     }
-    // 1.0.26：自建文件夹空着也显示分区（以前只从实际语音里收分区，空文件夹永不现身，
-    // 建完看着像没建成）；搜索时不并入，免得搜的时候冒出一堆空分区。
-    if (self.searchText.length == 0) {
-        for (NSString *folder in GHLCustomVoiceFolders()) {
-            if (![categories containsObject:folder]) [categories addObject:folder];
-        }
-    }
+    if (hasFavorite) [categories addObject:@"★ 收藏"];
+    if (hasBuiltIn) [categories addObject:@"内置"];
+    if (hasOnline || !searching) [categories addObject:@"在线"];
+    if (hasCustom || !searching) [categories addObject:@"我的导入"];
     return categories;
 }
 
@@ -3835,15 +2502,16 @@ static BOOL ghlOnlineFetchFailed = NO;
         if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
         // 1.0.26：上次拉取失败时脚注留一行，不再静默失败。
         if (ghlOnlineFetchFailed) return @"上次拉取在线列表失败了，请检查网络和 Key，点右上角“刷新在线”再试一次。";
+        if ([self ghlPackagesInCategory:@"在线"].count == 0) return @"在线音色还没拉到，点右上角“刷新在线”。";
         return nil;
     }
     if ([categories[section] isEqualToString:@"内置"]) return nil;
-    // 1.0.24：我的导入 / 自建文件夹——导入的语音点一下就播放（不能合成文字）。
-    return @"导入的语音点一下就播放（不能用来合成文字）；长按可移文件夹、分享或删除。";
+    // 1.0.28：我的导入——长按视频导进来的音频都在这里，点一下就播放（不能用来合成文字）。
+    return @"长按视频选「导入至语音包」就能把当前作品的音频存到这里；点行播放（不能用来合成文字）。";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    static NSString *cellId = @"GHLVoicePackageCell";
+    static NSString *cellId = @"GHLSimpleVoicePackageCell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
     if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
     NSArray *categories = [self ghlVisibleCategories];
@@ -3924,19 +2592,18 @@ static BOOL ghlOnlineFetchFailed = NO;
 
 @end
 
-void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController) {
+// 1.0.28：打开极简语音包页（设置页 :339 点开直接进本页；有导航栏就 push，没有才模态弹）。
+void GHLPresentSimpleVoicePackagePageFromViewController(UIViewController *viewController) {
     if (!viewController) return;
     GHLRunOnMain(^{
-      GHLVoicePackageManagerViewController *managerVC = [[GHLVoicePackageManagerViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
-      UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:managerVC];
-      nav.navigationBar.prefersLargeTitles = YES; // 统一视觉：跟设置主页一样用大标题
-      [viewController presentViewController:nav animated:YES completion:nil];
-      // 1.0.27：打开时记一行搜索词＋可见分区＋自建文件夹列表，下次日志能直接看到
-      // 「你好」在不在列表里（-15.log 里文件夹 0 行，搜没搜过都不知道）。
-      GHLLog(@"语音包管理：已打开管理器（搜索词「%@」，可见分区：%@，自建文件夹：%@）",
-             managerVC.searchText.length > 0 ? managerVC.searchText : @"空",
-             [managerVC ghlVisibleCategories],
-             GHLCustomVoiceFolders());
+      GHLSimpleVoicePackageViewController *voiceVC = [[GHLSimpleVoicePackageViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
+      if (viewController.navigationController) {
+          [viewController.navigationController pushViewController:voiceVC animated:YES];
+      } else {
+          UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:voiceVC];
+          [viewController presentViewController:nav animated:YES completion:nil];
+      }
+      GHLLog(@"语音包：已打开语音包页（可见分区：%@）", [voiceVC ghlVisibleCategories]);
     });
 }
 
@@ -4392,29 +3059,6 @@ void GHLApplyDarkKeyboardInView(UIView *view) {
 
 #pragma mark (35)(36)(41) 探针（只记日志，不 hook、不猜实现）
 
-void GHLProbePrivacyFeatures(void) {
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    NSMutableArray<NSString *> *typing = [NSMutableArray array];
-    NSMutableArray<NSString *> *readReceipt = [NSMutableArray array];
-    NSMutableArray<NSString *> *burn = [NSMutableArray array];
-    for (unsigned int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if ([name containsString:@"Typing"]) {
-            if (typing.count < 20) [typing addObject:name];
-        } else if ([name containsString:@"ReadReceipt"] || [name containsString:@"ReadStatus"]) {
-            if (readReceipt.count < 20) [readReceipt addObject:name];
-        } else if ([name containsString:@"Burn"] || [name containsString:@"Disappear"] || [name containsString:@"SecretChat"]) {
-            if (burn.count < 20) [burn addObject:name];
-        }
-    }
-    free(classes);
-    GHLLog(@"隐私探针：正在输入相关 %lu 个：%@", (unsigned long)typing.count, typing);
-    GHLLog(@"隐私探针：已读回执相关 %lu 个：%@", (unsigned long)readReceipt.count, readReceipt);
-    GHLLog(@"隐私探针：阅后即焚相关 %lu 个：%@", (unsigned long)burn.count, burn);
-    GHLLog(@"隐私探针：以上只做记录；隐藏正在输入/已读回执/防阅后即焚没有可验证的 hook 点，目前做不了，开关先留着等日志");
-}
-
 void GHLProbeCommentVoice(void) {
     unsigned int count = 0;
     Class *classes = objc_copyClassList(&count);
@@ -4467,7 +3111,7 @@ void GHLProbeVoiceFeatures(void) {
         }
     }
     free(classes);
-    GHLLog(@"语音四项探针：疑似语音相关类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
+    GHLLog(@"语音探针：疑似语音相关类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
 
     // AWECommentAudioModel 的属性清单（评论语音有没有音频地址，看这里）
     Class audioModelClass = NSClassFromString(@"AWECommentAudioModel");
@@ -4479,30 +3123,12 @@ void GHLProbeVoiceFeatures(void) {
             [propNames addObject:[NSString stringWithUTF8String:property_getName(props[i])]];
         }
         free(props);
-        GHLLog(@"语音四项探针：AWECommentAudioModel 属性 %lu 个：%@", (unsigned long)propNames.count, propNames);
+        GHLLog(@"语音探针：AWECommentAudioModel 属性 %lu 个：%@", (unsigned long)propNames.count, propNames);
     } else {
-        GHLLog(@"语音四项探针：AWECommentAudioModel 类不存在，评论语音保存/替换做不了");
+        GHLLog(@"语音探针：AWECommentAudioModel 类不存在，评论语音保存做不了");
     }
 
-    // AWEIMVoiceMessageCell 的方法清单（私信语音转发有没有现成入口，看这里）
-    Class voiceCellClass = NSClassFromString(@"AWEIMVoiceMessageCell");
-    if (voiceCellClass) {
-        unsigned int methodCount = 0;
-        Method *methods = class_copyMethodList(voiceCellClass, &methodCount);
-        NSMutableArray<NSString *> *methodNames = [NSMutableArray array];
-        for (unsigned int i = 0; i < methodCount; i++) {
-            NSString *selName = NSStringFromSelector(method_getName(methods[i]));
-            if ([selName containsString:@"forward"] || [selName containsString:@"Forward"] || [selName containsString:@"send"] || [selName containsString:@"Send"] || [selName containsString:@"share"] || [selName containsString:@"Share"]) {
-                if (methodNames.count < 20) [methodNames addObject:selName];
-            }
-        }
-        free(methods);
-        GHLLog(@"语音四项探针：AWEIMVoiceMessageCell 转发/发送相关方法 %lu 个：%@", (unsigned long)methodNames.count, methodNames);
-    } else {
-        GHLLog(@"语音四项探针：AWEIMVoiceMessageCell 类不存在，语音消息转发做不了");
-    }
-
-    GHLLog(@"语音四项探针：只记录类/方法存在，转发/秒数/替换/保存流程待真机日志进一步验证");
+    GHLLog(@"语音探针：只记录类/属性存在，保存流程待真机日志进一步验证");
 }
 
 #pragma mark - 1.0.18 浮动按钮＋卡片面板（快手「人民的快手」式入口，只学样子与行为）
@@ -5013,24 +3639,6 @@ void GHLCheckAutoPlayNext(void) {
     }
 }
 
-// 59 仅看一次开启下载按钮：probe-only——GHLProbePrivacyFeatures 已 dump 过
-// Burn/Disappear/SecretChat 相关类，没找到可验证的 hook 点；
-// 开关开后这里再 dump 一次含 Once/ViewOnce/Flash 的类名，等真机日志定 hook 点。
-void GHLProbeViewOnce(void) {
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    NSMutableArray<NSString *> *hits = [NSMutableArray array];
-    for (unsigned int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if ([name containsString:@"ViewOnce"] || [name containsString:@"Once"] || [name containsString:@"Flash"]) {
-            if (hits.count < 30) [hits addObject:name];
-        }
-    }
-    free(classes);
-    GHLLog(@"仅看一次探针：疑似相关类 %lu 个：%@", (unsigned long)hits.count, hits);
-    GHLLog(@"仅看一次探针：以上只做记录；没找到可验证的 hook 点，下载按钮目前加不上，开关先留着等日志");
-}
-
 // 70/71/73 消息页手势：IM 控制器类名没写进 AwemeHeaders（只有少量 AWEIM* 声明），
 // 所以按类名含 "IM" 找顶层消息控制器，再在它的 view 里找消息列表（UITableView）。
 // 找到才装手势，只装一次；不在消息页时什么都不做。
@@ -5095,41 +3703,16 @@ static UIButton *GHLFindSendButtonInView(UIView *view) {
 }
 
 // 71 探针：dump 消息页输入栏一带的按钮类名（只跑一次），等真机日志定加号按钮的 hook 点。
-static void GHLProbeIMInputBar(UIViewController *imVC) {
-    if (!imVC) return;
-    NSMutableArray<NSString *> *buttons = [NSMutableArray array];
-    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:imVC.view];
-    while (stack.count > 0 && buttons.count < 20) {
-        UIView *view = stack.lastObject;
-        [stack removeLastObject];
-        if ([view isKindOfClass:[UIButton class]]) {
-            UIButton *button = (UIButton *)view;
-            NSString *title = [button titleForState:UIControlStateNormal] ?: (button.accessibilityLabel ?: @"");
-            [buttons addObject:[NSString stringWithFormat:@"%@(%@)", NSStringFromClass([view class]), title]];
-        }
-        [stack addObjectsFromArray:view.subviews];
-    }
-    GHLLog(@"消息加号探针：消息页按钮 %lu 个：%@", (unsigned long)buttons.count, buttons);
-    GHLLog(@"消息加号探针：以上只做记录；加号按钮的 hook 点还没定，开关目前只记日志");
-}
-
 static char kGHLIMGesturesInstalledKey;
 
 void GHLInstallIMGesturesIfNeeded(void) {
-    if (!GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) && !GHLGetBool(GHL_KEY_STREAK_AUTO_SEND) && !GHLGetBool(GHL_KEY_IM_PLUS_ALBUM_PROBE)) return;
+    if (!GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) && !GHLGetBool(GHL_KEY_STREAK_AUTO_SEND)) return;
     UIViewController *imVC = GHLTopIMViewController();
     if (!imVC) return;
     UITableView *table = GHLFindTableViewInView(imVC.view);
     if (!table) return;
     if (objc_getAssociatedObject(table, &kGHLIMGesturesInstalledKey)) return;
     objc_setAssociatedObject(table, &kGHLIMGesturesInstalledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (GHLGetBool(GHL_KEY_IM_PLUS_ALBUM_PROBE)) {
-        static BOOL ghlIMProbeDone = NO;
-        if (!ghlIMProbeDone) {
-            ghlIMProbeDone = YES;
-            GHLProbeIMInputBar(imVC);
-        }
-    }
     if (GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY)) {
         UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleIMDoubleTap:)];
         doubleTap.numberOfTapsRequired = 2;
@@ -5412,18 +3995,6 @@ void GHLHousekeepingTick(void) {
     ghlLastHousekeepingTickTime = tickStart;
     ghlWatchdogTickStaleLogged = NO;
     @try {
-        // 1.0.17：进直播间时探一次拉流地址（与 (39) 开关无关；只在进/出切换时跑一次，
-        // 不进巡检循环；用自己的进出标记，不动 GHLUpdateLiveDurationLabel 的调用条件）。
-        // 1.0.18：探针改后台跑，不堵主线程；结果只看日志（进直播间探一次是诊断用）。
-        static BOOL ghlLiveProbeDoneForCurrentRoom = NO;
-        if (GHLIsInLiveRoom()) {
-            if (!ghlLiveProbeDoneForCurrentRoom) {
-                ghlLiveProbeDoneForCurrentRoom = YES;
-                GHLProbeLiveStreamURLAsync(nil);
-            }
-        } else {
-            ghlLiveProbeDoneForCurrentRoom = NO;
-        }
         // 1.0.18：浮动钮显隐每 2 秒刷一次（只在视频 feed 页出现；开关关了就藏）。
         GHLRefreshFloatPanelButton();
         // 1.0.23 第二批：48 自动连播、70/71/73 消息手势（只在相关开关开时跑）。
@@ -5433,10 +4004,6 @@ void GHLHousekeepingTick(void) {
             GHLUpdateLiveDurationLabel();
         }
         if (GHLGetBool(GHL_KEY_AUTO_RED_PACKET)) {
-            NSString *blacklist = GHLGetString(GHL_KEY_RED_PACKET_BLACKLIST);
-            if (blacklist.length > 0) {
-                GHLLog(@"自动抢红包：黑名单 %@ 已填，但直播间里拿不到作者抖音号，黑名单暂时匹配不上，仍会抢（等日志确认作者锚点）", blacklist);
-            }
             GHLScanAndTapButtonContaining(@"红包", &ghlRedPacketLastTap, 5.0, @"自动抢红包");
         }
         if (GHLGetBool(GHL_KEY_AUTO_LIVE_LOTTERY)) {

@@ -8777,20 +8777,7 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-// 1.0.23：跳过 AD 章节探针用的字段读取——章节模型没有声明，KVC 探键拿不到就记“无此字段”，不崩。
-static NSString *GHLProbeChapterField(id object, NSString *key) {
-    if (!object || key.length == 0) return @"—";
-    @try {
-        id value = [object valueForKey:key];
-        if (!value || value == [NSNull null]) return @"—";
-        NSString *desc = [value description];
-        if (desc.length > 40) desc = [[desc substringToIndex:40] stringByAppendingString:@"…"];
-        return desc;
-    } @catch (__unused NSException *exception) {
-        return @"（无此字段）";
-    }
-}
-
+// AWEAwemeModel：initWithDictionary 里做 HDR 过滤；chapterList 只留隐藏章节进度（1.0.28：跳过 AD 章节探针已下架）。
 %hook AWEAwemeModel
 
 - (id)initWithDictionary:(id)arg1 error:(id *)arg2 {
@@ -9125,27 +9112,6 @@ static NSString *GHLProbeChapterField(id object, NSString *key) {
 //屏蔽章节要点数据
 - (NSArray *)chapterList {
 	NSArray *origList = %orig;
-	// 1.0.23：跳过 AD 章节探针（清单 2 号，probe-only）——章节模型没有声明，
-	// 广告章节的识别字段（标题/起止时间/类型/isAd）要靠真机日志看；开关开后
-	// 把每个章节的类名和可探字段 dump 到日志，只记不跳过；同一条视频只记一次。
-	if (GHLGetBool(GHL_KEY_SKIP_AD_CHAPTER) && origList.count > 0) {
-		static NSString *lastProbeItemID = nil;
-		NSString *itemID = self.itemID;
-		if (![itemID isEqualToString:lastProbeItemID]) {
-			lastProbeItemID = [itemID copy];
-			GHLLog(@"跳过 AD 章节探针：视频 %@ 共 %lu 个章节", itemID ?: @"?", (unsigned long)origList.count);
-			for (id chapter in origList) {
-				GHLLog(@"跳过 AD 章节探针：章节类 %@ 标题 %@ 开始 %@ 结束 %@ 类型 %@ isAd %@ 描述 %@",
-					NSStringFromClass([chapter class]),
-					GHLProbeChapterField(chapter, @"title"),
-					GHLProbeChapterField(chapter, @"startTime"),
-					GHLProbeChapterField(chapter, @"endTime"),
-					GHLProbeChapterField(chapter, @"type"),
-					GHLProbeChapterField(chapter, @"isAd"),
-					GHLProbeChapterField(chapter, @"description"));
-			}
-		}
-	}
 	BOOL hideChapterList = DYYYGetBool(@"DYYYHideChapterProgress");
 	if (hideChapterList) {
 		return @[]; // 返回空数组
@@ -9766,21 +9732,12 @@ static NSString *GHLProbeChapterField(id object, NSString *key) {
 }
 %end
 
-// 1.0.21：最近一次 setListenVideoStatus 记下的改写后值（-1 表示还没见过），
-// 画中画的音频状态日志用（GHLLogAudioState 在 GHLFeatures.xm 里调；声明在 GHLFeatures.h）。
-static NSInteger ghlCurrentListenVideoStatus = -1;
-NSInteger GHLCurrentListenVideoStatus(void) {
-    return ghlCurrentListenVideoStatus;
-}
-
 %hook AWEAwemeStatusModel
 - (void)setListenVideoStatus:(NSInteger)status {
     NSInteger newStatus = status;
     if (status == 1 && DYYYGetBool(@"DYYYEnableBackgroundListen")) {
         newStatus = 2;
     }
-    // 1.0.21：每次都记下改写后值（不只记日志那次），画中画的音频状态日志要读最新值。
-    ghlCurrentListenVideoStatus = newStatus;
     // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
     // 写进抖音日志（只在后台播放开关开着时记，避免刷屏）。
     // 1.0.18 降噪：只在 status 真变了时记一行——之前一秒十几行重複行，關鍵行會被淹沒。
@@ -13651,19 +13608,13 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
         // 1.0.23 第二批：75 AI 解析页签（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
         %init(GHLCommentAIParseGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
-    // 1.0.20：后台听视频开关首次出现——没存过值时，沿用旧「画中画 + 后台播放」开关的值
-    // （皇上现在开着就继续开着，关着就继续关着）；从没存过旧值才默认开。
-    NSUserDefaults *ghlDefaults = [NSUserDefaults standardUserDefaults];
-    if (![ghlDefaults objectForKey:GHL_KEY_BACKGROUND_LISTEN]) {
-        id oldAudioValue = [ghlDefaults objectForKey:GHL_KEY_BACKGROUND_AUDIO];
-        [ghlDefaults setBool:oldAudioValue ? [oldAudioValue boolValue] : YES forKey:GHL_KEY_BACKGROUND_LISTEN];
-    }
+    // 1.0.28：画中画下架，1.0.20 的旧开关迁移没用了（后台听视频只走下面 registerDefaults 的默认开）。
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{
         @"DYYYDisableFeedNowPlayingInfo" : @YES,
         @"GHLLongPressGridPanel" : @YES, // 1.0.9：长按面板网格风格默认开
         // 1.0.11：长按项开关默认全开——之前只注册了网格开关本身，长按项开关一个都没注册，
         // 没动过就是 NO，所以网格只有开着的那 6 项（2 行），过滤/定时三项从来没出现过。
-        // 只默认 12 个 DYYY 开关；7 个顾海龙长按开关（提取原声/无水印链接/画中画/语音包/
+        // 只默认 12 个 DYYY 开关；6 个顾海龙长按开关（提取原声/无水印链接/语音包/
         // 保存头像/复制个人资料/分享音频）不默认开——全开会变成 6 行 18 格。
         // registerDefaults 只填没存过值的 key，皇上亲手关掉的开关不会被覆盖。
         @"DYYYLongPressSaveVideo" : @YES,
@@ -13680,15 +13631,31 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
         @"DYYYLongPressCreateVideo" : @YES,
         // 1.0.18：视频页左上角龙头浮动钮默认开（设置页「悬浮按钮」分区可关；只填没存过值的 key）。
         @"GHLFloatPanelButton" : @YES,
-        // 1.0.20：切后台触发画中画／后台听视频两个开关默认都开（保持皇上现行行为）；
+        // 1.0.28：后台听视频默认开（画中画下架，只剩这一个开关默认开）；
         // DYYYEnableBackgroundListen 镜像也默认开（setListenVideoStatus 的改写跟它走）。
-        @"GHLBackgroundAudio" : @YES,
         @"GHLBackgroundListen" : @YES,
         @"DYYYEnableBackgroundListen" : @YES,
         // 1.0.24：接口保存默认接皇上给的原画质接口（装完不用填就能点「接口保存」；
         // registerDefaults 只填没存过值的 key，用户改过/清空过的不覆盖）。
-        @"DYYYInterfaceDownload" : @"http://111.231.72.74/douyin-api/public/?apikey=AwemeX_&url="
+        @"DYYYInterfaceDownload" : @"http://111.231.72.74/douyin-api/public/?apikey=AwemeX_&url=",
+        // 1.0.28：长按导入至语音包默认开（皇上点名要的重点功能；只填没存过值的 key）。
+        @"GHLImportToVoicePackage" : @YES
     }];
+
+    // 1.0.28：长按面板恢复 1.0.22 样式——只改代码默认值不够，皇上手机上已存了
+    // 1.0.23–1.0.27 的面板外观值（材质曾改成液态玻璃），不清掉新默认值不生效。
+    // 升级后第一次启动清掉这 6 个外观 key（只清一次），面板回到 1.0.22 默认；
+    // 想再调去设置 → 面板设置里改（材质／模糊度／列数／格子颜色／透明度行都留着）。
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"GHLPanelLookReset1028"]) {
+        NSUserDefaults *lookDefaults = [NSUserDefaults standardUserDefaults];
+        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_MATERIAL];
+        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_BLUR];
+        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_CELL_ALPHA];
+        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR];
+        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_COLUMNS];
+        [lookDefaults removeObjectForKey:GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT];
+        [lookDefaults setBool:YES forKey:@"GHLPanelLookReset1028"];
+    }
 
     DYYYMigrateCombinedHDRModeIfNeeded();
 

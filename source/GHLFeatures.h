@@ -15,12 +15,10 @@ extern "C" {
 // MARK: - 设置键 (GHL*，与上游 DYYY* 键区分开)
 // 睡眠定时 (1) — 值：@"关闭"/@"15分钟"/@"30分钟"/@"60分钟"
 #define GHL_KEY_SLEEP_TIMER @"GHLSleepTimer"
-// 画中画+后台播放 (2)
-// 1.0.20：拆成两个开关，各管各的——
-//   GHLBackgroundAudio = 切后台触发画中画；GHLBackgroundListen = 后台听视频
-//   （setListenVideoStatus 的改写跟后台听视频走，经 DYYYEnableBackgroundListen 镜像，
-//   上游「基本设置」里也有同一 key 的「启用后台播放」行，三处同写一个 key）。
-#define GHL_KEY_BACKGROUND_AUDIO @"GHLBackgroundAudio"
+// 后台听视频 (2)（1.0.28：切后台触发画中画已下架，画中画从没成功过）
+//   GHLBackgroundListen = 后台听视频（setListenVideoStatus 的改写跟它走，
+//   经 DYYYEnableBackgroundListen 镜像；上游「基本设置」里也有同一 key 的
+//   「启用后台播放」行，三处同写一个 key）。
 #define GHL_KEY_BACKGROUND_LISTEN @"GHLBackgroundListen"
 // 快进手势 (3)：长按倍速 + 双击左右快进 10 秒
 #define GHL_KEY_SEEK_GESTURES @"GHLSeekGestures"
@@ -55,13 +53,8 @@ extern "C" {
 // 侧边栏自定义排序 (22)
 #define GHL_KEY_SIDEBAR_REORDER @"GHLSidebarReorder"
 #define GHL_KEY_SIDEBAR_ORDER @"GHLSidebarOrder" // 如：评论,点赞,分享,收藏（从上到下）
-// 私信防撤回 (24)：实验功能，目前只有启动探针日志，待真机日志验证
-#define GHL_KEY_ANTI_RECALL @"GHLAntiRecall"
 // 视频截图去水印 (25)
 #define GHL_KEY_SCREENSHOT_CLEAN @"GHLScreenshotClean"
-// 1.0.23：跳过 AD 章节（清单 2 号）——探测：广告章节没有可确认的识别点，
-// 开关开后只在日志里 dump 章节模型字段，不谎称做成；等真机日志定下识别字段再接跳过。
-#define GHL_KEY_SKIP_AD_CHAPTER @"GHLSkipAdChapter"
 // 1.0.23：评论文字变蓝（清单 5 号）——启发式定位评论正文标签，需真机验证
 #define GHL_KEY_BLUE_COMMENT_TEXT @"GHLBlueCommentText"
 // 楼中楼一键展开 (29)
@@ -81,12 +74,10 @@ extern "C" {
 #define GHL_KEY_FISH_AUDIO_API_KEY @"GHLFishAudioAPIKey" // 皇上自己的 Fish Audio key（在线音色用）；设置页改了就用改后的
 #define GHL_DEFAULT_FISH_AUDIO_API_KEY @"sk-fish-7Ncx6vznkdiz1H0xD5ua8G8oSuovY5IaLRDBx7-WTKU" // 皇上自己的 Fish Audio key，已填好（免费账号，永不过期）；只放皇上自己的私有仓库和包里
 #define GHL_KEY_FISH_AUDIO_VOICES_CACHE @"GHLFishAudioVoicesCache" // 在线语音包列表缓存（NSArray<NSDictionary：id/title>）
-#define GHL_KEY_VOICE_PACKAGE_MANAGER @"GHLVoicePackageManager" // 打开语音包管理器（Picker 入口，值无意义）
-// 1.0.2 新增语音四项（照 xuu 卡片的语音功能；接口未验证，先做探针，见 GHLProbeVoiceFeatures）：
-// 语音消息转发 / 设置语音秒数 / 替换语音评论 / 保存语音评论（保存复用 (36) 的 GHL_KEY_COMMENT_VOICE_SAVE）。
-#define GHL_KEY_VOICE_FORWARD @"GHLVoiceForward"                 // 语音消息转发（实验，需真机日志验证）
-#define GHL_KEY_VOICE_DURATION @"GHLVoiceDuration"               // 设置语音秒数（实验，需真机日志验证）
-#define GHL_KEY_VOICE_REPLACE_COMMENT @"GHLVoiceReplaceComment" // 替换语音评论（实验，需真机日志验证）
+// 1.0.2 新增语音四项（照 xuu 卡片的语音功能；接口未验证，先做探针，见 GHLProbeVoiceFeatures）。
+// 1.0.28：转发/秒数/替换三项下架（没做成），只剩保存语音评论（复用 (36) 的 GHL_KEY_COMMENT_VOICE_SAVE）。
+// 1.0.28 新增：长按导入至语音包（开关，默认开；格子项 696）。
+#define GHL_KEY_IMPORT_TO_VOICE_PACKAGE @"GHLImportToVoicePackage" // 长按导入至语音包（默认开）
 // 1.0.4 语音包收藏：收藏的 voiceId 列表（NSArray<NSString *>），收藏的排在管理器最前面
 #define GHL_KEY_VOICE_FAVORITES @"GHLVoiceFavorites"
 
@@ -141,7 +132,7 @@ typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
 @interface GHLVoicePackageInfo : NSObject
 @property(nonatomic, copy) NSString *voiceId;
 @property(nonatomic, copy) NSString *displayName;
-@property(nonatomic, copy) NSString *category; // 文件夹/分类：@"内置" / @"在线" / @"我的导入" / 自建文件夹名
+@property(nonatomic, copy) NSString *category; // 分类：@"内置" / @"在线" / @"我的导入"（1.0.28：文件夹已砍）
 @property(nonatomic, assign) GHLVoicePackageSource source;
 @property(nonatomic, copy, nullable) NSString *systemVoiceIdentifier; // 内置档
 @property(nonatomic, copy, nullable) NSString *fishModelId;           // 在线档
@@ -152,11 +143,11 @@ typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
                             source:(GHLVoicePackageSource)source
              systemVoiceIdentifier:(nullable NSString *)systemVoiceIdentifier
                        fishModelId:(nullable NSString *)fishModelId;
-// 1.0.24：导入档构造（name 显示名，filePath 音频文件全路径，folder 文件夹名）
+// 1.0.24：导入档构造（name 显示名，filePath 音频文件全路径；1.0.28：folder 固定传 @"我的导入"）
 + (instancetype)customPackageWithName:(NSString *)name filePath:(NSString *)filePath folder:(NSString *)folder;
 @end
 // 全部语音包（内置在前、在线在后、导入最后；在线档只在有缓存列表时出现）
-// 1.0.24：内置/在线音色被移进文件夹时，category 就是文件夹名（见 GHL_KEY_VOICE_FOLDER_MAP）。
+// 1.0.28：文件夹已砍，内置/在线/导入的分类固定。
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void);
 // 按分类取（@"内置" / @"在线" / @"我的导入" / 自建文件夹名）
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackagesInCategory(NSString *category);
@@ -174,28 +165,17 @@ void GHLPreviewVoicePackage(NSString *voiceId);
 void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL));
 // 从 Fish Audio 拉在线语音包列表（需 key；成功后缓存并回调，失败回调 error）
 void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoicePackageInfo *> *voices, NSError *error));
-// 打开语音包管理器（列表/分类/搜索/试听/选中）
-void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController);
-// 1.0.24：导入的语音 + 文件夹（文件夹分组、导入导出都在管理器里）
+// 1.0.28：打开极简语音包页（★收藏/内置/在线/我的导入，搜索/试听/选中/刷新在线）
+void GHLPresentSimpleVoicePackagePageFromViewController(UIViewController *viewController);
+// 1.0.24：导入的语音（1.0.28：文件夹那套和导出都砍了，只剩长按导入；导入档都归“我的导入”）
 // 导入的语音存在 Documents/DYYY/VoicePackages/，记录在 GHL_KEY_CUSTOM_VOICES。
-#define GHL_KEY_CUSTOM_VOICES @"GHLCustomVoices" // 导入的语音：数组，字典 @{@"name", @"file", @"folder"}
-#define GHL_KEY_VOICE_CUSTOM_FOLDERS @"GHLCustomVoiceFolders" // 自建文件夹名数组（“我的导入”是内置的，不存这里）
-#define GHL_KEY_VOICE_FOLDER_MAP @"GHLVoiceFolderMap" // voiceId -> 文件夹（内置/在线音色移入文件夹用）
-#define GHL_KEY_VOICE_ADD_MENU_LAST @"GHLVoiceAddMenuLast" // + 菜单上次选的项（选项表要存一个值，无实际意义）
-#define GHL_KEY_VOICE_ROW_MENU_LAST @"GHLVoiceRowMenuLast" // 行长按菜单上次选的项（同上）
+#define GHL_KEY_CUSTOM_VOICES @"GHLCustomVoices" // 导入的语音：数组，字典 @{@"name", @"file"}
 NSString *GHLCustomVoicePackagesDirectory(void);
-NSArray<NSString *> *GHLCustomVoiceFolders(void); // “我的导入”在前，自建文件夹按建的顺序
-void GHLCreateVoiceFolder(NSString *name);
-void GHLDeleteVoiceFolder(NSString *name); // 里面的语音回“我的导入”
-void GHLMoveVoiceToFolder(NSString *voiceId, NSString *folder); // folder 空 = 移出，回默认分类
-void GHLDeleteCustomVoice(NSString *voiceId); // 删记录 + 删文件 + 清收藏/选中
-NSString *GHLFolderForVoiceId(NSString *voiceId); // 当前所在文件夹（分类名）
 void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)); // mp4/mov 转音频，其他音频直接复制
-void GHLExportCustomVoices(UIViewController *presenter, NSArray<NSString *> *voiceIds); // 分享文件；voiceIds 为空 = 全部
 NSString *GHLFileSizeText(NSString *path); // “1.2 MB”这种
 // 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包）
 void GHLProbeLiveVoiceSender(void);
-// 运行期探针：语音消息转发/语音秒数/替换语音评论/保存语音评论相关类（只记日志，不 hook、不发包）
+// 运行期探针：保存语音评论相关类（只记日志，不 hook、不发包；1.0.28：转发/秒数/替换三项已下架）
 void GHLProbeVoiceFeatures(void);
 
 // MARK: - 32-43（xuu 抖音助手行为参考，代码全部自己写；只学功能清单，不抄它的代码）
@@ -204,15 +184,12 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_AUTO_LIKE_MAX @"GHLAutoLikeMaxCount" // 每会话上限，默认 100
 // (33) 自动抢红包
 #define GHL_KEY_AUTO_RED_PACKET @"GHLAutoRedPacket"
-#define GHL_KEY_RED_PACKET_BLACKLIST @"GHLRedPacketBlacklist" // 逗号分隔的作者抖音号
 #define GHL_KEY_RED_PACKET_DELAY @"GHLRedPacketDelay"         // 秒，默认 1
 #define GHL_KEY_RED_PACKET_AUTO_REPLY @"GHLRedPacketAutoReply"
 #define GHL_KEY_RED_PACKET_REPLY_TEXT @"GHLRedPacketReplyText" // 默认 谢谢老板
 // (34) 自动开直播抽奖
 #define GHL_KEY_AUTO_LIVE_LOTTERY @"GHLAutoLiveLottery"
-// (35) 防撤回全套
-#define GHL_KEY_HIDE_TYPING @"GHLHideTyping"             // 隐藏“正在输入”（探针，未验证）
-#define GHL_KEY_HIDE_READ_RECEIPT @"GHLHideReadReceipt" // 隐藏已读回执（探针，未验证）
+// (35) 不上报访客记录（已做成，留着；隐藏正在输入/已读回执/防阅后即焚是探针，1.0.28 下架）
 #define GHL_KEY_DISABLE_VISIT_REPORT @"GHLDisableVisitReport" // 不上报访客记录（接上游隐私拦截）
 // (36) 评论语音播放/保存
 #define GHL_KEY_COMMENT_VOICE @"GHLCommentVoice"
@@ -249,8 +226,6 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_QUICK_PANEL_SIDE_MARGIN @"GHLQuickPanelSideMargin"
 #define GHL_KEY_QUICK_PANEL_CELL_ALPHA @"GHLQuickPanelCellAlpha"
 #define GHL_KEY_QUICK_PANEL_CELL_COLOR @"GHLQuickPanelCellColor"
-// 59 仅看一次开启下载按钮（探测：查看器类没找到，开关只做探针日志）
-#define GHL_KEY_VIEW_ONCE_DOWNLOAD @"GHLViewOnceDownload"
 // 61 推荐页跳过购物视频（按 ecommerceBelowLabel 认购物视频，只在推荐页）
 #define GHL_KEY_SKIP_SHOPPING @"GHLSkipShopping"
 // 64 长按菜单微透明（长按网格面板格子底更透）
@@ -261,8 +236,6 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_FLOAT_FUNCTION_BUTTON @"GHLFloatFunctionButton"
 // 70 双击消息快捷回复（消息列表/聊天页双击消息，打开输入框）
 #define GHL_KEY_IM_DOUBLE_TAP_REPLY @"GHLIMDoubleTapReply"
-// 71 消息界面点加号弹出相册图片（探测：加号按钮类没确认，开关只记探针日志）
-#define GHL_KEY_IM_PLUS_ALBUM_PROBE @"GHLIMPlusAlbumProbe"
 // 73 续火花自动发消息（长按联系人头像才触发；模板为空或找不到发送按钮时只填文字不自动发）
 #define GHL_KEY_STREAK_AUTO_SEND @"GHLStreakAutoSend"
 #define GHL_KEY_STREAK_TEMPLATES @"GHLStreakTemplates" // 多条模板用 | 分隔
@@ -293,8 +266,6 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_TOP_BAR_TRANSPARENT @"GHLTopBarTransparent"
 #define GHL_KEY_TOP_BAR_TRANSPARENCY @"GHLTopBarTransparency" // 0-1，默认 0.5
 #define GHL_KEY_HIDE_STATUS_BAR @"GHLHideStatusBar"
-// (41) 防阅后即焚（探针，未验证）
-#define GHL_KEY_ANTI_BURN @"GHLAntiBurn"
 // (42) 改数字显示
 #define GHL_KEY_FAKE_STATS @"GHLFakeStats" // 改视频点赞/播放数显示
 #define GHL_KEY_FAKE_LIKE_COUNT @"GHLFakeLikeCount"
@@ -304,7 +275,6 @@ void GHLProbeVoiceFeatures(void);
 // (43) 音频管理
 #define GHL_KEY_AUDIO_SHARE @"GHLAudioShare" // 音频分享（长按面板）
 #define GHL_KEY_LIVE_AUDIO_MUTE @"GHLLiveAudioMute" // 直播音频单独静音
-#define GHL_KEY_COMMENT_AUDIO_MUTE @"GHLCommentAudioMute" // 评论音频单独静音（探针，未验证）
 // (44) 1.0.8 美化：调色盘 / 主题预设 / 侧边栏 / 进度条 / 头像金边 / 弹幕样式 / 底栏毛玻璃 / 双击爱心探针
 #define GHL_KEY_THEME_PRESET @"GHLThemePreset" // none=无 gold=金龙 ice=冰蓝 pink=樱粉 night=暗夜
 #define GHL_KEY_SIDEBAR_BEAUTIFY @"GHLSidebarBeautify"
@@ -341,7 +311,6 @@ void GHLDownloadCurrentVideoWithProgress(void); // (37) 双击下载当前视频
 void GHLApplyInterfaceScaleInView(UIView *view); // (38) 侧边按钮缩放
 void GHLApplyDarkKeyboardInView(UIView *view); // (38) 评论输入框深色键盘
 void GHLApplyFakeStatsInView(UIView *view); // (42) 点赞数/播放数显示改写
-void GHLProbePrivacyFeatures(void); // (35)(41) 探针：正在输入/已读回执/阅后即焚相关类
 void GHLProbeCommentVoice(void); // (36) 探针：评论语音相关类
 void GHLProbeLiveRoom(void); // (39)(42) 探针：直播间相关类
 
@@ -361,7 +330,7 @@ void GHLLog(NSString *format, ...);
 
 // MARK: - 播放器
 // 找到当前正在播放的 AVPlayer（1.0.15：全部窗口递归找 AVPlayerLayer，不只 keyWindow；
-// 画中画专用查找另见 GHLFeatures.xm 里的 GHLFindPlayingAVPlayerForPiP，会多走一路控制器 KVC 探针）
+// 1.0.28：画中画下架，B 路控制器 KVC 探针也一起删了，只剩 A 路窗口图层扫描）
 AVPlayer *GHLFindPlayingAVPlayer(void);
 // 找到当前播放视频的 AVPlayerLayer（1.0.15：全部窗口递归找，不只 keyWindow）
 AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void);
@@ -389,14 +358,6 @@ void GHLCloseFloatPanel(void);
 DYYYSettingViewController *GHLFloatPanelSharedSettingsViewController(void);
 // 1.0.24：换背景图后重铺卡片底图（卡片没建好时什么都不做）。
 void GHLRefreshFloatPanelCardBackground(void);
-// 1.0.21：第 7 项音频状态行用的抖音自己后台听视频 status（DYYY.xm 里 setListenVideoStatus
-// 钩子记下的改写后值；-1 表示还没见过）。
-NSInteger GHLCurrentListenVideoStatus(void);
-void GHLStartPiP(void);                // (2) 画中画
-// 1.0.16：画中画带调用方（网格点按 / 切后台），查找日志记调用方，判别触发路。
-void GHLStartPiPWithCaller(NSString * _Nullable caller);
-void GHLProbeAntiRecall(void);         // (24) 启动时探针：记下疑似撤回相关类名
-
 // MARK: - 长按面板动作
 // (18) 解析分享链接，复制无水印视频直链到剪贴板
 void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model);
@@ -404,6 +365,8 @@ void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model);
 void GHLSaveCleanScreenshotForAwemeModel(AWEAwemeModel *model, double seconds);
 // (30) 下载当前视频并只导出音轨（.m4a），用分享面板交出去
 void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
+// 1.0.28：长按导入至语音包——下载当前视频、抽音轨成 .m4a 存进语音包（名字是皇上输的那个）。
+void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name);
 // 1.0.23：长按面板新增两项（清单 9 号）——弹窗显示作品数据并复制到剪贴板；
 // 图集的图片全屏翻页预览（不是图集就提示没有图片）。
 void GHLShowAwemeDataForAwemeModel(AWEAwemeModel *model);
@@ -421,8 +384,6 @@ BOOL GHLHasCustomQuickPanelBackground(void);
 void GHLCheckAutoPlayNext(void);
 // (59)(70)(71)(73) 私信手势与探针：2 秒巡检里找消息列表/聊天页装手势（只装一次）
 void GHLInstallIMGesturesIfNeeded(void);
-// (59) 仅看一次探针：dump 仅看一次/闪照相关类（只记日志，不 hook）
-void GHLProbeViewOnce(void);
 // (75) AI 解析：收评论区文字调 LLM 总结（需要用户自己填 Key 和接口地址）
 void GHLAIParseCommentsFromView(UIView *panelView, UITextView *resultView, UILabel *statusLabel);
 // (75) 评论面板顶部 评论/AI 解析 双页签（只装一次；开关在调用方 hook 里判断）

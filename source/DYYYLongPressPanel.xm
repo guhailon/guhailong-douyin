@@ -30,8 +30,6 @@ static NSString *gDYYYLongPressGridDiagReason = nil;
 static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc);
 static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
 static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
-// 1.0.24：网格盖上时藏起来的原生 table 所在的面板控制器（弱引用；收起时恢复显示）。
-static __weak UIViewController *gDYYYLongPressGridHiddenVC = nil;
 
 %hook AWELongPressPanelViewGroupModel
 %property(nonatomic, assign) BOOL isDYYYCustomGroup;
@@ -144,7 +142,7 @@ static __weak UIViewController *gDYYYLongPressGridHiddenVC = nil;
     hasAnyFeatureEnabled = enableSaveVideo || enableSaveCover || enableSaveAudio || enableSaveCurrentImage || enableSaveAllImages || enableCopyText || enableCopyLink || enableApiDownload ||
                            enableFilterUser || enableFilterKeyword || enableTimerClose || enableCreateVideo ||
                            GHLGetBool(GHL_KEY_EXTRACT_AUDIO) || GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK) ||
-                           GHLGetBool(GHL_KEY_BACKGROUND_AUDIO) || GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
+                           GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
                            GHLGetBool(GHL_KEY_SAVE_AVATAR) || GHLGetBool(GHL_KEY_COPY_PROFILE) || GHLGetBool(GHL_KEY_AUDIO_SHARE);
 
     // 如果没有任何功能启用，仅使用官方按钮
@@ -755,25 +753,6 @@ static __weak UIViewController *gDYYYLongPressGridHiddenVC = nil;
         [viewModels addObject:noWatermarkViewModel];
     }
 
-    if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
-        AWELongPressPanelBaseViewModel *pipViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        pipViewModel.awemeModel = self.awemeModel;
-        pipViewModel.actionType = 688;
-        pipViewModel.duxIconName = @"ic_pip_outlined";
-        pipViewModel.describeString = @"画中画播放";
-        pipViewModel.action = ^{
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
-          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
-          // 等 0.4 秒让收起动画跑完再触发。
-          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            GHLStartPiPWithCaller(@"网格点按");
-          });
-        };
-        [viewModels addObject:pipViewModel];
-    }
-
     if (GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
         AWELongPressPanelBaseViewModel *voicePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         voicePreviewViewModel.awemeModel = self.awemeModel;
@@ -937,6 +916,32 @@ static __weak UIViewController *gDYYYLongPressGridHiddenVC = nil;
         [viewModels addObject:imagePreviewViewModel];
     }
 
+// 1.0.28：长按导入至语音包（开关默认开；点它输名字，把当前视频的音频存进语音包）。
+    if (GHLGetBool(GHL_KEY_IMPORT_TO_VOICE_PACKAGE)) {
+        AWELongPressPanelBaseViewModel *importVoiceViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        importVoiceViewModel.awemeModel = self.awemeModel;
+        importVoiceViewModel.actionType = 696;
+        importVoiceViewModel.duxIconName = @"ic_download_outlined";
+        importVoiceViewModel.describeString = @"导入至语音包";
+        importVoiceViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"导入至语音包" defaultText:@"" placeholder:@"输入语音名称"];
+          inputView.onConfirm = ^(NSString *text) {
+            NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (name.length == 0) {
+                [DYYYUtils showToast:@"名字是空的"];
+                return;
+            }
+            AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+            [panelManager dismissWithAnimation:YES completion:nil];
+            GHLImportVideoAudioToVoicePackage(awemeModel, name);
+          };
+          inputView.onCancel = ^{};
+          [inputView show];
+        };
+        [viewModels addObject:importVoiceViewModel];
+    }
+
     // 创建自定义组
     NSMutableArray *customGroups = [NSMutableArray array];
     NSInteger totalButtons = viewModels.count;
@@ -1024,20 +1029,11 @@ static void DYYYLongPressGridPanelClearAll(void) {
     gDYYYLongPressPanelData = nil;
     gDYYYLongPressGridDiagVC = nil;
     gDYYYLongPressGridDiagReason = nil;
-    // 1.0.25：恢复表显示的同时把网格从屏幕上拿掉并置 nil（不然下一次 Show 在入口早退，
-    // 再也不会走新建分支重藏；网格在、表又恢复显示就是重影）。
+    // 1.0.25：收起时把网格从屏幕上拿掉并置 nil（下一次 Show 走新建分支；
+    // 1.0.28：藏表逻辑已删，这里只做状态清理，不再恢复原生列表）。
     if (gDYYYLongPressGridPanel) {
         [gDYYYLongPressGridPanel removeFromSuperview];
         gDYYYLongPressGridPanel = nil;
-    }
-    // 1.0.24：网格收起时把藏起来的原生列表恢复显示（控制器已释放就不用管）。
-    if (gDYYYLongPressGridHiddenVC) {
-        UITableView *nativeTable = DYYYLongPressFindTableViewInView(gDYYYLongPressGridHiddenVC.view);
-        if (nativeTable) {
-            nativeTable.hidden = NO;
-            GHLLog(@"长按面板：原生列表已恢复");
-        }
-        gDYYYLongPressGridHiddenVC = nil;
     }
 }
 
@@ -1171,30 +1167,11 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         DYYYLongPressGridLogDiag(vc, @"未盖网格（开关关）");
         return;
     }
-    // 1.0.25：网格还在屏幕上时，每次 Show 都重藏一次原生列表（1.0.24 只在第一次新建时藏：
-    // 点网格里会开子页的项（倍速、定时关闭）时 viewDidDisappear 误判收起、把表恢复显示，
-    // 之后 Show 又在入口早退，再也没人重藏，重影就一直在）。
+    // 1.0.28：恢复 1.0.22 的做法——面板已在屏幕上就直接返回，不重挂、不置顶、不藏表
+    // （1.0.24–1.0.27 的藏表／重挂／置顶全删）；复用时照样刷新背景图＋记设置日志。
     if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) {
-        // 1.0.27：面板可能还挂在上一个（已不可见的）面板控制器上——-15.log 里四次长按点按全 0 次、
-        // 面板看不见，布局和背景图都正常，三种可能（挂错地方／被盖住／格子不在层级里）一次全修。
-        if (gDYYYLongPressGridPanel.superview != vc.view) {
-            [gDYYYLongPressGridPanel removeFromSuperview];
-            [vc.view addSubview:gDYYYLongPressGridPanel];
-            GHLLog(@"长按面板：面板重挂到当前面板页（原父视图不是当前面板页）");
-        }
-        [vc.view bringSubviewToFront:gDYYYLongPressGridPanel];
-        gDYYYLongPressGridPanel.frame = vc.view.bounds;
         gDYYYLongPressGridPanel.ghl_hostVC = vc;
-        [gDYYYLongPressGridPanel layoutIfNeeded];
         [gDYYYLongPressGridPanel ghl_logLayoutOnce];
-        UITableView *existingTable = DYYYLongPressFindTableViewInView(vc.view);
-        if (existingTable && !existingTable.hidden) {
-            existingTable.hidden = YES;
-            gDYYYLongPressGridHiddenVC = vc;
-            GHLLog(@"长按面板：原生列表已再次隐藏");
-        }
-        // 1.0.26：面板复用时也刷新背景图（换图后旧面板沿用旧图，是 1.0.24 换图失败的主因），
-        // 并记一行解析到的面板设置。
         [gDYYYLongPressGridPanel ghl_refreshBackgroundImage];
         [gDYYYLongPressGridPanel ghl_logResolvedSettings];
         return; // 已盖上，成功状态，不记日志
@@ -1283,22 +1260,11 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
         [panelManager dismissWithAnimation:YES completion:nil];
     }];
-    // 1.0.24：网格盖上后把底下抖音原生的长按列表藏起来（hidden=YES）——
-    // 1.0.23 把糊调成 58%、格子改 0.40 微透明之后，原生列表透过网格露出来，
-    // 同一批菜单字出现两次、错位重影（真机实拍）。只藏列表，不动原生面板控制器：
-    // 网格点按和关掉还靠它（原生选中要面板控制器上下文），拆掉风险大。
-    UITableView *nativeTable = DYYYLongPressFindTableViewInView(vc.view);
-    if (nativeTable && !nativeTable.hidden) {
-        nativeTable.hidden = YES;
-        gDYYYLongPressGridHiddenVC = vc;
-        GHLLog(@"长按面板：网格已盖上，原生列表已隐藏");
-    }
+    // 1.0.28：恢复 1.0.22 的做法——不藏原生列表（1.0.22／1.0.23 两版本来就不藏，
+    // 重影是 1.0.23 的 58% 糊＋0.40 格子造成的，格子改回不透明就盖住了），不置顶。
     panel.frame = vc.view.bounds;
     [vc.view addSubview:panel];
     [panel setNeedsLayout];
-    // 1.0.27：新建也提到最前面＋立刻排一次版（别只 setNeedsLayout，等下一轮 layout pass
-    // 时 sheet 动画可能已经把原生视图压上来了）。
-    [vc.view bringSubviewToFront:panel];
     panel.ghl_hostVC = vc;
     [panel layoutIfNeeded];
     [panel ghl_logLayoutOnce];
@@ -1312,16 +1278,11 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
 static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
     if (!vc || !vc.view) return;
     DYYYLongPressGridPanelView *panel = gDYYYLongPressGridPanel;
-    if (!panel) return;
-    // 1.0.27：面板不在当前面板页上（或被拿掉了）就重挂回来；任何情况下都提到最前面再重设 frame，
-    // 免得原生后加的视图把它盖住。
-    if (panel.superview != vc.view) {
-        [panel removeFromSuperview];
-        [vc.view addSubview:panel];
+    // 1.0.28：恢复 1.0.22——只在面板已挂在当前面板页上时重设 frame，不重挂、不置顶。
+    if (panel && panel.superview == vc.view) {
+        panel.frame = vc.view.bounds;
+        [panel setNeedsLayout];
     }
-    [vc.view bringSubviewToFront:panel];
-    panel.frame = vc.view.bounds;
-    [panel setNeedsLayout];
 }
 
 %hook AWEModernLongPressPanelTableViewController
@@ -1525,7 +1486,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
     hasAnyFeatureEnabled = enableSaveVideo || enableSaveCover || enableSaveAudio || enableSaveCurrentImage || enableSaveAllImages || enableCopyText || enableCopyLink || enableApiDownload ||
                            enableFilterUser || enableFilterKeyword || enableTimerClose || enableCreateVideo ||
                            GHLGetBool(GHL_KEY_EXTRACT_AUDIO) || GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK) ||
-                           GHLGetBool(GHL_KEY_BACKGROUND_AUDIO) || GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
+                           GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
                            GHLGetBool(GHL_KEY_SAVE_AVATAR) || GHLGetBool(GHL_KEY_COPY_PROFILE) || GHLGetBool(GHL_KEY_AUDIO_SHARE);
 
     if (!hasAnyFeatureEnabled) {
@@ -2139,25 +2100,6 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         [viewModels addObject:noWatermarkViewModel];
     }
 
-    if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
-        AWELongPressPanelBaseViewModel *pipViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        pipViewModel.awemeModel = self.awemeModel;
-        pipViewModel.actionType = 688;
-        pipViewModel.duxIconName = @"ic_pip_outlined";
-        pipViewModel.describeString = @"画中画播放";
-        pipViewModel.action = ^{
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
-          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
-          // 等 0.4 秒让收起动画跑完再触发。
-          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            GHLStartPiPWithCaller(@"网格点按");
-          });
-        };
-        [viewModels addObject:pipViewModel];
-    }
-
     if (GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
         AWELongPressPanelBaseViewModel *voicePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         voicePreviewViewModel.awemeModel = self.awemeModel;
@@ -2319,6 +2261,32 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
           [panelManager dismissWithAnimation:YES completion:nil];
         };
         [viewModels addObject:imagePreviewViewModel];
+    }
+
+// 1.0.28：长按导入至语音包（开关默认开；点它输名字，把当前视频的音频存进语音包）。
+    if (GHLGetBool(GHL_KEY_IMPORT_TO_VOICE_PACKAGE)) {
+        AWELongPressPanelBaseViewModel *importVoiceViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        importVoiceViewModel.awemeModel = self.awemeModel;
+        importVoiceViewModel.actionType = 696;
+        importVoiceViewModel.duxIconName = @"ic_download_outlined";
+        importVoiceViewModel.describeString = @"导入至语音包";
+        importVoiceViewModel.action = ^{
+          AWEAwemeModel *awemeModel = self.awemeModel;
+          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"导入至语音包" defaultText:@"" placeholder:@"输入语音名称"];
+          inputView.onConfirm = ^(NSString *text) {
+            NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (name.length == 0) {
+                [DYYYUtils showToast:@"名字是空的"];
+                return;
+            }
+            AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
+            [panelManager dismissWithAnimation:YES completion:nil];
+            GHLImportVideoAudioToVoicePackage(awemeModel, name);
+          };
+          inputView.onCancel = ^{};
+          [inputView show];
+        };
+        [viewModels addObject:importVoiceViewModel];
     }
 
     newGroupModel.groupArr = viewModels;
