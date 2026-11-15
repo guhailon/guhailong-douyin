@@ -11245,12 +11245,18 @@ static void DYYYApplyTabBarSelectedGold(AWENormalModeTabBar *tabBar, BOOL enable
 // 1.0.24：底栏高度参数化——「修改底栏高度」填了值就按填的算（ABTest 配置只改抖音
 // 自己的底栏高，这里的布局变量也要同步，不然全屏/内容高度按旧高度算）。
 // 跟 DYYYABTestHook.xm 里的同名解析逻辑一致（那边是 static，复用不了）。
+// 1.0.25：加钳制——只认 20-150pt，超出按无效处理（回 -1，调用点保持原生高度）。
+// 教训：1.0.24 有人早先填过约 600，同步进 gCurrentTabBarHeight 后视频流高度只剩
+// 屏高-600，视频只剩顶部一条、下面全黑；一个错字不能再把视频流压没。
+static const CGFloat kDYYYTabBarHeightMin = 20.0f;
+static const CGFloat kDYYYTabBarHeightMax = 150.0f;
 static CGFloat DYYYResolveCustomTabBarHeight(void) {
     NSString *heightString = [[NSUserDefaults standardUserDefaults] stringForKey:@"DYYYTabBarHeight"];
     if (heightString.length == 0) return -1;
     float parsed = 0;
     NSScanner *scanner = [NSScanner scannerWithString:heightString];
     if (![scanner scanFloat:&parsed] || !scanner.isAtEnd || parsed <= 0) return -1;
+    if (parsed < kDYYYTabBarHeightMin || parsed > kDYYYTabBarHeightMax) return -1;
     return parsed;
 }
 
@@ -11417,6 +11423,28 @@ static Class tabBarButtonClass = nil;
     // ABTest 配置生效后底栏真变高了，这里的布局变量也要跟上）。
     CGFloat customTabBarHeight = DYYYResolveCustomTabBarHeight();
     if (customTabBarHeight > 0) gCurrentTabBarHeight = customTabBarHeight;
+
+    // 1.0.25：启动时记一行底栏高度日志（只记一次，下次不用猜填了什么数）；
+    // 超出 20-150 的值会被上面钳掉，这里 toast 提醒一次。
+    static dispatch_once_t gDYYYTabBarHeightLogOnce;
+    dispatch_once(&gDYYYTabBarHeightLogOnce, ^{
+        NSString *rawHeight = [[NSUserDefaults standardUserDefaults] stringForKey:@"DYYYTabBarHeight"];
+        if (rawHeight.length == 0) {
+            GHLLog(@"底栏高度：自定义=（未填），生效=%.0f", gCurrentTabBarHeight);
+        } else {
+            float rawParsed = 0;
+            NSScanner *rawScanner = [NSScanner scannerWithString:rawHeight];
+            BOOL ok = [rawScanner scanFloat:&rawParsed] && rawScanner.isAtEnd && rawParsed > 0;
+            if (!ok) {
+                GHLLog(@"底栏高度：自定义=%@，生效=%.0f（无法解析，已忽略）", rawHeight, gCurrentTabBarHeight);
+            } else if (rawParsed < kDYYYTabBarHeightMin || rawParsed > kDYYYTabBarHeightMax) {
+                GHLLog(@"底栏高度：自定义=%.0f，生效=%.0f（超出范围 20-150，已忽略）", rawParsed, gCurrentTabBarHeight);
+                [DYYYUtils showToast:@"底栏高度超出范围，已忽略"];
+            } else {
+                GHLLog(@"底栏高度：自定义=%.0f，生效=%.0f", rawParsed, gCurrentTabBarHeight);
+            }
+        }
+    });
 
     // 1.0.7：隐藏逻辑抽到 DYYYApplyTabBarHideSettings（类名片段 + 子树标签 + 位置兜底），
     // 再挂一个 0.5 秒后的补查，防止抖音在我们之后又把按钮显示回来。
