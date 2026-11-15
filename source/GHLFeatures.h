@@ -24,8 +24,6 @@ extern "C" {
 #define GHL_KEY_BACKGROUND_LISTEN @"GHLBackgroundListen"
 // 快进手势 (3)：长按倍速 + 双击左右快进 10 秒
 #define GHL_KEY_SEEK_GESTURES @"GHLSeekGestures"
-// 记忆倍速 (4)：按作者记住倍速
-#define GHL_KEY_REMEMBER_SPEED_PER_AUTHOR @"GHLRememberSpeedPerAuthor"
 // 关键词过滤总开关 (5)：关掉则标题/用户/话题/直播过滤全部暂停
 #define GHL_KEY_KEYWORD_FILTER @"GHLKeywordFilter"
 // 一键清爽模式 (6)
@@ -110,7 +108,7 @@ extern "C" {
 #define GHL_KEY_FLOAT_PANEL_BUTTON @"GHLFloatPanelButton"
 // 动作型入口（Picker 行，值本身无意义，选完即执行）
 #define GHL_KEY_DOWNLOAD_MANAGER @"GHLDownloadManager"   // 打开下载管理页
-#define GHL_KEY_LOG_VIEWER @"GHLLogViewer"             // 打开顾海龙日志查看页（1.0.6）
+#define GHL_KEY_LOG_VIEWER @"GHLLogViewer"             // 打开抖音日志查看页（1.0.6）
 #define GHL_KEY_IMPORT_SETTINGS @"GHLImportSettings"     // 导入配置（系统文件选择器选 .plist）
 #define GHL_KEY_EXPORT_SETTINGS @"GHLExportSettings"     // 导出配置（分享“顾海龙抖音配置.plist”）
 #define GHL_KEY_RESET_SETTINGS @"GHLResetSettings"       // 恢复默认配置（先弹确认框）
@@ -459,7 +457,7 @@ BOOL GHLPerformGestureAction(NSString *action);
 void GHLApplyThemePreset(NSString *preset);
 // 右侧边栏美化（图标缩放 / 间距 / 圆角底），在侧边栏排序之后跑
 void GHLApplySidebarBeautifyInView(UIView *view);
-// 双击爱心探针：双击后扫一遍互动层，记下疑似爱心动画的视图类名和位置（需真机日志确认，见顾海龙日志）
+// 双击爱心探针：双击后扫一遍互动层，记下疑似爱心动画的视图类名和位置（需真机日志确认，见抖音日志）
 void GHLProbeDoubleTapHeartInView(UIView *view);
 // 更新日志文本（1.0.1–1.0.6 各一行真实改动）
 NSString *GHLChangelogText(void);

@@ -286,7 +286,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。\n"
            @"1.0.23：卡片改回照片那款 A——8 按键首页拿掉，点开卡片直接就是设置列表，浅色实心卡不再追毛玻璃，金底「完成」保留，记页保留；跳过 AD 章节是探测（广告章节识别字段没确认，开关开后只在日志里 dump 章节模型字段，不跳过，等真机日志定下字段再接）；评论文字变蓝（开关，只改正文颜色，用户名/时间不动，正文标签是启发式定位，需真机验证）；长按面板新增获取作品数据（弹窗显示＋复制到剪贴板）和图片预览（图集全屏翻页看，点一下关闭）；复制下载链接和解析保存不用加——咱们已经有了（687 复制无水印链接、673 接口保存＋666 保存视频／668 保存音频）。\n"
            @"1.0.23（第二批，影片功能）：自动连播（播满当前视频时长切下一个，直播间不跑）；推荐页跳过购物视频（带购物标签的推荐视频直接跳过）；长按面板可换背景图、材质三选一（磨砂／液态玻璃／清透玻璃；真液态玻璃要 iOS 26，iOS 16 上液态玻璃用加粗材质近似）、排列可调（每排 2/3/4 个／横向等列／自定义列数）、背景模糊度可调（默认 58）、格子微透明；评论区仅复制评论文字（长按评论只复制正文）；首页全屏播放、发图发视频默认勾选原图（改名对齐已有功能）；显示功能按钮（关闭／倍速／快进三档，快进点一下 +10 秒）；解析图片增加保存视频按钮（图集「制作视频」改叫「保存视频」）；消息防撤回是探测（与原来 (24) 同功能，只改名；撤回处理类没定位到，只记日志）；仅看一次开启下载按钮是探测（没找到可验证的 hook 点，开关开后 dump 相关类名记日志）；双击消息快捷回复（消息页双击聚焦输入框，输入框是启发式找的，需真机验证）；消息界面点加号弹出相册图片是探测（开关开后 dump 输入栏按钮类名记日志，等真机日志定 hook 点）；续火花自动发消息（长按联系人头像触发，模板在设置里填、用 | 分隔多条，多条时目前只发第 1 条，发送按钮找不到时只填文字不自动发）；玻璃评论面板（评论面板改 ExtraLight 毛玻璃，评论／AI 解析双页签在面板顶部，AI 解析要自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示）；插件配置页（关于页加清除缓存、Telegram 暂未开通提示行，其余版本／更新日志／QQ群／自定义图片早有了）；底部悬浮毛玻璃胶囊栏（底栏改悬浮圆角毛玻璃条）。\n"
-           @"1.0.24：长按面板字重影修好（网格盖上后把底下抖音原生长按列表藏起来，收起恢复；糊 58%、格子微透明不变）；设置卡背景图改全屏（自定义背景图铺满整个卡片背后，导航栏、列表、完成按钮都在图上，行底半透明白）；语音包和在线音色并成一个统一语音包页（内置／在线／导入同在一张表，统一搜索，文件夹分组，导入导出，点行试听；导入的录音点一下就播放，不能用来合成文字）；双击下载（视频左半边双击直接保存、右半边弹菜单；双击弹窗可精简成只留下载）；首页下移（底栏高度可调）和底部字体大小可调；语音包导入（mp4/mov 选入后转音频进语音包，音频直接复制）；下载面板可调（长按网格格子高度／左右边距／格子透明度／格子颜色都能在设置里调）；保存相册详细（保存时附作品信息：视频 ID、时长、点赞/评论/分享/收藏/播放数、音乐名；开关在常用功能，默认关）；文案备忘录（本地备忘列表，点行复制，左滑删除；定时自动发送不做）；保存他人语音仍是探测（评论语音的类没定位到，保存路径建不出来，只记日志，等真机探针）；接口保存默认接 Lee 给的原画质接口（装完不用填就能点，设置里能改能清空；解析多字段容错，首次解析成功把 data 的字段名记进日志，没真视频验过成功格式，以日志为准）；关于页 QQ 行改成个人号「QQ：2309103548」（2309103548 是个人 QQ，群是 1130823454）；冻住调查：静态＋日志分析结论写进日志（巡检耗时随时间平坦、主线程是突然堵住 111 秒、音视频是缓冲排空后慢慢停；看门狗补记巡检停滞和冻住前最后活动；冻住本身这版没修）。";
+           @"1.0.24：长按面板字重影修好（网格盖上后把底下抖音原生长按列表藏起来，收起恢复；糊 58%、格子微透明不变）；设置卡背景图改全屏（自定义背景图铺满整个卡片背后，导航栏、列表、完成按钮都在图上，行底半透明白）；语音包和在线音色并成一个统一语音包页（内置／在线／导入同在一张表，统一搜索，文件夹分组，导入导出，点行试听；导入的录音点一下就播放，不能用来合成文字）；双击下载（视频左半边双击直接保存、右半边弹菜单；双击弹窗可精简成只留下载）；首页下移（底栏高度可调）和底部字体大小可调；语音包导入（mp4/mov 选入后转音频进语音包，音频直接复制）；下载面板可调（长按网格格子高度／左右边距／格子透明度／格子颜色都能在设置里调）；保存相册详细（保存时附作品信息：视频 ID、时长、点赞/评论/分享/收藏/播放数、音乐名；开关在常用功能，默认关）；文案备忘录（本地备忘列表，点行复制，左滑删除；定时自动发送不做）；保存他人语音仍是探测（评论语音的类没定位到，保存路径建不出来，只记日志，等真机探针）；接口保存默认接 Lee 给的原画质接口（装完不用填就能点，设置里能改能清空；解析多字段容错，首次解析成功把 data 的字段名记进日志，没真视频验过成功格式，以日志为准）；关于页 QQ 行改成个人号「QQ：2309103548」（2309103548 是个人 QQ，群是 1130823454）；冻住调查：静态＋日志分析结论写进日志（巡检耗时随时间平坦、主线程是突然堵住 111 秒、音视频是缓冲排空后慢慢停；看门狗补记巡检停滞和冻住前最后活动；冻住本身这版没修）。\n"
+           @"1.0.25：关于页拿掉两行（恢复横幅、版本检查都不再提供；远程模式那项不动）；日志改名「抖音日志」（关于页那行、日志页标题、复制日志的日志行都改）；按作者记倍速的功能整个取消（设置行、开关、记录和恢复逻辑都拿掉）；长按重影重做（每次打开网格都重藏原生列表，收起时网格拿掉、原生列表恢复显示，点开子页返回不再误判收起）；评论语音保存接线修好（设置页开关终于连到长按菜单的保存代码，本地文件优先复制）；评论语音保存探针：长按语音评论时记 audioFilePath 与 content（为下版保存准备）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -307,7 +308,7 @@ NSString *GHLChangelogText(void) {
 // 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
 // 系统画中画挂不上现有播放器，才走 D 路兜底。
 
-// 前向声明（实现在下面“记忆倍速”一节）。
+// 前向声明（实现在下面）。
 static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out);
 
 // 全部窗口（去重）：sharedApplication.windows 再加每个 UIWindowScene 的 windows。
@@ -1464,29 +1465,7 @@ void GHLStartPiPWithCaller(NSString *caller) {
     });
 }
 
-#pragma mark - (4) 记忆倍速（按作者）
-
-static NSString *GHLAuthorKeyForModel(AWEAwemeModel *model) {
-    AWEUserModel *author = model.author;
-    if (!author) return nil;
-    if (author.userID.length > 0) return author.userID;
-    if (author.secUserID.length > 0) return author.secUserID;
-    if (author.shortID.length > 0) return author.shortID;
-    return author.nickname;
-}
-
-static void GHLRecordSpeedForCurrentAuthor(double speed) {
-    if (!GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) return;
-    AWEAwemeModel *model = GHLCurrentAwemeModel();
-    NSString *authorKey = GHLAuthorKeyForModel(model);
-    if (!authorKey) return;
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *speeds = [[defaults objectForKey:@"GHLAuthorSpeeds"] mutableCopy] ?: [NSMutableDictionary dictionary];
-    speeds[authorKey] = @(speed);
-    [defaults setObject:speeds forKey:@"GHLAuthorSpeeds"];
-    GHLLog(@"记忆倍速：作者 %@ 记为 %.2f", authorKey, speed);
-}
-
+// 播放器控制器查找（画中画 B 路探针用）。
 static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out) {
     if (!vc) return;
     if ([vc isKindOfClass:NSClassFromString(@"AWEAwemePlayVideoViewController")] ||
@@ -1498,30 +1477,6 @@ static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArra
         GHLFindPlayerViewControllersInVC(child, out);
     }
     if (vc.presentedViewController) GHLFindPlayerViewControllersInVC(vc.presentedViewController, out);
-}
-
-static void GHLApplyStoredSpeedForCurrentAuthor(void) {
-    if (!GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) return;
-    AWEAwemeModel *model = GHLCurrentAwemeModel();
-    NSString *authorKey = GHLAuthorKeyForModel(model);
-    if (!authorKey) return;
-    NSNumber *speed = [[NSUserDefaults standardUserDefaults] objectForKey:@"GHLAuthorSpeeds"][authorKey];
-    if (!speed) return;
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    UIViewController *root = window.rootViewController;
-    while (root.presentedViewController) root = root.presentedViewController;
-    NSMutableArray *players = [NSMutableArray array];
-    GHLFindPlayerViewControllersInVC(root, players);
-    for (id playerVC in players) {
-        if ([playerVC respondsToSelector:@selector(setVideoControllerPlaybackRate:)]) {
-            @try {
-                [(AWEAwemePlayVideoViewController *)playerVC setVideoControllerPlaybackRate:[speed doubleValue]];
-                GHLLog(@"记忆倍速：作者 %@ 恢复 %.2f", authorKey, [speed doubleValue]);
-            } @catch (__unused NSException *exception) {
-            }
-            break;
-        }
-    }
 }
 
 #pragma mark - (6) 一键清爽模式 / (12) 直播间净化（开关联动）
@@ -2548,37 +2503,10 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 #pragma mark - Hooks
 
-// (4) 记忆倍速：切视频后恢复该作者的倍速；倍速变化时记下来
 %hook AWEFeedContainerViewController
 - (void)aweme:(id)arg1 currentIndexDidChange:(NSInteger)arg2 {
     %orig;
-    if (GHLGetBool(GHL_KEY_REMEMBER_SPEED_PER_AUTHOR)) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(350 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-          GHLApplyStoredSpeedForCurrentAuthor();
-        });
-    }
     GHLMaybeAutoLike();
-}
-%end
-
-%hook AWEAwemePlayVideoViewController
-- (void)setVideoControllerPlaybackRate:(double)arg0 {
-    %orig;
-    GHLRecordSpeedForCurrentAuthor(arg0);
-}
-%end
-
-%hook AWEDPlayerFeedPlayerViewController
-- (void)setVideoControllerPlaybackRate:(double)arg0 {
-    %orig;
-    GHLRecordSpeedForCurrentAuthor(arg0);
-}
-%end
-
-%hook AWEDPlayerViewController_Merge
-- (void)setVideoControllerPlaybackRate:(double)arg0 {
-    %orig;
-    GHLRecordSpeedForCurrentAuthor(arg0);
 }
 %end
 
@@ -2729,7 +2657,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.24 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.25 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -4458,7 +4386,7 @@ void GHLProbeLiveRoom(void) {
 
 // 1.0.2 语音四项探针：语音消息转发 / 设置语音秒数 / 替换语音评论 / 保存语音评论。
 // 只做运行期类/方法/属性 introspection 并记日志，不注入、不改行为、不发包。
-// 已知：AWECommentAudioModel 只有 content（NSString）一个属性，未确认音频 URL 字段；
+// 已知：AWECommentAudioModel 有 content 和 audioFilePath（本地文件路径，-11.log 证实）；
 // AWEIMVoiceMessageCell 类存在但转发/发送方法未知；语音录制时长接口、评论发语音接口未知。
 void GHLProbeVoiceFeatures(void) {
     unsigned int count = 0;

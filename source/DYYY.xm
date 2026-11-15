@@ -4935,7 +4935,8 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
 
 - (BOOL)elementShouldShow {
     BOOL shouldShow = %orig;
-    if (!DYYYGetBool(@"DYYYForceDownloadEmotion") && !DYYYGetBool(@"DYYYForceDownloadCommentAudio")) {
+    // 1.0.25：接线修好——设置页「保存语音评论」写的是 GHL_KEY_COMMENT_VOICE_SAVE，这里也认它。
+    if (!DYYYGetBool(@"DYYYForceDownloadEmotion") && !DYYYGetBool(@"DYYYForceDownloadCommentAudio") && !GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
         return shouldShow;
     }
     AWECommentLongPressPanelContext *context = [self commentPageContext];
@@ -4946,6 +4947,23 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
         return YES;
     }
     AWECommentAudioModel *audio = [selected audioModel];
+    // 1.0.25 评论语音保存探针（开关 GHL_KEY_COMMENT_VOICE_SAVE）：长按语音评论时，
+    // 记 audio model 实例的 audioFilePath 和 content（为下版保存准备；只记日志，不下载不复制）。
+    // 播放时没有可用的钩子，先接在这里——audioModel 就在手上。
+    if (GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
+        @try {
+            if (audio) {
+                NSString *probePath = audio.audioFilePath;
+                NSString *probeContent = audio.content;
+                if (probeContent.length > 120) probeContent = [probeContent substringToIndex:120];
+                GHLLog(@"评论语音保存探针：audioFilePath=%@，content=%@（经 AWECommentModel.audioModel）", probePath.length > 0 ? probePath : @"（空）", probeContent.length > 0 ? probeContent : @"（空）");
+            } else {
+                GHLLog(@"评论语音保存探针：没找到 audio model 实例");
+            }
+        } @catch (__unused NSException *exception) {
+            GHLLog(@"评论语音保存探针：读 audio model 异常");
+        }
+    }
     if (audio && audio.content) {
         return YES;
     }
@@ -4991,7 +5009,9 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
     }
 
     // 音频保存逻辑
-    if (hasAudio && DYYYGetBool(@"DYYYForceDownloadCommentAudio")) {
+    // 1.0.25：接线修好——设置页「保存语音评论」写的是 GHL_KEY_COMMENT_VOICE_SAVE，
+    // 以前这里只认 DYYYForceDownloadCommentAudio（设置里没这一行），开关开了也永远不跑。
+    if (hasAudio && (DYYYGetBool(@"DYYYForceDownloadCommentAudio") || GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE))) {
         NSString *audioContent = audio.content;
         
         NSString *userName = @"未知用户";
@@ -5000,6 +5020,20 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
             if (nickname && nickname.length > 0) {
                 userName = nickname;
             }
+        }
+        
+        // 1.0.25：audioFilePath 已证实是本地文件路径，优先直接复制本地文件，不走 JSON 解析；
+        // 拿不到本地文件时再走原来的 content 解析流程（JSON 取 video_list，或 content 本身是直链就直下）。
+        NSString *localPath = nil;
+        @try {
+            localPath = audio.audioFilePath;
+        } @catch (__unused NSException *exception) {
+        }
+        if (localPath.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:localPath]) {
+            [DYYYManager saveCommentAudioLocalFile:localPath
+                                          userName:userName
+                                        createTime:comment.createTime];
+            return;
         }
         
         [DYYYManager downloadAndShareCommentAudio:audioContent
@@ -9748,7 +9782,7 @@ NSInteger GHLCurrentListenVideoStatus(void) {
     // 1.0.21：每次都记下改写后值（不只记日志那次），画中画的音频状态日志要读最新值。
     ghlCurrentListenVideoStatus = newStatus;
     // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
-    // 写进顾海龙日志（只在后台播放开关开着时记，避免刷屏）。
+    // 写进抖音日志（只在后台播放开关开着时记，避免刷屏）。
     // 1.0.18 降噪：只在 status 真变了时记一行——之前一秒十几行重複行，關鍵行會被淹沒。
     static NSInteger ghlLastListenStatusLogged = -1;
     if (DYYYGetBool(@"DYYYEnableBackgroundListen") && status != ghlLastListenStatusLogged) {
@@ -11128,7 +11162,7 @@ static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
         }
     }
 
-    // 诊断（节流：每个底栏 10 秒最多一条，方便皇上在“顾海龙日志”里核对）。
+    // 诊断（节流：每个底栏 10 秒最多一条，方便皇上在“抖音日志”里核对）。
     NSDate *lastLog = objc_getAssociatedObject(tabBar, &kDYYYTabBarHideLastLogKey);
     if (!lastLog || [[NSDate date] timeIntervalSinceDate:lastLog] > 10.0) {
         objc_setAssociatedObject(tabBar, &kDYYYTabBarHideLastLogKey, [NSDate date], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -13666,7 +13700,8 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
         }
         if (DYYYGetBool(@"DYYYForceDownloadEmotion") ||
             DYYYGetBool(@"DYYYForceDownloadCommentAudio") ||
-            DYYYGetBool(@"DYYYForceDownloadCommentImage")) {
+            DYYYGetBool(@"DYYYForceDownloadCommentImage") ||
+            GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
             %init(EnableStickerSaveMenu);
         }
         [DYYYFloatingButtonCoordinator reloadConfiguration];

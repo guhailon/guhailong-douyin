@@ -1,4 +1,4 @@
-// GHLLogViewerViewController — 顾海龙日志查看页（1.0.6）
+// GHLLogViewerViewController — 抖音日志查看页（1.0.6）
 // 读 GHLLogFilePath()（Documents/DYYY/GuHaiLongDouyin.log），只显示最后约 200KB；
 // 刷新、清空（先弹确认框）、分享（系统分享单，和配置导出同一套）。
 // 1.0.20：加「复制日志」文字按钮（整份日志拷到剪贴簿）＋搜索框（过滤日志行）。
@@ -25,7 +25,7 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"顾海龙日志";
+    self.title = @"抖音日志";
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     UIBarButtonItem *refreshItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(ghlRefreshLog)];
     self.shareItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction target:self action:@selector(ghlShareLog)];
@@ -201,7 +201,7 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
     }
     [UIPasteboard generalPasteboard].string = text;
     [DYYYUtils showToast:@"已复制日志"];
-    GHLLog(@"顾海龙日志：已复制日志（%lu 字节）", (unsigned long)text.length);
+    GHLLog(@"抖音日志：已复制日志（%lu 字节）", (unsigned long)text.length);
 }
 
 // 只读最后约 200KB；文件不存在、为空或读失败返回 nil（不崩）。

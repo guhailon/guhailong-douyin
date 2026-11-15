@@ -1024,10 +1024,19 @@ static void DYYYLongPressGridPanelClearAll(void) {
     gDYYYLongPressPanelData = nil;
     gDYYYLongPressGridDiagVC = nil;
     gDYYYLongPressGridDiagReason = nil;
+    // 1.0.25：恢复表显示的同时把网格从屏幕上拿掉并置 nil（不然下一次 Show 在入口早退，
+    // 再也不会走新建分支重藏；网格在、表又恢复显示就是重影）。
+    if (gDYYYLongPressGridPanel) {
+        [gDYYYLongPressGridPanel removeFromSuperview];
+        gDYYYLongPressGridPanel = nil;
+    }
     // 1.0.24：网格收起时把藏起来的原生列表恢复显示（控制器已释放就不用管）。
     if (gDYYYLongPressGridHiddenVC) {
         UITableView *nativeTable = DYYYLongPressFindTableViewInView(gDYYYLongPressGridHiddenVC.view);
-        if (nativeTable) nativeTable.hidden = NO;
+        if (nativeTable) {
+            nativeTable.hidden = NO;
+            GHLLog(@"长按面板：原生列表已恢复");
+        }
         gDYYYLongPressGridHiddenVC = nil;
     }
 }
@@ -1162,7 +1171,18 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         DYYYLongPressGridLogDiag(vc, @"未盖网格（开关关）");
         return;
     }
-    if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) return; // 已盖上，成功状态，不记日志
+    // 1.0.25：网格还在屏幕上时，每次 Show 都重藏一次原生列表（1.0.24 只在第一次新建时藏：
+    // 点网格里会开子页的项（倍速、定时关闭）时 viewDidDisappear 误判收起、把表恢复显示，
+    // 之后 Show 又在入口早退，再也没人重藏，重影就一直在）。
+    if (gDYYYLongPressGridPanel && gDYYYLongPressGridPanel.superview) {
+        UITableView *existingTable = DYYYLongPressFindTableViewInView(vc.view);
+        if (existingTable && !existingTable.hidden) {
+            existingTable.hidden = YES;
+            gDYYYLongPressGridHiddenVC = vc;
+            GHLLog(@"长按面板：原生列表已再次隐藏");
+        }
+        return; // 已盖上，成功状态，不记日志
+    }
     NSArray *data = gDYYYLongPressPanelData;
     if (!data || data.count == 0) {
         DYYYLongPressGridLogDiag(vc, @"未盖网格（开关开，数据为空）");
@@ -1290,7 +1310,9 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
     // 1.0.10：面板真的收起时放掉全部状态（被子页面盖住时不动，回来还能再盖）。
-    if (self.isBeingDismissed || self.isMovingFromParentViewController || self.presentingViewController == nil) {
+    // 1.0.25：presentingViewController == nil 那项拿掉——经 AWELongPressPanelManager 托管的
+    // sheet 这项大概率恒真，点网格里会开子页的项（倍速、定时关闭）时就误判收起、把原生表恢复显示。
+    if (self.isBeingDismissed || self.isMovingFromParentViewController) {
         DYYYLongPressGridPanelClearAll();
     }
 }
@@ -1318,7 +1340,9 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
     // 1.0.10：面板真的收起时放掉全部状态（被子页面盖住时不动，回来还能再盖）。
-    if (self.isBeingDismissed || self.isMovingFromParentViewController || self.presentingViewController == nil) {
+    // 1.0.25：presentingViewController == nil 那项拿掉——经 AWELongPressPanelManager 托管的
+    // sheet 这项大概率恒真，点网格里会开子页的项（倍速、定时关闭）时就误判收起、把原生表恢复显示。
+    if (self.isBeingDismissed || self.isMovingFromParentViewController) {
         DYYYLongPressGridPanelClearAll();
     }
 }

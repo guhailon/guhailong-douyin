@@ -116,6 +116,24 @@
                             userName:(NSString *)userName
                           createTime:(NSNumber *)createTime;
 /**
+ * 直接分享评论区语音的本地文件（audioFilePath 已证实是本地路径）
+ * @param localPath 本地音频文件全路径
+ * @param userName 评论者用户名
+ * @param createTime 评论创建时间（NSNumber，秒级时间戳）
+ */
++ (void)saveCommentAudioLocalFile:(NSString *)localPath
+                        userName:(NSString *)userName
+                      createTime:(NSNumber *)createTime;
+/**
+ * 把语音文件拷到 tmp 再弹分享表（下载和本地文件两路共用，复制不挪走）
+ * @param sourcePath 下载好的临时文件或本地音频文件全路径
+ * @param userName 评论者用户名
+ * @param createTime 评论创建时间（NSNumber，秒级时间戳）
+ */
++ (void)shareCommentAudioFileAtPath:(NSString *)sourcePath
+                          userName:(NSString *)userName
+                        createTime:(NSNumber *)createTime;
+/**
  * 批量下载图片
  * @param imageURLs 图片URL数组
  */

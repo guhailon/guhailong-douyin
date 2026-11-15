@@ -280,7 +280,6 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"切后台触发画中画" key:GHL_KEY_BACKGROUND_AUDIO type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"后台听视频" key:GHL_KEY_BACKGROUND_LISTEN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"快进手势（长按倍速/双击左右快进10秒）" key:GHL_KEY_SEEK_GESTURES type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"记忆倍速（按作者）" key:GHL_KEY_REMEMBER_SPEED_PER_AUTHOR type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"关键词过滤总开关" key:GHL_KEY_KEYWORD_FILTER type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"过滤关键词（逗号分隔）" key:@"DYYYFilterKeywords" type:DYYYSettingItemTypeTextField placeholder:@"如：广告,抽奖"],
             [DYYYSettingItem itemWithTitle:@"过滤用户（昵称-抖音号）" key:@"DYYYFilterUsers" type:DYYYSettingItemTypeTextField placeholder:@"如：某某-123456"],
@@ -341,15 +340,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"语音包管理（列表/搜索/试听）" key:GHL_KEY_VOICE_PACKAGE_MANAGER type:DYYYSettingItemTypePicker],
             // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：探针，未验证——
             // 语音转发/语音秒数/替换语音评论没有可验证的 hook 点；保存语音评论的
-            // AWECommentAudioModel 只确认有 content 字段，未确认音频 URL 字段。
-            // 开关打开只记运行期探针日志（GHLProbeVoiceFeatures），不注入、不发包。
+            // AWECommentAudioModel 已确认有 audioFilePath（本地文件路径），1.0.25 起
+            // 开关连到长按菜单的保存代码（本地文件优先，拿不到再走 content 解析）。
             [DYYYSettingItem itemWithTitle:@"语音消息转发（实验，需真机日志验证）" key:GHL_KEY_VOICE_FORWARD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"设置语音秒数（实验，需真机日志验证）" key:GHL_KEY_VOICE_DURATION type:DYYYSettingItemTypeTextField placeholder:@"默认60"],
             [DYYYSettingItem itemWithTitle:@"替换语音评论（实验，需真机日志验证）" key:GHL_KEY_VOICE_REPLACE_COMMENT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
             // 1.0.4 下载管理页入口
-            // 1.0.16：顾海龙日志已移到关于页（本行拿掉，不是复制）。
+            // 1.0.16：抖音日志已移到关于页（本行拿掉，不是复制）。
             [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker],
             // 1.0.24：保存相册详细——开后保存时把作者/文案/链接/发布时间/点赞评论分享收藏播放/
             // 时长/视频 ID 写进文件说明里（相册里能看到）；默认关（原来这个开关没有设置入口）。

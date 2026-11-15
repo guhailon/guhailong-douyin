@@ -4,8 +4,7 @@
 // 原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。
 // 1.0.24：QQ 行改回个人号「QQ：」+ 号码（2309103548 是个人 QQ，群是 1130823454）。
 // 1.0.15：横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按重测的龙头中心 x=358 对齐）；
-// 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）和
-// 「恢复默认横幅」（删自选图回内置展翅龙；自选图时标题按横幅中心对齐）。
+// 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）。
 // 1.0.21：深色改浅色——页底/卡底改半透明白、字改深色、显式浅色不跟随系统；
 // 1.0.22：页底/卡底改不透明——半透明让首页按键从下面透上来（录屏实锤），玻璃感只留给
 // 卡片外壳和首页；导航栏也不透明了（GHLFeatures.xm 里改），顶部内容不再被导航栏盖住；
@@ -14,8 +13,8 @@
 // 顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
 // 标题金字＋灰字版本叠在横幅下半部）＋两张浅色玻璃卡＋页底小灰字声明摘要。
 // 第一张卡：关于/联系（基于 DYYY、原作者、源码、越狱源、QQ交流、QQ群）＋金色加群大按钮；
-// 第二张卡：配置管理（导出/导入/恢复默认/重启抖音）＋更新日志＋检查更新＋声明（声明在最下面）。
-// 检查更新、越狱源、重启抖音、点版本行复制信息是 1.0.13 新增；
+// 第二张卡：配置管理（导出/导入/恢复默认/重启抖音）＋更新日志＋声明（声明在最下面）。
+// 越狱源、重启抖音、点版本行复制信息是 1.0.13 新增；
 // 首次打开弹声明不要做（皇上没批）；Fish Audio、reference-xuu/ 一律不动。
 #import "GHLAboutViewController.h"
 
@@ -46,11 +45,9 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowReset = 202,        // 恢复默认配置
     GHLAboutRowRestart = 203,      // 重启抖音
     GHLAboutRowChangelog = 204,    // 更新日志
-    GHLAboutRowCheckUpdate = 205,  // 检查更新
     GHLAboutRowDisclaimer = 206,   // 声明（放在最后）
     GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
-    GHLAboutRowResetBanner = 208,  // 恢复默认横幅（1.0.15）
-    GHLAboutRowLogViewer = 209,    // 顾海龙日志（1.0.16，从设置页常用功能移过来）
+    GHLAboutRowLogViewer = 209,    // 抖音日志（1.0.16，从设置页常用功能移过来）
     GHLAboutRowClearCache = 210,   // 清除缓存（1.0.23 第二批 76 插件配置页）
     GHLAboutRowTelegram = 211,     // Telegram（1.0.23 第二批 76；暂未开通，只提示，不链到别人的频道）
 };
@@ -61,11 +58,6 @@ static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基�
 @interface GHLAboutViewController ()
 
 @property(nonatomic, strong) UIScrollView *scrollView;
-@property(nonatomic, assign) BOOL checkingUpdate;
-@property(nonatomic, weak, nullable) UIButton *checkRowButton;
-@property(nonatomic, weak, nullable) UILabel *checkRowTitleLabel;
-@property(nonatomic, weak, nullable) UIImageView *checkRowChevron;
-@property(nonatomic, weak, nullable) UIActivityIndicatorView *checkRowSpinner;
 // 1.0.15：换横幅背景的相册选择器 delegate（要强引用留着，等回调）。
 @property(nonatomic, strong, nullable) DYYYImagePickerDelegate *imagePickerDelegate;
 
@@ -82,7 +74,6 @@ static const CGFloat kGHLAboutCardMargin = 16; // 卡片/横幅左右边距；�
 static const CGFloat kGHLAboutCardSpacing = 16; // 横幅/卡片/页底之间的纵向间距
 static const CGFloat kGHLAboutChevronWidth = 12;
 static const CGFloat kGHLAboutChevronHeight = 18;
-static const CGFloat kGHLAboutSpinnerSize = 20;
 // 不在图正中心（320）。标题/版本行按龙头中心对齐，不要按横幅 view 居中——
 // 否则字看起来相对龙头偏右（1.0.13 真机反馈「没对准好」）。换横幅图时要重测这个值。
 // （1.0.14 的旧图是 280/640；1.0.15 换成展翅龙后重测为 358/640。
@@ -163,22 +154,20 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     [scrollView addSubview:card1];
     y = CGRectGetMaxY(card1.frame) + kGHLAboutCardSpacing;
 
-    // 第二张卡：配置管理＋更新日志＋检查更新＋声明（声明在最下面）。
+    // 第二张卡：配置管理＋更新日志＋声明（声明在最下面）。
     UIView *card2 = [self ghlBuildCardWithRows:@[
         [self ghlRowSpecWithTitle:@"导出配置" icon:@"square.and.arrow.down" tag:GHLAboutRowExport chevron:YES],
         [self ghlRowSpecWithTitle:@"导入配置" icon:@"square.and.arrow.up" tag:GHLAboutRowImport chevron:YES],
         [self ghlRowSpecWithTitle:@"恢复默认配置" icon:@"arrow.counterclockwise" tag:GHLAboutRowReset chevron:YES],
         [self ghlRowSpecWithTitle:@"重启抖音" icon:@"power" tag:GHLAboutRowRestart chevron:YES],
-        // 1.0.15：横幅背景可自己换（相册选图）/恢复默认横幅（回内置展翅龙）。
+        // 1.0.15：横幅背景可自己换（相册选图）。
         [self ghlRowSpecWithTitle:@"更换横幅背景" icon:@"photo" tag:GHLAboutRowChangeBanner chevron:YES],
-        [self ghlRowSpecWithTitle:@"恢复默认横幅" icon:@"arrow.uturn.backward" tag:GHLAboutRowResetBanner chevron:YES],
         [self ghlRowSpecWithTitle:@"更新日志" icon:@"list.clipboard" tag:GHLAboutRowChangelog chevron:YES],
-        [self ghlRowSpecWithTitle:@"检查更新" icon:@"sparkles" tag:GHLAboutRowCheckUpdate chevron:YES],
-        // 1.0.23 第二批 76：清除缓存（检查更新之后、声明之前；声明必须在最下面）。
+        // 1.0.23 第二批 76：清除缓存（更新日志之后、声明之前；声明必须在最下面）。
         [self ghlRowSpecWithTitle:@"清除缓存" icon:@"trash" tag:GHLAboutRowClearCache chevron:YES],
-        // 1.0.16：顾海龙日志从设置页常用功能移过来（检查更新之后、声明之前；声明必须在最下面）。
+        // 1.0.16：抖音日志从设置页常用功能移过来（清除缓存之后、声明之前；声明必须在最下面）。
         // 图标不用 list.clipboard（更新日志占了）和 doc.text（声明占了），用 doc.text.magnifyingglass。
-        [self ghlRowSpecWithTitle:@"顾海龙日志" icon:@"doc.text.magnifyingglass" tag:GHLAboutRowLogViewer chevron:YES],
+        [self ghlRowSpecWithTitle:@"抖音日志" icon:@"doc.text.magnifyingglass" tag:GHLAboutRowLogViewer chevron:YES],
         [self ghlRowSpecWithTitle:@"声明" icon:@"doc.text" tag:GHLAboutRowDisclaimer chevron:YES],
     ]
                                                joinButton:NO
@@ -374,27 +363,6 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         chevron.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
         [row addSubview:chevron];
     }
-    if (tag == GHLAboutRowCheckUpdate) {
-        self.checkRowButton = row;
-        self.checkRowTitleLabel = label;
-        self.checkRowChevron = chevron;
-        UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-        // 转圈中心和箭头中心同一个点（箭头中心 x＝卡片右内边 16＋箭头宽 12 的一半＝宽-22）。
-        CGFloat spinnerCenterX = width - kGHLAboutCardMargin - kGHLAboutChevronWidth / 2;
-        spinner.frame = CGRectMake(spinnerCenterX - kGHLAboutSpinnerSize / 2, (kGHLAboutRowHeight - kGHLAboutSpinnerSize) / 2, kGHLAboutSpinnerSize, kGHLAboutSpinnerSize);
-        spinner.color = [DYYYUtils dYYYGoldAccentColor];
-        spinner.hidden = YES;
-        spinner.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-        [row addSubview:spinner];
-        self.checkRowSpinner = spinner;
-        if (self.checkingUpdate) {
-            label.text = @"正在检查…";
-            row.enabled = NO;
-            chevron.hidden = YES;
-            spinner.hidden = NO;
-            [spinner startAnimating];
-        }
-    }
     return row;
 }
 
@@ -440,14 +408,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         case GHLAboutRowChangeBanner:
             [self ghlPresentBannerImagePicker];
             break;
-        case GHLAboutRowResetBanner:
-            [self ghlResetBanner];
-            break;
         case GHLAboutRowChangelog:
             [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
-            break;
-        case GHLAboutRowCheckUpdate:
-            [self ghlCheckForUpdate];
             break;
         case GHLAboutRowClearCache:
             // 1.0.23 第二批 76：清除缓存（DYYYUtils 现成的清缓存目录）。
@@ -460,7 +422,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             [DYYYSettingsHelper showAboutDialog:@"Telegram" message:[NSString stringWithFormat:@"Telegram 交流群暂未开通，先加 QQ 群 %@ 交流", GHL_QQ_GROUP_NUMBER] onConfirm:nil];
             break;
         case GHLAboutRowLogViewer:
-            // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，
+            // 1.0.16：抖音日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，
             // 进出外观是否跳变要真机看一眼）。
             // 1.0.22：卡片内打开，页底改不透明（和设置列表/关于页同款）。
             {
@@ -566,90 +528,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-#pragma mark - 检查更新
-
-// 检查更新：异步拉源里的 Packages，比对 com.guhailong.douyin 的 Version。
-// 有新版就提示去 Sileo 刷新，已是最新就说已是最新，联网失败或解析不到就如实报失败，绝不谎报。
-- (void)ghlCheckForUpdate {
-    if (self.checkingUpdate) return;
-    self.checkingUpdate = YES;
-    [self ghlSetCheckButtonChecking:YES];
-    [DYYYUtils showToast:@"正在检查更新…"];
-    NSURL *url = [NSURL URLWithString:[GHL_REPO_URL stringByAppendingString:@"/Packages"]];
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    request.timeoutInterval = 15;
-    __weak typeof(self) weakSelf = self;
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        NSString *remoteVersion = nil;
-        BOOL httpOK = [response isKindOfClass:[NSHTTPURLResponse class]] && ((NSHTTPURLResponse *)response).statusCode == 200;
-        if (!error && httpOK && data.length > 0) {
-            NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            remoteVersion = [strongSelf ghlParseDouyinVersionFromPackagesText:text];
-        }
-        dispatch_async(dispatch_get_main_queue(), ^{
-            strongSelf.checkingUpdate = NO;
-            [strongSelf ghlSetCheckButtonChecking:NO];
-            if (!remoteVersion) {
-                [DYYYSettingsHelper showAboutDialog:@"检查更新" message:@"检查失败，请检查网络后重试" onConfirm:nil];
-                GHLLog(@"检查更新：失败（%@）", error ? error.localizedDescription : @"解析不到版本号");
-                return;
-            }
-            NSComparisonResult cmp = [strongSelf ghlCompareVersion:remoteVersion toVersion:DYYY_VERSION];
-            if (cmp == NSOrderedDescending) {
-                [DYYYSettingsHelper showAboutDialog:@"检查更新" message:[NSString stringWithFormat:@"发现新版本 %@，请到 Sileo 刷新源更新", remoteVersion] onConfirm:nil];
-            } else {
-                [DYYYSettingsHelper showAboutDialog:@"检查更新" message:[NSString stringWithFormat:@"已是最新版本（%@）", DYYY_VERSION] onConfirm:nil];
-            }
-            GHLLog(@"检查更新：本地 %@，源里 %@", DYYY_VERSION, remoteVersion);
-        });
-    }];
-    [task resume];
-}
-
-// 检查中：行标题换成「正在检查…」，箭头换成转圈，行不可再点。
-- (void)ghlSetCheckButtonChecking:(BOOL)checking {
-    UIButton *button = self.checkRowButton;
-    if (button) button.enabled = !checking;
-    if (self.checkRowTitleLabel) self.checkRowTitleLabel.text = checking ? @"正在检查…" : @"检查更新";
-    if (self.checkRowChevron) self.checkRowChevron.hidden = checking;
-    if (self.checkRowSpinner) {
-        self.checkRowSpinner.hidden = !checking;
-        if (checking) [self.checkRowSpinner startAnimating];
-        else [self.checkRowSpinner stopAnimating];
-    }
-}
-
-- (nullable NSString *)ghlParseDouyinVersionFromPackagesText:(nullable NSString *)text {
-    if (!text) return nil;
-    NSArray<NSString *> *lines = [text componentsSeparatedByString:@"\n"];
-    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
-        if ([lines[i] isEqualToString:@"Package: com.guhailong.douyin"]) {
-            for (NSInteger j = i + 1; j < (NSInteger)lines.count && j < i + 10; j++) {
-                if (lines[j].length == 0) break;
-                if ([lines[j] hasPrefix:@"Version: "]) return [lines[j] substringFromIndex:@"Version: ".length];
-            }
-            break;
-        }
-    }
-    return nil;
-}
-
-- (NSComparisonResult)ghlCompareVersion:(NSString *)a toVersion:(NSString *)b {
-    NSArray<NSString *> *pa = [a componentsSeparatedByString:@"."];
-    NSArray<NSString *> *pb = [b componentsSeparatedByString:@"."];
-    NSUInteger n = MAX(pa.count, pb.count);
-    for (NSUInteger i = 0; i < n; i++) {
-        NSInteger va = i < pa.count ? pa[i].integerValue : 0;
-        NSInteger vb = i < pb.count ? pb[i].integerValue : 0;
-        if (va < vb) return NSOrderedAscending;
-        if (va > vb) return NSOrderedDescending;
-    }
-    return NSOrderedSame;
-}
-
-#pragma mark - 更换横幅背景 / 恢复默认横幅
+#pragma mark - 更换横幅背景
 
 // 更换横幅背景：相册选图（照设置主页换龙头/换背景的做法：拒绝了相册权限就提示，不硬打开；
 // 存图放后台线程，存完回主线程刷新横幅；自选图按 16:9 居中裁成 640x360 再存）。
@@ -685,13 +564,6 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
     picker.delegate = self.imagePickerDelegate;
     [self presentViewController:picker animated:YES completion:nil];
-}
-
-// 恢复默认横幅：删掉自选图，横幅回到内置展翅龙（标题对准也回到龙头中心）。
-- (void)ghlResetBanner {
-    GHLClearCustomAboutBanner();
-    [self ghlRefreshBannerImage];
-    [DYYYUtils showToast:@"已恢复默认横幅"];
 }
 
 #pragma mark - 重启抖音

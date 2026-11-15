@@ -2558,36 +2558,41 @@
     NSData *jsonData = [audioContent dataUsingEncoding:NSUTF8StringEncoding];
     NSError *error = nil;
     NSDictionary *audioDict = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&error];
-    
+
+    // 1.0.25：content 不一定是 JSON——如果它本身就是直链 URL，直接按 URL 下载；
+    // 只有既不是 JSON 又不是 URL 时才报解析失败。
+    NSString *directURLString = nil;
     if (error || !audioDict) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [DYYYUtils showToast:@"语音数据解析失败"];
-        });
-        NSLog(@"[DYYY] 解析语音 JSON 失败: %@", error);
-        return;
+        NSString *trimmed = [audioContent stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if ([trimmed hasPrefix:@"http://"] || [trimmed hasPrefix:@"https://"]) {
+            directURLString = trimmed;
+        }
+        if (!directURLString) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [DYYYUtils showToast:@"语音数据解析失败"];
+            });
+            NSLog(@"[DYYY] 解析语音 JSON 失败: %@", error);
+            return;
+        }
     }
-    
-    NSArray *videoList = audioDict[@"video_list"];
-    if (!videoList || videoList.count == 0) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [DYYYUtils showToast:@"未找到语音URL"];
-        });
-        return;
+
+    NSString *audioURLString = directURLString;
+    if (!audioURLString) {
+        NSArray *videoList = audioDict[@"video_list"];
+        if (!videoList || videoList.count == 0) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [DYYYUtils showToast:@"未找到语音URL"];
+            });
+            return;
+        }
+
+        NSDictionary *videoInfo = videoList.firstObject;
+        audioURLString = videoInfo[@"main_url"];
+        if (!audioURLString || audioURLString.length == 0) {
+            audioURLString = videoInfo[@"backup_url"];
+        }
     }
-    
-    NSDictionary *videoInfo = videoList.firstObject;
-    NSString *audioURLString = videoInfo[@"main_url"];
-    if (!audioURLString || audioURLString.length == 0) {
-        audioURLString = videoInfo[@"backup_url"];
-    }
-    
-    if (!audioURLString || audioURLString.length == 0) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [DYYYUtils showToast:@"语音URL无效"];
-        });
-        return;
-    }
-    
+
     NSURL *audioURL = [NSURL URLWithString:audioURLString];
     if (!audioURL) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2619,65 +2624,96 @@
             return;
         }
         
-        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-        formatter.dateFormat = @"yyyy-MM-dd HH:mm:ss";
-        NSTimeInterval timestamp = (createTime && [createTime doubleValue] > 0) ? [createTime doubleValue] : [[NSDate date] timeIntervalSince1970];
-        NSDate *commentDate = [NSDate dateWithTimeIntervalSince1970:timestamp];
-        NSString *timeString = [formatter stringFromDate:commentDate];
-        timeString = [timeString stringByReplacingOccurrencesOfString:@":" withString:@"-"];
-        timeString = [timeString stringByReplacingOccurrencesOfString:@" " withString:@"_"];
-        
-        NSString *safeUserName = userName ?: @"未知用户";
-        safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
-        safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"\\" withString:@"_"];
-        
-        NSString *fileName = [NSString stringWithFormat:@"%@_%@.m4a", safeUserName, timeString];
-        NSString *tempDir = NSTemporaryDirectory();
-        NSString *targetPath = [tempDir stringByAppendingPathComponent:fileName];
-        
-        NSError *moveError = nil;
-        [[NSFileManager defaultManager] removeItemAtPath:targetPath error:nil];
-        [[NSFileManager defaultManager] moveItemAtPath:location.path toPath:targetPath error:&moveError];
-        
-        if (moveError) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [DYYYUtils showToast:@"文件保存失败"];
-            });
-            NSLog(@"[DYYY] 移动文件失败: %@", moveError);
-            return;
-        }
-        
-        NSURL *fileURL = [NSURL fileURLWithPath:targetPath];
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            UIViewController *topVC = [DYYYUtils topView];
-            if (!topVC) {
-                [DYYYUtils showToast:@"无法显示分享界面"];
-                return;
-            }
-            
-            UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[fileURL] applicationActivities:nil];
-            
-            activityVC.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *activityError) {
-                [[NSFileManager defaultManager] removeItemAtPath:targetPath error:nil];
-                
-                if (completed) {
-                    [DYYYUtils showToast:@"分享成功"];
-                } else if (activityError) {
-                    [DYYYUtils showToast:@"分享失败"];
-                }
-            };
-            
-            if ([activityVC respondsToSelector:@selector(popoverPresentationController)]) {
-                activityVC.popoverPresentationController.sourceView = topVC.view;
-                activityVC.popoverPresentationController.sourceRect = CGRectMake(topVC.view.bounds.size.width / 2, topVC.view.bounds.size.height / 2, 0, 0);
-            }
-            
-            [topVC presentViewController:activityVC animated:YES completion:nil];
-        });
+        [DYYYManager shareCommentAudioFileAtPath:location.path userName:userName createTime:createTime];
     }];
     
     [downloadTask resume];
+}
+
+
+// 1.0.25：直接分享评论区语音的本地文件（audioFilePath 已证实是本地路径）。
++ (void)saveCommentAudioLocalFile:(NSString *)localPath
+                        userName:(NSString *)userName
+                      createTime:(NSNumber *)createTime {
+    if (!localPath || localPath.length == 0 || ![[NSFileManager defaultManager] fileExistsAtPath:localPath]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [DYYYUtils showToast:@"本地语音文件不存在"];
+        });
+        NSLog(@"[DYYY] 本地语音文件不存在：%@", localPath ?: @"（空）");
+        return;
+    }
+    NSLog(@"[DYYY] 本地语音文件已找到，复制分享：%@", localPath);
+    [DYYYManager shareCommentAudioFileAtPath:localPath userName:userName createTime:createTime];
+}
+
+// 1.0.25：把语音文件拷到 tmp（{用户名}_{时间}.m4a）再弹分享表；下载和本地文件两路共用。
+// 复制不挪走——本地文件是抖音自己的缓存，不能删；下载的临时文件复制一份也无妨。
++ (void)shareCommentAudioFileAtPath:(NSString *)sourcePath
+                          userName:(NSString *)userName
+                        createTime:(NSNumber *)createTime {
+    if (!sourcePath || sourcePath.length == 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [DYYYUtils showToast:@"语音文件不存在"];
+        });
+        return;
+    }
+
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+    NSTimeInterval timestamp = (createTime && [createTime doubleValue] > 0) ? [createTime doubleValue] : [[NSDate date] timeIntervalSince1970];
+    NSDate *commentDate = [NSDate dateWithTimeIntervalSince1970:timestamp];
+    NSString *timeString = [formatter stringFromDate:commentDate];
+    timeString = [timeString stringByReplacingOccurrencesOfString:@":" withString:@"-"];
+    timeString = [timeString stringByReplacingOccurrencesOfString:@" " withString:@"_"];
+
+    NSString *safeUserName = userName ?: @"未知用户";
+    safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+    safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"\\" withString:@"_"];
+
+    NSString *fileName = [NSString stringWithFormat:@"%@_%@.m4a", safeUserName, timeString];
+    NSString *tempDir = NSTemporaryDirectory();
+    NSString *targetPath = [tempDir stringByAppendingPathComponent:fileName];
+
+    NSError *copyError = nil;
+    [[NSFileManager defaultManager] removeItemAtPath:targetPath error:nil];
+    [[NSFileManager defaultManager] copyItemAtPath:sourcePath toPath:targetPath error:&copyError];
+
+    if (copyError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [DYYYUtils showToast:@"文件保存失败"];
+        });
+        NSLog(@"[DYYY] 复制语音文件失败: %@", copyError);
+        return;
+    }
+
+    NSURL *fileURL = [NSURL fileURLWithPath:targetPath];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *topVC = [DYYYUtils topView];
+        if (!topVC) {
+            [DYYYUtils showToast:@"无法显示分享界面"];
+            return;
+        }
+
+        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[fileURL] applicationActivities:nil];
+
+        activityVC.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *activityError) {
+            [[NSFileManager defaultManager] removeItemAtPath:targetPath error:nil];
+
+            if (completed) {
+                [DYYYUtils showToast:@"分享成功"];
+            } else if (activityError) {
+                [DYYYUtils showToast:@"分享失败"];
+            }
+        };
+
+        if ([activityVC respondsToSelector:@selector(popoverPresentationController)]) {
+            activityVC.popoverPresentationController.sourceView = topVC.view;
+            activityVC.popoverPresentationController.sourceRect = CGRectMake(topVC.view.bounds.size.width / 2, topVC.view.bounds.size.height / 2, 0, 0);
+        }
+
+        [topVC presentViewController:activityVC animated:YES completion:nil];
+    });
 }
 
 @end

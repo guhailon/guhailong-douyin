@@ -646,6 +646,7 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 
 @interface AWECommentAudioModel : NSObject
 @property (nonatomic, copy, readwrite) NSString *content;
+@property (nonatomic, copy, readwrite) NSString *audioFilePath; // 1.0.25：-11.log 证实是本地文件路径
 @end
 
 @interface AWECommentModel : NSObject

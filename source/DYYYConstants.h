@@ -4,9 +4,9 @@
 #define DYYY_NAME @"顾海龙抖音"
 #define DYYY_SETTINGS_NAME @"顾海龙抖音设置"
 
-#define DYYY_VERSION @"1.0.24"
+#define DYYY_VERSION @"1.0.25"
 
-// 顾海龙集团越狱源（关于页用；检查更新拉的就是这个源的 Packages）
+// 顾海龙集团越狱源（关于页用）
 #define GHL_REPO_URL @"https://guhailong-repo.pages.dev"
 // DYYY 上游源码仓库（关于页「基于 DYYY」「源码」两行跳这里）
 #define GHL_DYYY_SOURCE_URL @"https://github.com/Wtrwx/DYYY"
