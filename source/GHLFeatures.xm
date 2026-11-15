@@ -1836,6 +1836,18 @@ static NSArray<GHLVoicePackageInfo *> *GHLCustomVoicePackages(void) {
     return list;
 }
 
+// 文件大小格式化成“1.2 MB”这种（1.0.28：清理时误删了实现，macOS 链接报未定义符号，从 1.0.24 原样补回，加一档 GB）。
+NSString *GHLFileSizeText(NSString *path) {
+    if (!path || path.length == 0) return @"";
+    NSError *error = nil;
+    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:&error];
+    unsigned long long bytes = [attrs[NSFileSize] unsignedLongLongValue];
+    if (bytes < 1024) return [NSString stringWithFormat:@"%llu B", bytes];
+    if (bytes < 1024 * 1024) return [NSString stringWithFormat:@"%.0f KB", bytes / 1024.0];
+    if (bytes < 1024 * 1024 * 1024) return [NSString stringWithFormat:@"%.1f MB", bytes / (1024.0 * 1024.0)];
+    return [NSString stringWithFormat:@"%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0)];
+}
+
 void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)) {
     if (!url) {
         if (done) done(NO, nil);
