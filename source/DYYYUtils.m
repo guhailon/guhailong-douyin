@@ -1129,10 +1129,11 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return [self dYYYSettingsCardColorDarkMode:darkMode];
 }
 
-// 1.0.22：卡片内设置行底色——不透明白（1.0.21 的半透明白让背后的视频整张透过每一行，
-// 字难读，录屏实锤；玻璃感只留给卡片外壳和首页，行要盖实）。
+// 1.0.24：卡片内设置行底色——半透明白（和子页现有效果一致：卡片底的整张
+// 背景图从行后面透出来，字靠半透明白 + 图上的淡白遮罩看得清；
+// 1.0.22 的不透明白是为了盖住背后的视频，卡片底图是静态的，不用盖实）。
 + (UIColor *)dYYYSettingsCellBackgroundColorForFloatPanel {
-    return [UIColor whiteColor];
+    return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
 }
 
 + (nullable UIView *)dYYYSettingsBackgroundViewForImage:(nullable UIImage *)image darkMode:(BOOL)darkMode {
@@ -2603,6 +2604,42 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
         });
         NSDate *date = [NSDate dateWithTimeIntervalSince1970:createTime.doubleValue];
         [fields addObject:[NSString stringWithFormat:@"发布时间：%@", [formatter stringFromDate:date]]];
+    }
+
+    // 1.0.24：保存相册详细——点赞/评论/分享/收藏/播放数、时长、视频 ID、音乐名也写进说明
+    // （说明本来就嵌进保存的文件里；计数用 KVC 探针，拿不到就不写，不瞎编）。
+    if ([awemeModel.itemID isKindOfClass:[NSString class]] && awemeModel.itemID.length > 0) {
+        [fields addObject:[NSString stringWithFormat:@"视频 ID：%@", awemeModel.itemID]];
+    }
+    if (awemeModel.videoDuration > 0) {
+        [fields addObject:[NSString stringWithFormat:@"视频时长：%.1f 秒", awemeModel.videoDuration]];
+    }
+    id stats = awemeModel.statistics;
+    NSMutableArray<NSString *> *countParts = [NSMutableArray array];
+    NSArray<NSArray<NSString *> *> *countSpecs = @[
+        @[@"diggCount", @"点赞"], @[@"commentCount", @"评论"], @[@"shareCount", @"分享"],
+        @[@"collectCount", @"收藏"], @[@"playCount", @"播放"]
+    ];
+    for (NSArray<NSString *> *spec in countSpecs) {
+        NSString *countText = nil;
+        @try {
+            id value = [stats valueForKey:spec[0]];
+            if ([value isKindOfClass:[NSNumber class]]) countText = [NSString stringWithFormat:@"%@", value];
+        } @catch (__unused NSException *exception) {
+        }
+        if (countText) [countParts addObject:[NSString stringWithFormat:@"%@ %@", spec[1], countText]];
+    }
+    if (countParts.count > 0) {
+        [fields addObject:[countParts componentsJoinedByString:@"　"]];
+    }
+    NSString *musicTitle = nil;
+    @try {
+        id title = [awemeModel.music valueForKey:@"title"];
+        if ([title isKindOfClass:[NSString class]] && [(NSString *)title length] > 0) musicTitle = title;
+    } @catch (__unused NSException *exception) {
+    }
+    if (musicTitle) {
+        [fields addObject:[NSString stringWithFormat:@"音乐：%@", musicTitle]];
     }
 
     if (fields.count == 0) {

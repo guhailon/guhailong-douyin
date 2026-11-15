@@ -29,6 +29,9 @@ static NSString *gDYYYLongPressGridDiagReason = nil;
 // 前置声明（dataArray 钩子在 1.0.9 的盖网格函数之前就用到）。
 static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc);
 static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
+static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
+// 1.0.24：网格盖上时藏起来的原生 table 所在的面板控制器（弱引用；收起时恢复显示）。
+static __weak UIViewController *gDYYYLongPressGridHiddenVC = nil;
 
 %hook AWELongPressPanelViewGroupModel
 %property(nonatomic, assign) BOOL isDYYYCustomGroup;
@@ -1021,6 +1024,12 @@ static void DYYYLongPressGridPanelClearAll(void) {
     gDYYYLongPressPanelData = nil;
     gDYYYLongPressGridDiagVC = nil;
     gDYYYLongPressGridDiagReason = nil;
+    // 1.0.24：网格收起时把藏起来的原生列表恢复显示（控制器已释放就不用管）。
+    if (gDYYYLongPressGridHiddenVC) {
+        UITableView *nativeTable = DYYYLongPressFindTableViewInView(gDYYYLongPressGridHiddenVC.view);
+        if (nativeTable) nativeTable.hidden = NO;
+        gDYYYLongPressGridHiddenVC = nil;
+    }
 }
 
 // 1.0.10：诊断日志去重——同一控制器、同一原因只记一行。
@@ -1238,6 +1247,16 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
         [panelManager dismissWithAnimation:YES completion:nil];
     }];
+    // 1.0.24：网格盖上后把底下抖音原生的长按列表藏起来（hidden=YES）——
+    // 1.0.23 把糊调成 58%、格子改 0.40 微透明之后，原生列表透过网格露出来，
+    // 同一批菜单字出现两次、错位重影（真机实拍）。只藏列表，不动原生面板控制器：
+    // 网格点按和关掉还靠它（原生选中要面板控制器上下文），拆掉风险大。
+    UITableView *nativeTable = DYYYLongPressFindTableViewInView(vc.view);
+    if (nativeTable && !nativeTable.hidden) {
+        nativeTable.hidden = YES;
+        gDYYYLongPressGridHiddenVC = vc;
+        GHLLog(@"长按面板：网格已盖上，原生列表已隐藏");
+    }
     panel.frame = vc.view.bounds;
     [vc.view addSubview:panel];
     [panel setNeedsLayout];

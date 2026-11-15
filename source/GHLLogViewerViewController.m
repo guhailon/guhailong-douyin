@@ -93,10 +93,12 @@ static const unsigned long long kGHLLogViewerMaxBytes = 200 * 1024;
         self.backgroundImage = nil;
         [self.backgroundView removeFromSuperview];
         self.backgroundView = nil;
-        self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
-        self.textView.backgroundColor = [UIColor whiteColor];
+        // 1.0.24：卡片内页底/日志底都透明，共用卡片底的整张背景图；
+        // 日志字是深色，图上有淡白遮罩，看得清。
+        self.view.backgroundColor = [UIColor clearColor];
+        self.textView.backgroundColor = [UIColor clearColor];
         self.textView.textColor = [UIColor colorWithWhite:0.15 alpha:1.0];
-        self.searchBar.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        self.searchBar.backgroundColor = [UIColor clearColor];
         return;
     }
     BOOL dark = [self ghlDarkModeActive];

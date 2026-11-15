@@ -2,6 +2,7 @@
 // 和卡片首页／长按面板同款 iOS 文件夹式浅色玻璃：半透明白卡、深色字、金色点缀）
 // 1.0.14：标题/版本行按横幅里龙头中心对齐；QQ 行标签改成「QQ：QQ群交流：」+ 号码；
 // 原作者行改成「原作者（huami）」，下面加一行只展示的「现作者（顾海龙总监）」。
+// 1.0.24：QQ 行改回个人号「QQ：」+ 号码（2309103548 是个人 QQ，群是 1130823454）。
 // 1.0.15：横幅换成展翅绿龙（雷雨海面＋红眼睛，标题按重测的龙头中心 x=358 对齐）；
 // 关于页加「更换横幅背景」（相册选图，存 Documents/DYYY/ghl-about-banner.jpg）和
 // 「恢复默认横幅」（删自选图回内置展翅龙；自选图时标题按横幅中心对齐）。
@@ -94,12 +95,17 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 #pragma mark - 浅色玻璃色（1.0.21：深色改浅色；本页显式浅色，不跟随系统；金色走统一的 dYYYGoldAccentColor）
 
 - (UIColor *)ghlPageBackgroundColor {
+    // 1.0.24：卡片内页底透明（卡片底的整张背景图从后面透出来）；
+    // 卡片外（全屏）还是不透明分组底色。
+    if (self.ghlInFloatPanel) return [UIColor clearColor];
     // 1.0.22：页底改不透明（1.0.21 是透明，首页的按键从下面透上来，录屏实锤；
     // 玻璃感只留给卡片外壳和首页，推上来的页面要盖实）。
     return [UIColor systemGroupedBackgroundColor];
 }
 
 - (UIColor *)ghlCardBackgroundColor {
+    // 1.0.24：卡片内卡底半透明白（和设置行一样，背景图透出来、字看得清）。
+    if (self.ghlInFloatPanel) return [[UIColor whiteColor] colorWithAlphaComponent:0.55];
     // 1.0.22：卡底改不透明白（1.0.21 的半透明白让上一页透出来，字难读）。
     return [UIColor whiteColor];
 }
@@ -144,8 +150,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         [self ghlRowSpecWithTitle:@"现作者（顾海龙总监）" icon:@"person.fill" tag:GHLAboutRowCurrentAuthor chevron:NO],
         [self ghlRowSpecWithTitle:@"源码 Wtrwx / DYYY" icon:@"arrow.branch" tag:GHLAboutRowSource chevron:NO],
         [self ghlRowSpecWithTitle:@"顾海龙集团越狱源" icon:@"link" tag:GHLAboutRowRepo chevron:NO],
-        // 1.0.14：QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变。
-        [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ：QQ群交流：%@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
+        // 1.0.24：QQ 行改成个人号「QQ：」+ 号码（2309103548 是个人 QQ，群是 1130823454，另有 QQ群行），点按复制不变。
+        [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ：%@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ群 %@", GHL_QQ_GROUP_NUMBER] icon:@"person.2" tag:GHLAboutRowQQGroup chevron:NO],
         // 1.0.23 第二批 76：Telegram 行——咱们自己的 Telegram 频道还没开通，只提示，
         // 不链到 @DouYinHook（那是抖音图层作者的频道）。

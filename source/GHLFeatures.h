@@ -136,41 +136,65 @@ extern "C" {
 typedef NS_ENUM(NSInteger, GHLVoicePackageSource) {
     GHLVoicePackageSourceBuiltIn = 0,   // 内置：iOS 自带 TTS 语音
     GHLVoicePackageSourceFishAudio = 1, // 在线：Fish Audio 模型音色
+    GHLVoicePackageSourceCustom = 2,    // 1.0.24：导入：录好的音频文件（点一下就播放，不能合成文字）
 };
 // 一个语音包（管理器列表里的一项）。内置档 voiceId 形如 @"sys:<系统语音 identifier>"，
-// 在线档 voiceId 形如 @"fish:<Fish Audio 模型 id>"。
+// 在线档 voiceId 形如 @"fish:<Fish Audio 模型 id>"，导入档形如 @"custom:<文件名>"。
 @interface GHLVoicePackageInfo : NSObject
 @property(nonatomic, copy) NSString *voiceId;
 @property(nonatomic, copy) NSString *displayName;
-@property(nonatomic, copy) NSString *category; // 文件夹/分类：@"内置" / @"在线"
+@property(nonatomic, copy) NSString *category; // 文件夹/分类：@"内置" / @"在线" / @"我的导入" / 自建文件夹名
 @property(nonatomic, assign) GHLVoicePackageSource source;
 @property(nonatomic, copy, nullable) NSString *systemVoiceIdentifier; // 内置档
 @property(nonatomic, copy, nullable) NSString *fishModelId;           // 在线档
+@property(nonatomic, copy, nullable) NSString *audioFilePath;         // 1.0.24：导入档（本地音频文件全路径）
 + (instancetype)packageWithVoiceId:(NSString *)voiceId
                        displayName:(NSString *)displayName
                           category:(NSString *)category
                             source:(GHLVoicePackageSource)source
              systemVoiceIdentifier:(nullable NSString *)systemVoiceIdentifier
                        fishModelId:(nullable NSString *)fishModelId;
+// 1.0.24：导入档构造（name 显示名，filePath 音频文件全路径，folder 文件夹名）
++ (instancetype)customPackageWithName:(NSString *)name filePath:(NSString *)filePath folder:(NSString *)folder;
 @end
-// 全部语音包（内置在前、在线在后；在线档只在有缓存列表时出现）
+// 全部语音包（内置在前、在线在后、导入最后；在线档只在有缓存列表时出现）
+// 1.0.24：内置/在线音色被移进文件夹时，category 就是文件夹名（见 GHL_KEY_VOICE_FOLDER_MAP）。
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void);
-// 按分类取（@"内置" / @"在线"）
+// 按分类取（@"内置" / @"在线" / @"我的导入" / 自建文件夹名）
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackagesInCategory(NSString *category);
 // 按名字或 voiceId 搜索（大小写不敏感）
 NSArray<GHLVoicePackageInfo *> *GHLSearchVoicePackages(NSString *query);
-// 语音包 id 列表（设置页 Picker 用）
+// 语音包 id 列表（设置页 Picker 用；1.0.24：只给能合成文字的，导入的录音不进）
 NSArray<NSString *> *GHLVoicePackageIDs(void);
 NSString *GHLVoicePackageDisplayNameForID(NSString *voiceId);
 GHLVoicePackageInfo *GHLVoicePackageForID(NSString *voiceId);
-// 用选中语音包把一段文字念出来（试听用；在线档需 key，没有 key 会 Toast 提示）
+// 用选中语音包把一段文字念出来（试听用；在线档需 key，没有 key 会 Toast 提示；
+// 1.0.24：导入档直接播文件）
 void GHLPreviewVoicePackage(NSString *voiceId);
 // 用选中语音包把一段文字合成语音文件（内置 .caf / 在线 .mp3），完成回调给文件 URL
+// 1.0.24：导入档合成不了文字，直接回调 nil。
 void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL));
 // 从 Fish Audio 拉在线语音包列表（需 key；成功后缓存并回调，失败回调 error）
 void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoicePackageInfo *> *voices, NSError *error));
 // 打开语音包管理器（列表/分类/搜索/试听/选中）
 void GHLPresentVoicePackageManagerFromViewController(UIViewController *viewController);
+// 1.0.24：导入的语音 + 文件夹（文件夹分组、导入导出都在管理器里）
+// 导入的语音存在 Documents/DYYY/VoicePackages/，记录在 GHL_KEY_CUSTOM_VOICES。
+#define GHL_KEY_CUSTOM_VOICES @"GHLCustomVoices" // 导入的语音：数组，字典 @{@"name", @"file", @"folder"}
+#define GHL_KEY_VOICE_CUSTOM_FOLDERS @"GHLCustomVoiceFolders" // 自建文件夹名数组（“我的导入”是内置的，不存这里）
+#define GHL_KEY_VOICE_FOLDER_MAP @"GHLVoiceFolderMap" // voiceId -> 文件夹（内置/在线音色移入文件夹用）
+#define GHL_KEY_VOICE_ADD_MENU_LAST @"GHLVoiceAddMenuLast" // + 菜单上次选的项（选项表要存一个值，无实际意义）
+#define GHL_KEY_VOICE_ROW_MENU_LAST @"GHLVoiceRowMenuLast" // 行长按菜单上次选的项（同上）
+NSString *GHLCustomVoicePackagesDirectory(void);
+NSArray<NSString *> *GHLCustomVoiceFolders(void); // “我的导入”在前，自建文件夹按建的顺序
+void GHLCreateVoiceFolder(NSString *name);
+void GHLDeleteVoiceFolder(NSString *name); // 里面的语音回“我的导入”
+void GHLMoveVoiceToFolder(NSString *voiceId, NSString *folder); // folder 空 = 移出，回默认分类
+void GHLDeleteCustomVoice(NSString *voiceId); // 删记录 + 删文件 + 清收藏/选中
+NSString *GHLFolderForVoiceId(NSString *voiceId); // 当前所在文件夹（分类名）
+void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)); // mp4/mov 转音频，其他音频直接复制
+void GHLExportCustomVoices(UIViewController *presenter, NSArray<NSString *> *voiceIds); // 分享文件；voiceIds 为空 = 全部
+NSString *GHLFileSizeText(NSString *path); // “1.2 MB”这种
 // 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包）
 void GHLProbeLiveVoiceSender(void);
 // 运行期探针：语音消息转发/语音秒数/替换语音评论/保存语音评论相关类（只记日志，不 hook、不发包）
@@ -221,6 +245,12 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_QUICK_PANEL_COLUMNS_CUSTOM @"GHLQuickPanelColumnsCustom" // 自定义时的列数（1-6，默认 3）
 // 56 背景模糊度（长按网格面板，0-100，默认 58，跟他演示的 58% 一致）
 #define GHL_KEY_QUICK_PANEL_BLUR @"GHLQuickPanelBlur"
+// 1.0.24：下载面板可调——格子高度 72-120（默认 92）、左右边距 0-48（默认 16）、
+// 格子透明度 0.1-1.0（空=跟微透明开关）、格子颜色 白色/金色/深灰（默认 白色）。
+#define GHL_KEY_QUICK_PANEL_CELL_HEIGHT @"GHLQuickPanelCellHeight"
+#define GHL_KEY_QUICK_PANEL_SIDE_MARGIN @"GHLQuickPanelSideMargin"
+#define GHL_KEY_QUICK_PANEL_CELL_ALPHA @"GHLQuickPanelCellAlpha"
+#define GHL_KEY_QUICK_PANEL_CELL_COLOR @"GHLQuickPanelCellColor"
 // 59 仅看一次开启下载按钮（探测：查看器类没找到，开关只做探针日志）
 #define GHL_KEY_VIEW_ONCE_DOWNLOAD @"GHLViewOnceDownload"
 // 61 推荐页跳过购物视频（按 ecommerceBelowLabel 认购物视频，只在推荐页）
@@ -289,6 +319,13 @@ void GHLProbeVoiceFeatures(void);
 #define GHL_KEY_AVATAR_GOLD_RING @"GHLAvatarGoldRing"
 #define GHL_KEY_DANMAKU_STYLE @"GHLDanmakuStyle"
 #define GHL_KEY_DANMAKU_FONT_SCALE @"GHLDanmakuFontScale" // 0.5-2.0，默认 1.0
+#define GHL_KEY_TAB_BAR_FONT_SCALE @"GHLTabBarFontScale" // 1.0.24：底部字体大小 0.8-1.3，默认 1.0
+// 1.0.24：双击下载——按位置（左半边直接保存，右半边弹菜单）；弹窗精简（只留下载相关）。
+#define GHL_KEY_DOUBLE_TAP_POSITION @"GHLDoubleTapPosition"
+#define GHL_KEY_DOUBLE_TAP_POPUP_COMPACT @"GHLDoubleTapPopupCompact"
+// 1.0.24：文案备忘录——只做备忘（定时发送不做）；行入口 + 存储数组（字典 text/date）。
+#define GHL_KEY_MEMO_PAGE @"GHLMemoPage"
+#define GHL_KEY_MEMO_LIST @"GHLMemoList"
 #define GHL_KEY_DANMAKU_STROKE @"GHLDanmakuStroke" // pt，空=原生
 #define GHL_KEY_DANMAKU_ALPHA @"GHLDanmakuAlpha" // 0-1，默认 1.0
 #define GHL_KEY_DANMAKU_AUTO_FADE @"GHLDanmakuAutoFade"
@@ -352,6 +389,8 @@ void GHLShowFloatPanel(void);
 void GHLCloseFloatPanel(void);
 @class DYYYSettingViewController;
 DYYYSettingViewController *GHLFloatPanelSharedSettingsViewController(void);
+// 1.0.24：换背景图后重铺卡片底图（卡片没建好时什么都不做）。
+void GHLRefreshFloatPanelCardBackground(void);
 // 1.0.21：第 7 项音频状态行用的抖音自己后台听视频 status（DYYY.xm 里 setListenVideoStatus
 // 钩子记下的改写后值；-1 表示还没见过）。
 NSInteger GHLCurrentListenVideoStatus(void);

@@ -10,12 +10,33 @@
 #import "DYYYUtils.h"
 #import "GHLFeatures.h"
 
-static const CGFloat kDYYYGridSideMargin = 16.0;
 static const CGFloat kDYYYGridSpacing = 12.0;
-static const CGFloat kDYYYGridCellHeight = 92.0; // 1.0.11：104 收小到 92，4 行在 iPhone 11 的 sheet 里基本不用滑也能看到
 static const CGFloat kDYYYGridDragonSize = 76.0;
 static const CGFloat kDYYYGridDragonTop = 10.0;
 static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
+
+// 1.0.24：格子高度（72-120，默认 92，和 1.0.11 定的一样）/ 左右边距（0-48，默认 16）
+// 改设置可调；格子底色（默认白色，金色是淡金底，深灰是深灰底；透明度另由格子透明度/微透明开关管）。
+static CGFloat GHLQuickPanelCellHeight(void) {
+    NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_HEIGHT];
+    CGFloat f = v.length > 0 ? [v floatValue] : 92;
+    if (f < 72) f = 72;
+    if (f > 120) f = 120;
+    return f;
+}
+static CGFloat GHLQuickPanelSideMargin(void) {
+    NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_SIDE_MARGIN];
+    CGFloat f = v.length > 0 ? [v floatValue] : 16;
+    if (f < 0) f = 0;
+    if (f > 48) f = 48;
+    return f;
+}
+static UIColor *GHLQuickPanelCellBaseColor(void) {
+    NSString *c = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR] ?: @"白色";
+    if ([c isEqualToString:@"金色"]) return [DYYYUtils dYYYGoldAccentColor];
+    if ([c isEqualToString:@"深灰"]) return [UIColor colorWithWhite:0.2 alpha:1.0];
+    return [UIColor whiteColor];
+}
 
 // 1.0.23 第二批：快捷面板外观（只用在长按网格面板表面，不动设置卡片）。
 // 53 材质：磨砂 / 液态玻璃 / 清透玻璃（真液态玻璃是 iOS 26 的 UIGlassEffect，
@@ -169,7 +190,16 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     _horizontalLayout = (columns == -1);
     _gridColumns = _horizontalLayout ? 4 : columns;
     // 64 长按菜单微透明：格子底从 0.55 降到 0.40。
-    _cellBackgroundAlpha = GHLGetBool(GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT) ? 0.40 : 0.55;
+    // 1.0.24：格子透明度填了就按填的（0.1-1.0），没填才跟微透明开关。
+    NSString *cellAlphaValue = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_ALPHA];
+    if (cellAlphaValue.length > 0) {
+        CGFloat a = [cellAlphaValue floatValue];
+        if (a < 0.1) a = 0.1;
+        if (a > 1.0) a = 1.0;
+        _cellBackgroundAlpha = a;
+    } else {
+        _cellBackgroundAlpha = GHLGetBool(GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT) ? 0.40 : 0.55;
+    }
 
     // 51 自选背景图（在毛玻璃下面，糊出来；没选就只有毛玻璃）。
     UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
@@ -236,7 +266,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         if (!title || title.length == 0) title = @"未命名";
 
         UIButton *cell = [UIButton buttonWithType:UIButtonTypeCustom];
-        cell.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:self.cellBackgroundAlpha];
+        // 1.0.24：格子底色按设置来（白色/金色/深灰），透明度另管。
+        cell.backgroundColor = [GHLQuickPanelCellBaseColor() colorWithAlphaComponent:self.cellBackgroundAlpha];
         cell.layer.cornerRadius = 16;
         cell.layer.masksToBounds = YES;
         cell.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.6].CGColor;
@@ -288,7 +319,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     }
     NSInteger visibleRows = MIN(rows, 5);
     CGFloat height = kDYYYGridDragonTop + kDYYYGridDragonSize + kDYYYGridTopGap
-        + visibleRows * kDYYYGridCellHeight
+        + visibleRows * GHLQuickPanelCellHeight()
         + (visibleRows > 0 ? (visibleRows - 1) * kDYYYGridSpacing : 0)
         + 16 + safeAreaBottom;
     return height;
@@ -316,40 +347,44 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     if (gridHeight < 0) gridHeight = 0;
     self.gridScrollView.frame = CGRectMake(0, gridTop, bounds.size.width, gridHeight);
 
-    // 1.0.23 第二批：54 排列——列数按设置来；横向等列是单行横滑（格子 92 宽，横向滚）。
+    // 1.0.23 第二批：54 排列——列数按设置来；横向等列是单行横滑（格子按格子高度宽，横向滚）。
     NSInteger columns = self.gridColumns;
     if (self.horizontalLayout) {
-        CGFloat cellWidth = kDYYYGridCellHeight;
-        CGFloat contentWidth = self.cells.count * cellWidth + (self.cells.count > 0 ? (self.cells.count - 1) * kDYYYGridSpacing : 0) + kDYYYGridSideMargin * 2;
-        self.gridScrollView.contentSize = CGSizeMake(MAX(contentWidth, bounds.size.width), kDYYYGridCellHeight);
+        CGFloat cellWidth = GHLQuickPanelCellHeight();
+        CGFloat contentWidth = self.cells.count * cellWidth + (self.cells.count > 0 ? (self.cells.count - 1) * kDYYYGridSpacing : 0) + GHLQuickPanelSideMargin() * 2;
+        self.gridScrollView.contentSize = CGSizeMake(MAX(contentWidth, bounds.size.width), GHLQuickPanelCellHeight());
+        // 1.0.24：格子改高了图标/标题才居中（92 时保持原来 16/50，一点不动）。
+        CGFloat iconY = (GHLQuickPanelCellHeight() <= 92.0) ? 16 : (GHLQuickPanelCellHeight() - 52) / 2;
         for (NSInteger i = 0; i < (NSInteger)self.cells.count; i++) {
             UIButton *cell = self.cells[i];
-            CGFloat x = kDYYYGridSideMargin + i * (cellWidth + kDYYYGridSpacing);
-            cell.frame = CGRectMake(x, 0, cellWidth, kDYYYGridCellHeight);
+            CGFloat x = GHLQuickPanelSideMargin() + i * (cellWidth + kDYYYGridSpacing);
+            cell.frame = CGRectMake(x, 0, cellWidth, GHLQuickPanelCellHeight());
             UIImageView *iconView = [cell viewWithTag:1001];
             UILabel *label = [cell viewWithTag:1002];
-            iconView.frame = CGRectMake((cellWidth - 28) / 2, 16, 28, 28);
-            label.frame = CGRectMake(4, 50, cellWidth - 8, 18);
+            iconView.frame = CGRectMake((cellWidth - 28) / 2, iconY, 28, 28);
+            label.frame = CGRectMake(4, iconY + 34, cellWidth - 8, 18);
         }
         return;
     }
-    CGFloat cellWidth = (bounds.size.width - kDYYYGridSideMargin * 2 - kDYYYGridSpacing * (columns - 1)) / columns;
+    CGFloat cellWidth = (bounds.size.width - GHLQuickPanelSideMargin() * 2 - kDYYYGridSpacing * (columns - 1)) / columns;
     NSInteger rows = (NSInteger)ceil((double)self.cells.count / (double)columns);
-    CGFloat contentHeight = rows * kDYYYGridCellHeight + (rows > 0 ? (rows - 1) * kDYYYGridSpacing : 0);
+    CGFloat contentHeight = rows * GHLQuickPanelCellHeight() + (rows > 0 ? (rows - 1) * kDYYYGridSpacing : 0);
     self.gridScrollView.contentSize = CGSizeMake(bounds.size.width, contentHeight);
+    // 1.0.24：格子改高了图标/标题才居中（92 时保持原来 16/50，一点不动）。
+    CGFloat iconY = (GHLQuickPanelCellHeight() <= 92.0) ? 16 : (GHLQuickPanelCellHeight() - 52) / 2;
 
     for (NSInteger i = 0; i < (NSInteger)self.cells.count; i++) {
         NSInteger row = i / columns;
         NSInteger col = i % columns;
-        CGFloat x = kDYYYGridSideMargin + col * (cellWidth + kDYYYGridSpacing);
-        CGFloat y = row * (kDYYYGridCellHeight + kDYYYGridSpacing);
+        CGFloat x = GHLQuickPanelSideMargin() + col * (cellWidth + kDYYYGridSpacing);
+        CGFloat y = row * (GHLQuickPanelCellHeight() + kDYYYGridSpacing);
         UIButton *cell = self.cells[i];
-        cell.frame = CGRectMake(x, y, cellWidth, kDYYYGridCellHeight);
+        cell.frame = CGRectMake(x, y, cellWidth, GHLQuickPanelCellHeight());
         // 图标在上、标题在下（和效果图一致）。
         UIImageView *iconView = [cell viewWithTag:1001];
         UILabel *label = [cell viewWithTag:1002];
-        iconView.frame = CGRectMake((cellWidth - 28) / 2, 16, 28, 28);
-        label.frame = CGRectMake(4, 50, cellWidth - 8, 18);
+        iconView.frame = CGRectMake((cellWidth - 28) / 2, iconY, 28, 28);
+        label.frame = CGRectMake(4, iconY + 34, cellWidth - 8, 18);
     }
 }
 
@@ -387,7 +422,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 // 1.0.23 第二批：54 横向等列是横滑，改对齐横向偏移。
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
     if (scrollView != self.gridScrollView) return;
-    CGFloat pitch = kDYYYGridCellHeight + kDYYYGridSpacing;
+    CGFloat pitch = GHLQuickPanelCellHeight() + kDYYYGridSpacing;
     if (self.horizontalLayout) {
         CGFloat maxOffset = MAX(0, scrollView.contentSize.width - scrollView.bounds.size.width);
         CGFloat snapped = round(targetContentOffset->x / pitch) * pitch;

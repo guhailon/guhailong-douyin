@@ -19,7 +19,11 @@
 #import "GHLAboutViewController.h"
 #import "GHLImagePreviewViewController.h"
 #import "GHLLogViewerViewController.h"
+#import "GHLMemoListViewController.h"
 #import "DYYYToast.h"
+#import "DYYYOptionsSelectionView.h"
+#import "DYYYBackupPickerDelegate.h"
+#import "DYYYCustomInputView.h"
 #import <AVKit/AVKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <ReplayKit/ReplayKit.h>
@@ -78,10 +82,21 @@ static dispatch_queue_t GHLLogQueue(void) {
 // 1.0.21：最近一条日志（主线程看门狗读来当“最近活动”；写在日志串行队列里，
 // 读也走同一队列，线程安全——看门狗在后台线程读，不能直接碰这个指针）。
 static NSString *ghlLastLogMessage = nil;
+// 1.0.24：最近一条“非看门狗报警”的日志——看门狗自己的报警行会把上一条报警
+// 嵌进去（-10.log 里 19 行报警越嵌越长，最后一条全是报警套报警，“最近活动”
+// 完全看不出冻住前在干什么）；报警行读这个，冻住前的最后活动才留得住。
+static NSString *ghlLastNonWatchdogMessage = nil;
 static NSString *GHLLastLogMessage(void) {
     __block NSString *message = nil;
     dispatch_sync(GHLLogQueue(), ^{
       message = ghlLastLogMessage;
+    });
+    return message;
+}
+static NSString *GHLLastNonWatchdogMessage(void) {
+    __block NSString *message = nil;
+    dispatch_sync(GHLLogQueue(), ^{
+      message = ghlLastNonWatchdogMessage;
     });
     return message;
 }
@@ -103,6 +118,8 @@ void GHLLog(NSString *format, ...) {
     NSLog(@"%@", line);
     dispatch_async(GHLLogQueue(), ^{
       ghlLastLogMessage = message; // 1.0.21：主线程看门狗的“最近活动”就从这里读。
+      // 1.0.24：报警行自己不算活动（不然报警嵌报警，见上面注释）。
+      if (![message hasPrefix:@"主线程卡住"]) ghlLastNonWatchdogMessage = message;
       @try {
           // 1.0.6：主路径改到 App 自己的 Documents/DYYY/（沙盒内可写，配置导出已证明能写）；
           // 旧路径 /var/mobile/Library/Logs/ 在沙盒里写不出去，只作次选兜底。
@@ -268,7 +285,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。\n"
            @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。\n"
            @"1.0.23：卡片改回照片那款 A——8 按键首页拿掉，点开卡片直接就是设置列表，浅色实心卡不再追毛玻璃，金底「完成」保留，记页保留；跳过 AD 章节是探测（广告章节识别字段没确认，开关开后只在日志里 dump 章节模型字段，不跳过，等真机日志定下字段再接）；评论文字变蓝（开关，只改正文颜色，用户名/时间不动，正文标签是启发式定位，需真机验证）；长按面板新增获取作品数据（弹窗显示＋复制到剪贴板）和图片预览（图集全屏翻页看，点一下关闭）；复制下载链接和解析保存不用加——咱们已经有了（687 复制无水印链接、673 接口保存＋666 保存视频／668 保存音频）。\n"
-           @"1.0.23（第二批，影片功能）：自动连播（播满当前视频时长切下一个，直播间不跑）；推荐页跳过购物视频（带购物标签的推荐视频直接跳过）；长按面板可换背景图、材质三选一（磨砂／液态玻璃／清透玻璃；真液态玻璃要 iOS 26，iOS 16 上液态玻璃用加粗材质近似）、排列可调（每排 2/3/4 个／横向等列／自定义列数）、背景模糊度可调（默认 58）、格子微透明；评论区仅复制评论文字（长按评论只复制正文）；首页全屏播放、发图发视频默认勾选原图（改名对齐已有功能）；显示功能按钮（关闭／倍速／快进三档，快进点一下 +10 秒）；解析图片增加保存视频按钮（图集「制作视频」改叫「保存视频」）；消息防撤回是探测（与原来 (24) 同功能，只改名；撤回处理类没定位到，只记日志）；仅看一次开启下载按钮是探测（没找到可验证的 hook 点，开关开后 dump 相关类名记日志）；双击消息快捷回复（消息页双击聚焦输入框，输入框是启发式找的，需真机验证）；消息界面点加号弹出相册图片是探测（开关开后 dump 输入栏按钮类名记日志，等真机日志定 hook 点）；续火花自动发消息（长按联系人头像触发，模板在设置里填、用 | 分隔多条，多条时目前只发第 1 条，发送按钮找不到时只填文字不自动发）；玻璃评论面板（评论面板改 ExtraLight 毛玻璃，评论／AI 解析双页签在面板顶部，AI 解析要自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示）；插件配置页（关于页加清除缓存、Telegram 暂未开通提示行，其余版本／更新日志／QQ群／自定义图片早有了）；底部悬浮毛玻璃胶囊栏（底栏改悬浮圆角毛玻璃条）。";
+           @"1.0.23（第二批，影片功能）：自动连播（播满当前视频时长切下一个，直播间不跑）；推荐页跳过购物视频（带购物标签的推荐视频直接跳过）；长按面板可换背景图、材质三选一（磨砂／液态玻璃／清透玻璃；真液态玻璃要 iOS 26，iOS 16 上液态玻璃用加粗材质近似）、排列可调（每排 2/3/4 个／横向等列／自定义列数）、背景模糊度可调（默认 58）、格子微透明；评论区仅复制评论文字（长按评论只复制正文）；首页全屏播放、发图发视频默认勾选原图（改名对齐已有功能）；显示功能按钮（关闭／倍速／快进三档，快进点一下 +10 秒）；解析图片增加保存视频按钮（图集「制作视频」改叫「保存视频」）；消息防撤回是探测（与原来 (24) 同功能，只改名；撤回处理类没定位到，只记日志）；仅看一次开启下载按钮是探测（没找到可验证的 hook 点，开关开后 dump 相关类名记日志）；双击消息快捷回复（消息页双击聚焦输入框，输入框是启发式找的，需真机验证）；消息界面点加号弹出相册图片是探测（开关开后 dump 输入栏按钮类名记日志，等真机日志定 hook 点）；续火花自动发消息（长按联系人头像触发，模板在设置里填、用 | 分隔多条，多条时目前只发第 1 条，发送按钮找不到时只填文字不自动发）；玻璃评论面板（评论面板改 ExtraLight 毛玻璃，评论／AI 解析双页签在面板顶部，AI 解析要自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示）；插件配置页（关于页加清除缓存、Telegram 暂未开通提示行，其余版本／更新日志／QQ群／自定义图片早有了）；底部悬浮毛玻璃胶囊栏（底栏改悬浮圆角毛玻璃条）。\n"
+           @"1.0.24：长按面板字重影修好（网格盖上后把底下抖音原生长按列表藏起来，收起恢复；糊 58%、格子微透明不变）；设置卡背景图改全屏（自定义背景图铺满整个卡片背后，导航栏、列表、完成按钮都在图上，行底半透明白）；语音包和在线音色并成一个统一语音包页（内置／在线／导入同在一张表，统一搜索，文件夹分组，导入导出，点行试听；导入的录音点一下就播放，不能用来合成文字）；双击下载（视频左半边双击直接保存、右半边弹菜单；双击弹窗可精简成只留下载）；首页下移（底栏高度可调）和底部字体大小可调；语音包导入（mp4/mov 选入后转音频进语音包，音频直接复制）；下载面板可调（长按网格格子高度／左右边距／格子透明度／格子颜色都能在设置里调）；保存相册详细（保存时附作品信息：视频 ID、时长、点赞/评论/分享/收藏/播放数、音乐名；开关在常用功能，默认关）；文案备忘录（本地备忘列表，点行复制，左滑删除；定时自动发送不做）；保存他人语音仍是探测（评论语音的类没定位到，保存路径建不出来，只记日志，等真机探针）；接口保存默认接 Lee 给的原画质接口（装完不用填就能点，设置里能改能清空；解析多字段容错，首次解析成功把 data 的字段名记进日志，没真视频验过成功格式，以日志为准）；关于页 QQ 行改成个人号「QQ：2309103548」（2309103548 是个人 QQ，群是 1130823454）；冻住调查：静态＋日志分析结论写进日志（巡检耗时随时间平坦、主线程是突然堵住 111 秒、音视频是缓冲排空后慢慢停；看门狗补记巡检停滞和冻住前最后活动；冻住本身这版没修）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -2711,7 +2729,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.23 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"顾海龙抖音 1.0.24 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2888,9 +2906,308 @@ static NSArray<GHLVoicePackageInfo *> *GHLFishAudioVoicePackages(void) {
     return list;
 }
 
+#pragma mark - 1.0.24：导入的语音（自定义档）+ 文件夹
+
+// 导入的语音存在 App 沙盒 Documents/DYYY/VoicePackages/，记录在 NSUserDefaults
+//（GHL_KEY_CUSTOM_VOICES：字典数组 @{@"name", @"file", @"folder"}）。
+// 导入的是一段录好的音频，点一下就播放，不能像内置/在线那样合成任意文字——
+// 所以它不进设置页的 TTS 选取器（GHLVoicePackageIDs 只给能合成的），只在管理器里播。
+NSString *GHLCustomVoicePackagesDirectory(void) {
+    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    NSString *dir = [documents stringByAppendingPathComponent:@"DYYY/VoicePackages"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    return dir;
+}
+
+static NSArray<NSDictionary *> *GHLCustomVoiceRecords(void) {
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_CUSTOM_VOICES];
+    if (![stored isKindOfClass:[NSArray class]]) return @[];
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
+    for (id item in stored) {
+        if (![item isKindOfClass:[NSDictionary class]]) continue;
+        NSString *name = item[@"name"];
+        NSString *file = item[@"file"];
+        if (![name isKindOfClass:[NSString class]] || name.length == 0) continue;
+        if (![file isKindOfClass:[NSString class]] || file.length == 0) continue;
+        NSString *folder = item[@"folder"];
+        if (![folder isKindOfClass:[NSString class]] || folder.length == 0) folder = @"我的导入";
+        [records addObject:@{@"name": name, @"file": file, @"folder": folder}];
+    }
+    return records;
+}
+
+static void GHLSaveCustomVoiceRecords(NSArray<NSDictionary *> *records) {
+    [[NSUserDefaults standardUserDefaults] setObject:records forKey:GHL_KEY_CUSTOM_VOICES];
+}
+
+// 文件夹列表：我的导入在前，自建文件夹按建的顺序排。
+NSArray<NSString *> *GHLCustomVoiceFolders(void) {
+    NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithObject:@"我的导入"];
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
+    if ([stored isKindOfClass:[NSArray class]]) {
+        for (id item in stored) {
+            if ([item isKindOfClass:[NSString class]] && [(NSString *)item length] > 0 && ![folders containsObject:item]) {
+                [folders addObject:item];
+            }
+        }
+    }
+    return folders;
+}
+
+static NSArray<GHLVoicePackageInfo *> *GHLCustomVoicePackages(void) {
+    NSMutableArray<GHLVoicePackageInfo *> *list = [NSMutableArray array];
+    NSString *dir = GHLCustomVoicePackagesDirectory();
+    NSArray<NSString *> *folderOrder = GHLCustomVoiceFolders();
+    for (NSDictionary *record in GHLCustomVoiceRecords()) {
+        NSString *path = [dir stringByAppendingPathComponent:record[@"file"]];
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path]) continue; // 文件没了就跳过（记录留着，文件回来还能用）
+        [list addObject:[GHLVoicePackageInfo customPackageWithName:record[@"name"] filePath:path folder:record[@"folder"]]];
+    }
+    [list sortUsingComparator:^NSComparisonResult(GHLVoicePackageInfo *a, GHLVoicePackageInfo *b) {
+        NSUInteger ia = [folderOrder indexOfObject:a.category];
+        NSUInteger ib = [folderOrder indexOfObject:b.category];
+        if (ia == NSNotFound) ia = folderOrder.count;
+        if (ib == NSNotFound) ib = folderOrder.count;
+        if (ia != ib) return ia < ib ? NSOrderedAscending : NSOrderedDescending;
+        return [a.displayName localizedStandardCompare:b.displayName];
+    }];
+    return list;
+}
+
+void GHLCreateVoiceFolder(NSString *name) {
+    NSString *trimmed = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (trimmed.length == 0) {
+        [DYYYUtils showToast:@"文件夹名字是空的"];
+        return;
+    }
+    if ([trimmed isEqualToString:@"内置"] || [trimmed isEqualToString:@"在线"] || [trimmed isEqualToString:@"我的导入"] || [trimmed isEqualToString:@"★ 收藏"]) {
+        [DYYYUtils showToast:@"这个名字是系统留用的，换一个"];
+        return;
+    }
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
+    NSMutableArray<NSString *> *folders = [NSMutableArray array];
+    if ([stored isKindOfClass:[NSArray class]]) {
+        for (id item in stored) {
+            if ([item isKindOfClass:[NSString class]]) [folders addObject:item];
+        }
+    }
+    if ([folders containsObject:trimmed]) {
+        [DYYYUtils showToast:@"已经有这个文件夹了"];
+        return;
+    }
+    [folders addObject:trimmed];
+    [[NSUserDefaults standardUserDefaults] setObject:folders forKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
+    GHLLog(@"语音包文件夹：新建「%@」", trimmed);
+}
+
+void GHLDeleteVoiceFolder(NSString *name) {
+    if (!name || name.length == 0) return;
+    // 里面的导入语音回“我的导入”。
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+    for (NSUInteger i = 0; i < records.count; i++) {
+        NSMutableDictionary *record = [records[i] mutableCopy];
+        if ([record[@"folder"] isEqualToString:name]) {
+            record[@"folder"] = @"我的导入";
+            records[i] = record;
+        }
+    }
+    GHLSaveCustomVoiceRecords(records);
+    // 内置/在线音色指派到这个文件夹的也清掉（回默认分类）。
+    NSMutableDictionary *map = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP] ?: @{}];
+    for (NSString *key in [map allKeys]) {
+        if ([map[key] isEqualToString:name]) [map removeObjectForKey:key];
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:map forKey:GHL_KEY_VOICE_FOLDER_MAP];
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
+    NSMutableArray<NSString *> *folders = [NSMutableArray array];
+    if ([stored isKindOfClass:[NSArray class]]) {
+        for (id item in stored) {
+            if ([item isKindOfClass:[NSString class]] && ![item isEqualToString:name]) [folders addObject:item];
+        }
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:folders forKey:GHL_KEY_VOICE_CUSTOM_FOLDERS];
+    GHLLog(@"语音包文件夹：已删「%@」（里面的语音回“我的导入”）", name);
+}
+
+void GHLMoveVoiceToFolder(NSString *voiceId, NSString *folder) {
+    if (!voiceId || voiceId.length == 0) return;
+    NSString *target = [folder stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([voiceId hasPrefix:@"custom:"]) {
+        // 导入的语音：改记录里的 folder（空 = 回“我的导入”）。
+        NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+        for (NSUInteger i = 0; i < records.count; i++) {
+            NSString *candidateId = [@"custom:" stringByAppendingString:records[i][@"file"]];
+            if (![candidateId isEqualToString:voiceId]) continue;
+            NSMutableDictionary *record = [records[i] mutableCopy];
+            record[@"folder"] = (target.length > 0 ? target : @"我的导入");
+            records[i] = record;
+            break;
+        }
+        GHLSaveCustomVoiceRecords(records);
+        GHLLog(@"语音包：%@ 已移到「%@」", voiceId, target.length > 0 ? target : @"我的导入");
+        return;
+    }
+    // 内置/在线音色：记指派表（空 = 移出，回默认分类）。
+    NSMutableDictionary *map = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP] ?: @{}];
+    if (target.length == 0) {
+        [map removeObjectForKey:voiceId];
+    } else {
+        map[voiceId] = target;
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:map forKey:GHL_KEY_VOICE_FOLDER_MAP];
+    GHLLog(@"语音包：%@ 已移到「%@」", voiceId, target.length > 0 ? target : @"默认分类");
+}
+
+NSString *GHLFolderForVoiceId(NSString *voiceId) {
+    if (!voiceId) return nil;
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
+        if ([info.voiceId isEqualToString:voiceId]) return info.category;
+    }
+    return nil;
+}
+
+void GHLDeleteCustomVoice(NSString *voiceId) {
+    if (!voiceId || ![voiceId hasPrefix:@"custom:"]) return;
+    NSString *file = [voiceId substringFromIndex:[@"custom:" length]];
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+    NSMutableArray<NSDictionary *> *kept = [NSMutableArray array];
+    for (NSDictionary *record in records) {
+        if (![record[@"file"] isEqualToString:file]) [kept addObject:record];
+    }
+    GHLSaveCustomVoiceRecords(kept);
+    [[NSFileManager defaultManager] removeItemAtPath:[GHLCustomVoicePackagesDirectory() stringByAppendingPathComponent:file] error:nil];
+    // 收藏/选中里清掉（选中了它就回默认中文音色）。
+    NSMutableSet<NSString *> *favorites = [NSMutableSet setWithSet:GHLVoiceFavorites()];
+    if ([favorites containsObject:voiceId]) {
+        [favorites removeObject:voiceId];
+        [[NSUserDefaults standardUserDefaults] setObject:[favorites allObjects] forKey:GHL_KEY_VOICE_FAVORITES];
+    }
+    if ([[[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_VOICE_PACKAGE_ID] isEqualToString:voiceId]) {
+        [[NSUserDefaults standardUserDefaults] setObject:@"sys:default-zh-CN" forKey:GHL_KEY_VOICE_PACKAGE_ID];
+    }
+    GHLLog(@"语音包：已删导入的「%@」", file);
+}
+
+NSString *GHLFileSizeText(NSString *path) {
+    if (!path || path.length == 0) return @"";
+    NSError *error = nil;
+    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:&error];
+    unsigned long long bytes = [attrs[NSFileSize] unsignedLongLongValue];
+    if (bytes < 1024) return [NSString stringWithFormat:@"%llu B", bytes];
+    if (bytes < 1024 * 1024) return [NSString stringWithFormat:@"%.0f KB", bytes / 1024.0];
+    return [NSString stringWithFormat:@"%.1f MB", bytes / (1024.0 * 1024.0)];
+}
+
+// 导入一个文件进语音包：已经是音频（m4a/mp3/wav/aac/caf/aiff）就直接复制；
+// 视频（mp4/mov 等）只抽音频轨转成 .m4a（AVAssetExportSession，AppleM4A 预设，
+// 复用 DYYYManager 里 AVAssetReader/Writer 转码的同一思路：音频轨 AAC 44.1k）。
+// 完成回调在主线程跑（成功时 name 是显示名）。
+void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)) {
+    if (!url) {
+        if (done) done(NO, nil);
+        return;
+    }
+    NSString *ext = url.pathExtension.lowercaseString;
+    NSString *baseName = [[url.lastPathComponent stringByDeletingPathExtension] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (baseName.length == 0) baseName = @"导入的语音";
+    NSString *dir = GHLCustomVoicePackagesDirectory();
+    NSString *(^uniqueFileName)(NSString *, NSString *) = ^NSString *(NSString *base, NSString *targetExt) {
+        NSString *candidate = [NSString stringWithFormat:@"%@.%@", base, targetExt];
+        NSInteger n = 2;
+        while ([[NSFileManager defaultManager] fileExistsAtPath:[dir stringByAppendingPathComponent:candidate]]) {
+            candidate = [NSString stringWithFormat:@"%@ %ld.%@", base, (long)n, targetExt];
+            n++;
+        }
+        return candidate;
+    };
+    void (^registerVoice)(NSString *, NSString *) = ^(NSString *fileName, NSString *displayName) {
+        NSMutableArray *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+        [records addObject:@{@"name": displayName, @"file": fileName, @"folder": @"我的导入"}];
+        GHLSaveCustomVoiceRecords(records);
+        GHLLog(@"语音包导入：已导入「%@」（%@）", displayName, fileName);
+        [DYYYUtils showToast:[NSString stringWithFormat:@"已导入「%@」", displayName]];
+        if (done) done(YES, displayName);
+    };
+    NSSet<NSString *> *audioExts = [NSSet setWithObjects:@"m4a", @"mp3", @"wav", @"aac", @"caf", @"aiff", @"aif", nil];
+    if ([audioExts containsObject:ext]) {
+        NSString *fileName = uniqueFileName(baseName, ext);
+        NSError *error = nil;
+        if (![[NSFileManager defaultManager] copyItemAtURL:url toURL:[NSURL fileURLWithPath:[dir stringByAppendingPathComponent:fileName]] error:&error]) {
+            GHLLog(@"语音包导入：复制失败 %@", error.localizedDescription);
+            [DYYYUtils showToast:@"导入失败，文件复制不出来"];
+            if (done) done(NO, nil);
+            return;
+        }
+        registerVoice(fileName, baseName);
+        return;
+    }
+    AVURLAsset *asset = [AVURLAsset assetWithURL:url];
+    AVAssetExportSession *session = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
+    if (!session) {
+        GHLLog(@"语音包导入：这个文件转不了音频（%@）", url.lastPathComponent);
+        [DYYYUtils showToast:@"这个文件里没有能转的音频"];
+        if (done) done(NO, nil);
+        return;
+    }
+    NSString *fileName = uniqueFileName(baseName, @"m4a");
+    NSURL *outputURL = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:fileName]];
+    session.outputURL = outputURL;
+    session.outputFileType = AVFileTypeAppleM4A;
+    [DYYYUtils showToast:@"正在转音频…"];
+    [session exportAsynchronouslyWithCompletionHandler:^{
+        if (session.status != AVAssetExportSessionStatusCompleted) {
+            GHLLog(@"语音包导入：转音频失败 %@", session.error.localizedDescription);
+            [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
+            GHLRunOnMain(^{
+              [DYYYUtils showToast:@"导入失败，转音频没成功"];
+              if (done) done(NO, nil);
+            });
+            return;
+        }
+        GHLRunOnMain(^{
+          registerVoice(fileName, baseName);
+        });
+    }];
+}
+
+// 导出：把导入的语音文件分享出去（voiceIds 为空 = 全部；只导导入档，不导内置/在线）。
+void GHLExportCustomVoices(UIViewController *presenter, NSArray<NSString *> *voiceIds) {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in GHLCustomVoicePackages()) {
+        if (voiceIds.count > 0 && ![voiceIds containsObject:info.voiceId]) continue;
+        if (info.audioFilePath.length > 0) [urls addObject:[NSURL fileURLWithPath:info.audioFilePath]];
+    }
+    if (urls.count == 0) {
+        [DYYYUtils showToast:@"没有能导出的导入语音"];
+        return;
+    }
+    GHLRunOnMain(^{
+      UIActivityViewController *activity = [[UIActivityViewController alloc] initWithActivityItems:urls applicationActivities:nil];
+      if (activity.popoverPresentationController) {
+          activity.popoverPresentationController.sourceView = presenter.view;
+          activity.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(presenter.view.bounds), CGRectGetMidY(presenter.view.bounds), 1, 1);
+      }
+      [presenter presentViewController:activity animated:YES completion:nil];
+      GHLLog(@"语音包导出：已分享 %lu 个文件", (unsigned long)urls.count);
+    });
+}
+
 NSArray<GHLVoicePackageInfo *> *GHLVoicePackageList(void) {
-    NSMutableArray<GHLVoicePackageInfo *> *all = [NSMutableArray arrayWithArray:GHLBuiltInVoicePackages()];
-    [all addObjectsFromArray:GHLFishAudioVoicePackages()];
+    // 1.0.24：内置/在线音色被移进文件夹时，category 就是文件夹名（指派表 GHL_KEY_VOICE_FOLDER_MAP）；
+    // 没指派就回默认分类（内置/在线）；导入档自带文件夹（默认“我的导入”）。
+    NSDictionary *folderMap = [[NSUserDefaults standardUserDefaults] dictionaryForKey:GHL_KEY_VOICE_FOLDER_MAP];
+    NSMutableArray<GHLVoicePackageInfo *> *all = [NSMutableArray array];
+    for (GHLVoicePackageInfo *info in GHLBuiltInVoicePackages()) {
+        NSString *folder = folderMap[info.voiceId];
+        info.category = ([folder isKindOfClass:[NSString class]] && folder.length > 0) ? folder : @"内置";
+        [all addObject:info];
+    }
+    for (GHLVoicePackageInfo *info in GHLFishAudioVoicePackages()) {
+        NSString *folder = folderMap[info.voiceId];
+        info.category = ([folder isKindOfClass:[NSString class]] && folder.length > 0) ? folder : @"在线";
+        [all addObject:info];
+    }
+    [all addObjectsFromArray:GHLCustomVoicePackages()];
     return all;
 }
 
@@ -2917,7 +3234,11 @@ NSArray<GHLVoicePackageInfo *> *GHLSearchVoicePackages(NSString *query) {
 
 NSArray<NSString *> *GHLVoicePackageIDs(void) {
     NSMutableArray<NSString *> *ids = [NSMutableArray array];
-    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) [ids addObject:info.voiceId];
+    for (GHLVoicePackageInfo *info in GHLVoicePackageList()) {
+        // 1.0.24：导入的录音不能合成文字，不进设置页的 TTS 选取器。
+        if (info.source == GHLVoicePackageSourceCustom) continue;
+        [ids addObject:info.voiceId];
+    }
     return ids;
 }
 
@@ -2975,6 +3296,7 @@ static AVSpeechUtterance *GHLUtteranceForText(NSString *text, GHLVoicePackageInf
 }
 
 static AVAudioPlayer *ghlFishPreviewPlayer = nil;
+static AVAudioPlayer *ghlCustomVoicePlayer = nil; // 1.0.24：导入语音试听的播放器（留着不释放，不然播一半就停）
 
 // Fish Audio API Key：优先读设置页填的值，没填就用皇上自己的默认 key（已填好）
 static NSString *GHLFishAudioAPIKey(void) {
@@ -3048,6 +3370,21 @@ void GHLPreviewVoicePackage(NSString *voiceId) {
     GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
     if (!info) return;
     NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", info.displayName];
+    if (info.source == GHLVoicePackageSourceCustom) {
+        // 1.0.24：导入的录音直接播文件（不能合成文字，所以不念试听句）。
+        GHLRunOnMain(^{
+          if (ghlCustomVoicePlayer.playing) [ghlCustomVoicePlayer stop];
+          NSError *playerError = nil;
+          ghlCustomVoicePlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:[NSURL fileURLWithPath:info.audioFilePath] error:&playerError];
+          if (!ghlCustomVoicePlayer) {
+              GHLLog(@"语音包试听（导入）：播放器建失败 %@", playerError.localizedDescription);
+              return;
+          }
+          [ghlCustomVoicePlayer play];
+          GHLLog(@"语音包试听（导入）：%@", info.displayName);
+        });
+        return;
+    }
     if (info.source == GHLVoicePackageSourceFishAudio) {
         [DYYYUtils showToast:@"正在联网合成试听…"];
         GHLSynthesizeWithFishAudio(sample, info.fishModelId, ^(NSURL *fileURL) {
@@ -3080,6 +3417,12 @@ void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^com
     }
     GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
     if (!info) {
+        if (completion) completion(nil);
+        return;
+    }
+    if (info.source == GHLVoicePackageSourceCustom) {
+        // 1.0.24：导入的录音是固定音频，合成不了文字。
+        GHLLog(@"语音包合成：导入的录音不能合成文字");
         if (completion) completion(nil);
         return;
     }
@@ -3207,6 +3550,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 @property(nonatomic, strong) UISearchBar *searchBar;
 @property(nonatomic, copy) NSString *searchText;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
+@property(nonatomic, strong, nullable) DYYYBackupPickerDelegate *voicePickerDelegate; // 1.0.24：导入语音的文件选择器代理（要留着，不然选完没人接）
 @end
 
 @implementation GHLVoicePackageManagerViewController
@@ -3222,7 +3566,14 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     self.tableView.tableHeaderView = self.searchBar;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"完成" style:UIBarButtonItemStyleDone target:self action:@selector(ghlDismiss)];
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+    // 1.0.24：右上角 +（导入语音 / 新建文件夹 / 导出全部 / 删除文件夹）+ 刷新在线。
+    self.navigationItem.rightBarButtonItems = @[
+        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(ghlAddButtonTapped)],
+        [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)]
+    ];
+    // 1.0.24：长按一行出菜单（收藏/移文件夹/分享/删除）。
+    UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlRowLongPressed:)];
+    [self.tableView addGestureRecognizer:longPress];
     [self ghlApplyAppearance];
 }
 
@@ -3266,6 +3617,173 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
         [self.tableView reloadData];
       });
     });
+}
+
+// 1.0.24：右上角 + 菜单（导入语音 / 新建文件夹 / 导出全部 / 删除文件夹）。
+- (void)ghlAddButtonTapped {
+    __weak __typeof(self) weakSelf = self;
+    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ADD_MENU_LAST
+                                       optionsArray:@[@"导入语音文件", @"新建文件夹", @"导出全部导入的语音", @"删除文件夹…"]
+                                         headerText:@"语音包"
+                                     onPresentingVC:self
+                                   selectionChanged:^(NSString *selectedValue) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if ([selectedValue isEqualToString:@"导入语音文件"]) {
+            [strongSelf ghlImportVoiceFile];
+        } else if ([selectedValue isEqualToString:@"新建文件夹"]) {
+            [strongSelf ghlCreateFolder];
+        } else if ([selectedValue isEqualToString:@"导出全部导入的语音"]) {
+            GHLExportCustomVoices(strongSelf, nil);
+        } else if ([selectedValue isEqualToString:@"删除文件夹…"]) {
+            [strongSelf ghlDeleteFolder];
+        }
+    }];
+}
+
+// 1.0.24：导入语音文件（mp4/mov 转音频，其他音频直接复制；见 GHLImportVoiceAudioFileAtURL）。
+- (void)ghlImportVoiceFile {
+    self.voicePickerDelegate = [[DYYYBackupPickerDelegate alloc] init];
+    __weak __typeof(self) weakSelf = self;
+    self.voicePickerDelegate.completionBlock = ^(NSURL *url) {
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      GHLImportVoiceAudioFileAtURL(url, ^(BOOL success, NSString *name) {
+        (void)success;
+        (void)name;
+        [strongSelf.tableView reloadData];
+      });
+    };
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.movie", @"public.audio"] inMode:UIDocumentPickerModeImport];
+    picker.delegate = self.voicePickerDelegate;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+// 1.0.24：新建文件夹（名字查重、留用名都由 GHLCreateVoiceFolder 把关）。
+- (void)ghlCreateFolder {
+    __weak __typeof(self) weakSelf = self;
+    DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"新建文件夹" defaultText:@"" placeholder:@"文件夹名字"];
+    inputView.onConfirm = ^(NSString *text) {
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      GHLCreateVoiceFolder(text);
+      [strongSelf.tableView reloadData];
+    };
+    inputView.onCancel = ^{};
+    [inputView show];
+}
+
+// 1.0.24：删除文件夹（只能删自建的；里面的语音回“我的导入”）。
+- (void)ghlDeleteFolder {
+    NSArray<NSString *> *folders = GHLCustomVoiceFolders();
+    NSMutableArray<NSString *> *deletable = [NSMutableArray array];
+    for (NSString *folder in folders) {
+        if (![folder isEqualToString:@"我的导入"]) [deletable addObject:folder];
+    }
+    if (deletable.count == 0) {
+        [DYYYUtils showToast:@"还没有自建文件夹"];
+        return;
+    }
+    __weak __typeof(self) weakSelf = self;
+    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ADD_MENU_LAST
+                                       optionsArray:deletable
+                                         headerText:@"删哪个文件夹？"
+                                     onPresentingVC:self
+                                   selectionChanged:^(NSString *selectedValue) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [DYYYBottomAlertView showAlertWithTitle:@"删掉这个文件夹？"
+                                        message:[NSString stringWithFormat:@"「%@」会删掉，里面的语音回“我的导入”，文件本身不删。", selectedValue]
+                                      avatarURL:nil
+                               cancelButtonText:@"取消"
+                              confirmButtonText:@"删除"
+                                   cancelAction:nil
+                                    closeAction:nil
+                                  confirmAction:^{
+            __strong __typeof(weakSelf) strongSelf2 = weakSelf;
+            if (!strongSelf2) return;
+            GHLDeleteVoiceFolder(selectedValue);
+            [strongSelf2.tableView reloadData];
+        }];
+    }];
+}
+
+// 1.0.24：长按一行出菜单（收藏/移文件夹/分享/删除）。
+- (void)ghlRowLongPressed:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    CGPoint point = [gesture locationInView:self.tableView];
+    NSIndexPath *indexPath = [self.tableView indexPathForRowAtPoint:point];
+    if (!indexPath) return;
+    NSArray *categories = [self ghlVisibleCategories];
+    if (indexPath.section < 0 || indexPath.section >= (NSInteger)categories.count) return;
+    NSArray *packages = [self ghlPackagesInCategory:categories[indexPath.section]];
+    if (indexPath.row < 0 || indexPath.row >= (NSInteger)packages.count) return;
+    GHLVoicePackageInfo *info = packages[indexPath.row];
+    __weak __typeof(self) weakSelf = self;
+    NSMutableArray<NSString *> *options = [NSMutableArray array];
+    [options addObject:GHLIsVoiceFavorite(info.voiceId) ? @"取消收藏" : @"收藏"];
+    [options addObject:@"移入文件夹…"];
+    if (info.source == GHLVoicePackageSourceCustom) {
+        [options addObject:@"分享/导出"];
+        [options addObject:@"删除"];
+    }
+    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ROW_MENU_LAST
+                                       optionsArray:options
+                                         headerText:info.displayName
+                                     onPresentingVC:self
+                                   selectionChanged:^(NSString *selectedValue) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if ([selectedValue isEqualToString:@"收藏"] || [selectedValue isEqualToString:@"取消收藏"]) {
+            GHLSetVoiceFavorite(info.voiceId, !GHLIsVoiceFavorite(info.voiceId));
+            [strongSelf.tableView reloadData];
+        } else if ([selectedValue isEqualToString:@"移入文件夹…"]) {
+            [strongSelf ghlMoveVoiceToFolderSheet:info];
+        } else if ([selectedValue isEqualToString:@"分享/导出"]) {
+            GHLExportCustomVoices(strongSelf, @[info.voiceId]);
+        } else if ([selectedValue isEqualToString:@"删除"]) {
+            [strongSelf ghlDeleteCustomVoiceConfirm:info];
+        }
+    }];
+}
+
+// 1.0.24：移入文件夹（选“移出文件夹”就回默认分类/我的导入）。
+- (void)ghlMoveVoiceToFolderSheet:(GHLVoicePackageInfo *)info {
+    __weak __typeof(self) weakSelf = self;
+    NSMutableArray<NSString *> *options = [NSMutableArray arrayWithObject:@"移出文件夹"];
+    [options addObjectsFromArray:GHLCustomVoiceFolders()];
+    [DYYYOptionsSelectionView showWithPreferenceKey:GHL_KEY_VOICE_ROW_MENU_LAST
+                                       optionsArray:options
+                                         headerText:[NSString stringWithFormat:@"把「%@」移到…", info.displayName]
+                                     onPresentingVC:self
+                                   selectionChanged:^(NSString *selectedValue) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if ([selectedValue isEqualToString:@"移出文件夹"]) {
+            GHLMoveVoiceToFolder(info.voiceId, nil);
+        } else {
+            GHLMoveVoiceToFolder(info.voiceId, selectedValue);
+        }
+        [strongSelf.tableView reloadData];
+    }];
+}
+
+// 1.0.24：删导入的语音（记录 + 文件一起删，确认后才动手）。
+- (void)ghlDeleteCustomVoiceConfirm:(GHLVoicePackageInfo *)info {
+    __weak __typeof(self) weakSelf = self;
+    [DYYYBottomAlertView showAlertWithTitle:@"删掉这个语音？"
+                                    message:[NSString stringWithFormat:@"「%@」会从语音包和文件里一起删掉。", info.displayName]
+                                  avatarURL:nil
+                           cancelButtonText:@"取消"
+                          confirmButtonText:@"删除"
+                               cancelAction:nil
+                                closeAction:nil
+                              confirmAction:^{
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        GHLDeleteCustomVoice(info.voiceId);
+        [strongSelf.tableView reloadData];
+    }];
 }
 
 // 当前要显示的列表（有搜索词就按搜索结果，否则全量）
@@ -3327,10 +3845,14 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     NSArray *categories = [self ghlVisibleCategories];
     if (categories.count == 0) return nil;
     if ([categories[section] isEqualToString:@"★ 收藏"]) return @"点 ★ 取消收藏；点行选中并试听。";
-    if (![categories[section] isEqualToString:@"在线"]) return nil;
-    NSString *apiKey = GHLFishAudioAPIKey();
-    if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
-    return nil;
+    if ([categories[section] isEqualToString:@"在线"]) {
+        NSString *apiKey = GHLFishAudioAPIKey();
+        if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
+        return nil;
+    }
+    if ([categories[section] isEqualToString:@"内置"]) return nil;
+    // 1.0.24：我的导入 / 自建文件夹——导入的语音点一下就播放（不能合成文字）。
+    return @"导入的语音点一下就播放（不能用来合成文字）；长按可移文件夹、分享或删除。";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -3341,6 +3863,10 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
     cell.textLabel.text = info.displayName;
     cell.detailTextLabel.text = info.voiceId;
+    // 1.0.24：导入的语音副标题显示文件名 + 大小（跟图层抖音一样显示大小）。
+    if (info.source == GHLVoicePackageSourceCustom) {
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@", [info.audioFilePath lastPathComponent], GHLFileSizeText(info.audioFilePath)];
+    }
     NSString *selectedId = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_VOICE_PACKAGE_ID];
     BOOL selected = [info.voiceId isEqualToString:selectedId];
     // 统一视觉：选中行名字用金色；行底色跟随深色/自定义背景。
@@ -3355,7 +3881,8 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     checkLabel.font = [UIFont systemFontOfSize:17];
     checkLabel.textColor = [DYYYUtils dYYYGoldAccentColor];
     checkLabel.textAlignment = NSTextAlignmentCenter;
-    checkLabel.hidden = !selected;
+    // 1.0.24：导入的录音不能设为合成用的音色，不打 ✓。
+    checkLabel.hidden = !selected || info.source == GHLVoicePackageSourceCustom;
     [accessory addSubview:checkLabel];
     UIButton *starButton = [UIButton buttonWithType:UIButtonTypeSystem];
     starButton.frame = CGRectMake(28, 0, 44, 44);
@@ -3387,6 +3914,11 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSArray *categories = [self ghlVisibleCategories];
     GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
+    if (info.source == GHLVoicePackageSourceCustom) {
+        // 1.0.24：导入的录音点一下就播放，不设为合成用的音色（录音合成不了文字）。
+        GHLPreviewVoicePackage(info.voiceId);
+        return;
+    }
     [[NSUserDefaults standardUserDefaults] setObject:info.voiceId forKey:GHL_KEY_VOICE_PACKAGE_ID];
     [tableView reloadData];
     GHLPreviewVoicePackage(info.voiceId);
@@ -4100,6 +4632,21 @@ static void GHLLayoutFloatPanel(void) {
     }
 }
 
+// 1.0.24：换背景图后重铺卡片底图（设置页「更换背景图」/「恢复默认背景」后调；
+// 卡片没建好或没打开时什么都不做；没自选图就把旧底图撤掉回实心浅灰）。
+void GHLRefreshFloatPanelCardBackground(void) {
+    if (!ghlFloatPanelCard) return;
+    UIView *oldBG = [ghlFloatPanelCard viewWithTag:9871];
+    [oldBG removeFromSuperview];
+    UIImage *cardBGImage = GHLCustomBackgroundImage();
+    if (!cardBGImage) return;
+    UIView *cardBG = [DYYYUtils dYYYSettingsBackgroundViewForImage:cardBGImage darkMode:NO];
+    cardBG.frame = ghlFloatPanelCard.bounds;
+    cardBG.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    cardBG.tag = 9871;
+    [ghlFloatPanelCard insertSubview:cardBG atIndex:0];
+}
+
 static void GHLBuildFloatPanelIfNeeded(void) {
     if (ghlFloatPanelWindow) return;
     UIWindow *mainWindow = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
@@ -4136,6 +4683,9 @@ static void GHLBuildFloatPanelIfNeeded(void) {
 // 玻璃真机都没糊出皇上要的效果，改回实心最稳）：卡片底就是实心浅灰，
 // 10pt 边框露出来就是照片里卡片外框那个灰；内页（设置列表／关于／日志）
 // 本来就是不透明的，字清楚，不用再赌糊不糊得出来。
+// 1.0.24：自定义背景图改全屏——有自选图时整张图铺满整个卡片背后（导航栏、
+// 列表、「完成」条都在图上），图上再盖一层淡白遮罩（跟设置页表底同一套，
+// 字才看得清）；没自选图时卡片还是实心浅灰，不变。
     UIView *card = [[UIView alloc] initWithFrame:GHLFloatPanelCardFrameForBounds(bounds)];
     card.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1.0];
     card.layer.cornerRadius = 24;
@@ -4145,6 +4695,14 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     // 居中不随尺寸变：四边留白自适应，转屏时靠下面的重排再算一次。
     card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin |
                             UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    UIImage *cardBGImage = GHLCustomBackgroundImage();
+    if (cardBGImage) {
+        UIView *cardBG = [DYYYUtils dYYYSettingsBackgroundViewForImage:cardBGImage darkMode:NO];
+        cardBG.frame = card.bounds;
+        cardBG.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        cardBG.tag = 9871; // 换背景图时按 tag 找到重铺（GHLRefreshFloatPanelCardBackground）
+        [card addSubview:cardBG];
+    }
     [container addSubview:card];
 
     // 卡片里的导航栈：1.0.23 根改回设置页本身（1.0.19/1.0.20 就是这样，皇上
@@ -4157,17 +4715,21 @@ static void GHLBuildFloatPanelIfNeeded(void) {
     // 1.0.22：导航栏改不透明（录屏实锤两处：关于页里 QQ 群号透过导航栏看得见；关于页滚到顶时
     // 内容顶到半透明导航栏下面被白条盖住）。不透明导航栏下，子页 view 自动排在导航栏下面，
     // 内容再也不会从导航栏下透出来、也不会被导航栏盖住。导航栈底色也盖实，免得页面之间透。
-    nav.navigationBar.translucent = NO;
+    // 1.0.24：全屏背景图——导航栏改透明、导航栈底色改透明，卡片底的整张背景图从导航栏
+    // 后面透出来；各页自己都是浅色半透明白行 + 卡片底的淡白遮罩，字看得清。
+    // 推页时上一页从半透明行后面透出来的老问题靠「所有页共用同一张卡片底图」顶住：
+    // 透出来的底色永远是同一张图，不再是上一页的内容。
+    nav.navigationBar.translucent = YES;
     if (@available(iOS 13.0, *)) {
         UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
-        [appearance configureWithOpaqueBackground];
-        appearance.backgroundColor = [UIColor whiteColor];
+        [appearance configureWithTransparentBackground];
+        appearance.backgroundColor = [UIColor clearColor];
         nav.navigationBar.standardAppearance = appearance;
         nav.navigationBar.scrollEdgeAppearance = appearance;
     } else {
-        nav.navigationBar.barTintColor = [UIColor whiteColor];
+        nav.navigationBar.barTintColor = [UIColor clearColor];
     }
-    nav.view.backgroundColor = [UIColor whiteColor];
+    nav.view.backgroundColor = [UIColor clearColor];
     nav.view.frame = CGRectMake(kGHLFloatPanelNavInset, kGHLFloatPanelNavInset,
                                 card.bounds.size.width - kGHLFloatPanelNavInset * 2,
                                 card.bounds.size.height - kGHLFloatPanelNavInset - kGHLFloatPanelDoneBarHeight);
@@ -4365,6 +4927,12 @@ static void GHLToggleFloatPanel(void) {
 static dispatch_source_t ghlMainThreadWatchdogTimer = nil;
 static CFAbsoluteTime ghlMainThreadStuckSince = 0;
 static CFAbsoluteTime ghlMainThreadWatchdogLastReminder = 0;
+// 1.0.24：巡检最后一次跑的时间（主线程写、看门狗读，诊断用；double 读写本身够用）。
+// 巡检定时器是默认 mode（滑动时暂停），所以“巡检停了”本身不等于冻住；
+// 看门狗拿它和主线程 ping 的结果交叉验证：ping 不通 + 巡检停了＝主线程真死了；
+// ping 通但巡检停了 30 秒以上＝定时器/runloop 有问题（看门狗以前的盲区）。
+static CFAbsoluteTime ghlLastHousekeepingTickTime = 0;
+static BOOL ghlWatchdogTickStaleLogged = NO;
 
 static void GHLStartMainThreadWatchdog(void) {
     if (ghlMainThreadWatchdogTimer) return;
@@ -4380,19 +4948,26 @@ static void GHLStartMainThreadWatchdog(void) {
       CFAbsoluteTime waitStart = CFAbsoluteTimeGetCurrent();
       long result = dispatch_semaphore_wait(sema, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)));
       CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+      // 1.0.24：巡检停了多久（-1 表示还没跑过第一次巡检）。
+      double tickStaleSec = (ghlLastHousekeepingTickTime > 0) ? (now - ghlLastHousekeepingTickTime) : -1;
       if (result != 0) {
           // 卡住了：第一次记一行，之后每 5 秒再记一行（别刷屏），恢复时记卡住时长。
           if (ghlMainThreadStuckSince == 0) {
               ghlMainThreadStuckSince = waitStart;
               ghlMainThreadWatchdogLastReminder = now;
-              GHLLog(@"主线程卡住：已无响应 3 秒，最近活动：%@", GHLLastLogMessage() ?: @"（无）");
+              GHLLog(@"主线程卡住：已无响应 3 秒，最近活动：%@；巡检最后一次是 %.0f 秒前", GHLLastNonWatchdogMessage() ?: @"（无）", tickStaleSec);
           } else if (now - ghlMainThreadWatchdogLastReminder >= 5) {
               ghlMainThreadWatchdogLastReminder = now;
-              GHLLog(@"主线程卡住：仍无响应，已卡 %.0f 秒，最近活动：%@", now - ghlMainThreadStuckSince, GHLLastLogMessage() ?: @"（无）");
+              GHLLog(@"主线程卡住：仍无响应，已卡 %.0f 秒，最近活动：%@；巡检最后一次是 %.0f 秒前", now - ghlMainThreadStuckSince, GHLLastNonWatchdogMessage() ?: @"（无）", tickStaleSec);
           }
       } else if (ghlMainThreadStuckSince > 0) {
-          GHLLog(@"主线程恢复：卡住约 %.1f 秒，最近活动：%@", now - ghlMainThreadStuckSince, GHLLastLogMessage() ?: @"（无）");
+          GHLLog(@"主线程恢复：卡住约 %.1f 秒，最近活动：%@；巡检最后一次是 %.0f 秒前", now - ghlMainThreadStuckSince, GHLLastNonWatchdogMessage() ?: @"（无）", tickStaleSec);
           ghlMainThreadStuckSince = 0;
+      } else if (tickStaleSec > 30 && !ghlWatchdogTickStaleLogged) {
+          // 1.0.24：主线程还在回 ping，但巡检 30 秒没跑——定时器被挂起或 runloop
+          // 卡在别的 mode（滑动只会停几秒，30 秒不是滑动）；只记一次，巡检恢复后重置。
+          ghlWatchdogTickStaleLogged = YES;
+          GHLLog(@"主线程看门狗：主线程还在回 ping，但巡检已停 %.0f 秒（定时器/runloop 异常）", tickStaleSec);
       }
     });
     dispatch_resume(timer);
@@ -4841,6 +5416,9 @@ void GHLHousekeepingTick(void) {
     CFAbsoluteTime tickStart = CFAbsoluteTimeGetCurrent();
     double tickIntervalMs = (ghlLastTickStart > 0) ? (tickStart - ghlLastTickStart) * 1000.0 : 0;
     ghlLastTickStart = tickStart;
+    // 1.0.24：给看门狗留时间戳（巡检跑了就更新；看门狗拿它和主线程 ping 交叉验证）。
+    ghlLastHousekeepingTickTime = tickStart;
+    ghlWatchdogTickStaleLogged = NO;
     @try {
         // 1.0.17：进直播间时探一次拉流地址（与 (39) 开关无关；只在进/出切换时跑一次，
         // 不进巡检循环；用自己的进出标记，不动 GHLUpdateLiveDurationLabel 的调用条件）。

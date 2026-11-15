@@ -1405,12 +1405,74 @@
                                                         return;
                                                     }
 
+                                                    // 1.0.24：第一次解析成功时记一次 data 的全部 key 名和候选字段
+                                                    // 有没有值（接口成功格式还没真视频验过，日志里确认真实格式，
+                                                    // 下次再对齐；只记 key 名和字段类型，不记地址值）。
+                                                    static dispatch_once_t ghlInterfaceFormatOnceToken;
+                                                    dispatch_once(&ghlInterfaceFormatOnceToken, ^{
+                                                      NSMutableArray *hits = [NSMutableArray array];
+                                                      for (NSString *key in @[ @"video_url", @"url", @"play_url", @"download_url", @"video", @"video_list", @"videos", @"images", @"img", @"cover", @"pics", @"music", @"music_url" ]) {
+                                                          id v = dataDict[key];
+                                                          if (v) [hits addObject:[NSString stringWithFormat:@"%@(%@)", key, NSStringFromClass([v class])]];
+                                                      }
+                                                      GHLLog(@"接口保存：首次解析成功，data 全部 key：%@；候选字段有值：%@", [dataDict.allKeys componentsJoinedByString:@","], [hits componentsJoinedByString:@","]);
+                                                    });
+
                                                     // 交给handleVideoData处理数据
                                                     [self handleVideoData:dataDict];
                                                   });
                                                 }];
 
     [dataTask resume];
+}
+
+// 1.0.24：接口保存取视频地址的容错取法——接口成功格式还没真视频验过，
+// 除现有 video_list/videos/images/img/cover/pics/music 字段外，再兼容几种常见字段：
+// data.video_url / data.url / data.play_url / data.download_url /
+// data.video.play_addr.url_list（数组取第一条）；多清晰度时优先原画质/最高码率。
++ (NSString *)ghlBestVideoURLFromData:(NSDictionary *)dataDict {
+    for (NSString *listKey in @[ @"video_list", @"videos" ]) {
+        NSArray *list = dataDict[listKey];
+        if (![list isKindOfClass:[NSArray class]] || list.count == 0) continue;
+        NSString *fallback = nil;
+        for (id entry in list) {
+            if (![entry isKindOfClass:[NSDictionary class]]) continue;
+            id urlValue = entry[@"url"];
+            if (![urlValue isKindOfClass:[NSString class]] || [(NSString *)urlValue length] == 0) continue;
+            if (!fallback) fallback = urlValue;
+            id levelValue = entry[@"level"];
+            if ([levelValue isKindOfClass:[NSString class]] &&
+                ([(NSString *)levelValue rangeOfString:@"原画"].location != NSNotFound ||
+                 [(NSString *)levelValue rangeOfString:@"4K"].location != NSNotFound ||
+                 [(NSString *)levelValue rangeOfString:@"2K"].location != NSNotFound ||
+                 [(NSString *)levelValue rangeOfString:@"1080"].location != NSNotFound ||
+                 [(NSString *)levelValue rangeOfString:@"最高"].location != NSNotFound)) {
+                return urlValue;
+            }
+        }
+        if (fallback) return fallback;
+    }
+    for (NSString *key in @[ @"video_url", @"url", @"play_url", @"download_url", @"video" ]) {
+        id v = dataDict[key];
+        if ([v isKindOfClass:[NSString class]] && [(NSString *)v length] > 0) return v;
+    }
+    id video = dataDict[@"video"];
+    if ([video isKindOfClass:[NSDictionary class]]) {
+        id playAddr = video[@"play_addr"];
+        if ([playAddr isKindOfClass:[NSDictionary class]]) {
+            NSArray *urlList = playAddr[@"url_list"];
+            if ([urlList isKindOfClass:[NSArray class]]) {
+                for (id u in urlList) {
+                    if ([u isKindOfClass:[NSString class]] && [(NSString *)u length] > 0) return u;
+                }
+            }
+        }
+        for (NSString *key in @[ @"play_url", @"url", @"download_url" ]) {
+            id v = video[key];
+            if ([v isKindOfClass:[NSString class]] && [(NSString *)v length] > 0) return v;
+        }
+    }
+    return nil;
 }
 
 + (void)handleVideoData:(NSDictionary *)dataDict {
@@ -1473,15 +1535,9 @@
         }
     }
 
-    // 尝试获取视频URL
-    NSString *singleVideoURL = nil;
-    if (dataDict[@"url"] && [dataDict[@"url"] length] > 0) {
-        singleVideoURL = dataDict[@"url"];
-    } else if (dataDict[@"video"] && [dataDict[@"video"] length] > 0) {
-        singleVideoURL = dataDict[@"video"];
-    } else if (dataDict[@"video_url"] && [dataDict[@"video_url"] length] > 0) {
-        singleVideoURL = dataDict[@"video_url"];
-    }
+    // 尝试获取视频URL（1.0.24：走容错取法，兼容 video_url/play_url/download_url
+    // 和 video.play_addr.url_list，多清晰度时优先原画质/最高码率）。
+    NSString *singleVideoURL = [self ghlBestVideoURLFromData:dataDict];
 
     // 确保处理空的videos数组
     BOOL hasVideos = [videos isKindOfClass:[NSArray class]] && videos.count > 0;

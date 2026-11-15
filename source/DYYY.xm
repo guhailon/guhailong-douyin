@@ -10373,6 +10373,62 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
 }
 %end
 
+// 1.0.24：左半边双击直接保存——和菜单里「保存视频」同一条下载管线（只抄了
+// 视频/图片/实况三条主路；菜单里的「保存所有图片」等多图分支不在这里，左半边只存当前这张）。
+static void DYYYDoubleTapDirectSaveAweme(AWEAwemeModel *awemeModel) {
+    if (!awemeModel) return;
+    AWEVideoModel *videoModel = awemeModel.video;
+    AWEMusicModel *musicModel = awemeModel.music;
+    NSURL *audioURL = nil;
+    if (musicModel && musicModel.playURL && musicModel.playURL.originURLList.count > 0) {
+        audioURL = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+    }
+    BOOL isImageContent = (awemeModel.awemeType == 68);
+    BOOL isNewLivePhoto = (awemeModel.video && awemeModel.animatedImageVideoInfo != nil);
+    if (isImageContent) {
+        AWEImageAlbumImageModel *currentImageModel = nil;
+        if (awemeModel.currentImageIndex > 0 && awemeModel.currentImageIndex <= awemeModel.albumImages.count) {
+            currentImageModel = awemeModel.albumImages[awemeModel.currentImageIndex - 1];
+        } else {
+            currentImageModel = awemeModel.albumImages.firstObject;
+        }
+        NSURL *downloadURL = nil;
+        for (NSString *urlString in currentImageModel.urlList) {
+            NSURL *url = [NSURL URLWithString:urlString];
+            if (![[url.path.lowercaseString pathExtension] isEqualToString:@"image"]) { downloadURL = url; break; }
+        }
+        if (currentImageModel.clipVideo != nil) {
+            NSURL *videoURL = [currentImageModel.clipVideo.playURL getDYYYSrcURLDownload];
+            [DYYYManager downloadLivePhoto:downloadURL videoURL:videoURL completion:^{}];
+        } else if (downloadURL) {
+            [DYYYManager downloadMedia:downloadURL mediaType:MediaTypeImage audio:nil completion:^(BOOL success) {
+                if (!success) [DYYYUtils showToast:@"图片保存已取消"];
+            }];
+        } else {
+            [DYYYUtils showToast:@"没有找到合适格式的图片"];
+        }
+    } else if (isNewLivePhoto) {
+        NSURL *imageURL = nil;
+        if (videoModel.coverURL && videoModel.coverURL.originURLList.count > 0) {
+            imageURL = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
+        }
+        NSURL *videoURL = nil;
+        if (videoModel && videoModel.playURL && videoModel.playURL.originURLList.count > 0) {
+            videoURL = [NSURL URLWithString:videoModel.playURL.originURLList.firstObject];
+        } else if (videoModel && videoModel.h264URL && videoModel.h264URL.originURLList.count > 0) {
+            videoURL = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+        }
+        if (imageURL && videoURL) {
+            [DYYYManager downloadLivePhoto:imageURL videoURL:videoURL completion:^{}];
+        }
+    } else {
+        if (videoModel.h264URL && videoModel.h264URL.originURLList.count > 0) {
+            NSURL *url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+            [DYYYManager downloadMedia:url mediaType:MediaTypeVideo audio:audioURL completion:^(BOOL success){}];
+        }
+    }
+}
+
 %hook AWEPlayInteractionViewController
 
 - (void)performCommentAction {
@@ -10397,6 +10453,21 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
     }
 
     if (isPopupEnabled) {
+        // 1.0.24：按位置双击——左半边直接保存视频，右半边弹菜单。
+        // arg1 正常是 UITapGestureRecognizer；不是手势（抖音改了传参）就按老样子弹菜单。
+        if (GHLGetBool(GHL_KEY_DOUBLE_TAP_POSITION) && [arg1 isKindOfClass:[UITapGestureRecognizer class]]) {
+            CGPoint tapPoint = [(UITapGestureRecognizer *)arg1 locationInView:self.view];
+            CGFloat viewWidth = self.view.bounds.size.width;
+            if (viewWidth > 0 && tapPoint.x >= 0 && tapPoint.x < viewWidth * 0.5) {
+                AWEAwemeModel *leftAwemeModel = [self performSelector:@selector(awemeModel)];
+                if (leftAwemeModel) {
+                    GHLLog(@"双击下载：左半边，直接保存（x=%.0f/%.0f）", tapPoint.x, viewWidth);
+                    DYYYDoubleTapDirectSaveAweme(leftAwemeModel);
+                    return;
+                }
+            }
+        }
+
         AWEAwemeModel *awemeModel = nil;
 
         awemeModel = [self performSelector:@selector(awemeModel)];
@@ -10698,8 +10769,8 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
             [actions addObject:copyTextAction];
         }
 
-        // 添加打开评论区选项
-        if (DYYYGetBool(@"DYYYDoubleTapComment") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapComment"]) {
+        // 添加打开评论区选项（1.0.24：弹窗精简开着时不显示）
+        if ((DYYYGetBool(@"DYYYDoubleTapComment") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapComment"]) && !GHLGetBool(GHL_KEY_DOUBLE_TAP_POPUP_COMPACT)) {
 
             AWEUserSheetAction *openCommentAction = [NSClassFromString(@"AWEUserSheetAction") actionWithTitle:@"打开评论"
                                                                                                       imgName:nil
@@ -10709,8 +10780,8 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
             [actions addObject:openCommentAction];
         }
 
-        // 添加分享选项
-        if (DYYYGetBool(@"DYYYDoubleTapshowSharePanel") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapshowSharePanel"]) {
+        // 添加分享选项（1.0.24：弹窗精简开着时不显示）
+        if ((DYYYGetBool(@"DYYYDoubleTapshowSharePanel") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapshowSharePanel"]) && !GHLGetBool(GHL_KEY_DOUBLE_TAP_POPUP_COMPACT)) {
 
             AWEUserSheetAction *showSharePanel = [NSClassFromString(@"AWEUserSheetAction") actionWithTitle:@"分享视频"
                                                                                                    imgName:nil
@@ -10720,8 +10791,8 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
             [actions addObject:showSharePanel];
         }
 
-        // 添加点赞视频选项
-        if (DYYYGetBool(@"DYYYDoubleTapLike") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapLike"]) {
+        // 添加点赞视频选项（1.0.24：弹窗精简开着时不显示）
+        if ((DYYYGetBool(@"DYYYDoubleTapLike") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapLike"]) && !GHLGetBool(GHL_KEY_DOUBLE_TAP_POPUP_COMPACT)) {
 
             AWEUserSheetAction *likeAction = [NSClassFromString(@"AWEUserSheetAction") actionWithTitle:@"点赞视频"
                                                                                                imgName:nil
@@ -10731,8 +10802,8 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
             [actions addObject:likeAction];
         }
 
-        // 添加长按面板
-        if (DYYYGetBool(@"DYYYDoubleTapshowDislikeOnVideo") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapshowDislikeOnVideo"]) {
+        // 添加长按面板（1.0.24：弹窗精简开着时不显示）
+        if ((DYYYGetBool(@"DYYYDoubleTapshowDislikeOnVideo") || ![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDoubleTapshowDislikeOnVideo"]) && !GHLGetBool(GHL_KEY_DOUBLE_TAP_POPUP_COMPACT)) {
 
             AWEUserSheetAction *showDislikeOnVideo = [NSClassFromString(@"AWEUserSheetAction") actionWithTitle:@"长按面板"
                                                                                                        imgName:nil
@@ -11137,6 +11208,45 @@ static void DYYYApplyTabBarSelectedGold(AWENormalModeTabBar *tabBar, BOOL enable
     }
 }
 
+// 1.0.24：底栏高度参数化——「修改底栏高度」填了值就按填的算（ABTest 配置只改抖音
+// 自己的底栏高，这里的布局变量也要同步，不然全屏/内容高度按旧高度算）。
+// 跟 DYYYABTestHook.xm 里的同名解析逻辑一致（那边是 static，复用不了）。
+static CGFloat DYYYResolveCustomTabBarHeight(void) {
+    NSString *heightString = [[NSUserDefaults standardUserDefaults] stringForKey:@"DYYYTabBarHeight"];
+    if (heightString.length == 0) return -1;
+    float parsed = 0;
+    NSScanner *scanner = [NSScanner scannerWithString:heightString];
+    if (![scanner scanFloat:&parsed] || !scanner.isAtEnd || parsed <= 0) return -1;
+    return parsed;
+}
+
+// 1.0.24：底部字体大小——按设定缩放（以第一次看到的原生字号为基准，不叠加；
+// 做法复用 1.0.8 弹幕 setFont 缩放先例）。
+static char kDYYYTabBarOrigFontSizeKey;
+static void DYYYApplyTabBarFontScale(AWENormalModeTabBar *tabBar) {
+    if (!tabBar) return;
+    NSString *scaleString = GHLGetString(GHL_KEY_TAB_BAR_FONT_SCALE);
+    CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
+    if (scale < 0.8) scale = 0.8;
+    if (scale > 1.3) scale = 1.3;
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:tabBar];
+    while (stack.count > 0) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UILabel class]]) {
+            UILabel *label = (UILabel *)view;
+            NSNumber *origSize = objc_getAssociatedObject(label, &kDYYYTabBarOrigFontSizeKey);
+            if (!origSize) {
+                origSize = @(label.font.pointSize);
+                objc_setAssociatedObject(label, &kDYYYTabBarOrigFontSizeKey, origSize, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            CGFloat target = [origSize floatValue] * scale;
+            if (fabs(label.font.pointSize - target) > 0.01) label.font = [label.font fontWithSize:target];
+        }
+        [stack addObjectsFromArray:view.subviews];
+    }
+}
+
 static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
     if (!tabBar) return;
     UIVisualEffectView *glass = objc_getAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey);
@@ -11269,6 +11379,11 @@ static Class tabBarButtonClass = nil;
         NSLog(@"[DYYY] layoutSubviews: gCurrentTabBarHeight fallback synced to %.1f.", gCurrentTabBarHeight);
     }
 
+    // 1.0.24：底栏高度参数化——填了「修改底栏高度」就按填的算（每轮布局都同步，
+    // ABTest 配置生效后底栏真变高了，这里的布局变量也要跟上）。
+    CGFloat customTabBarHeight = DYYYResolveCustomTabBarHeight();
+    if (customTabBarHeight > 0) gCurrentTabBarHeight = customTabBarHeight;
+
     // 1.0.7：隐藏逻辑抽到 DYYYApplyTabBarHideSettings（类名片段 + 子树标签 + 位置兜底），
     // 再挂一个 0.5 秒后的补查，防止抖音在我们之后又把按钮显示回来。
     DYYYApplyTabBarHideSettings(self);
@@ -11276,6 +11391,9 @@ static Class tabBarButtonClass = nil;
 
     // 1.0.8：底栏毛玻璃 + 选中态金色（只在最底层垫毛玻璃，不动隐藏逻辑）。
     DYYYApplyTabBarGlassEffect(self);
+
+    // 1.0.24：底部字体大小（按设定缩放）。
+    DYYYApplyTabBarFontScale(self);
 
     // 禁用首页刷新功能
     if (DYYYGetBool(@"DYYYDisableHomeRefresh")) {
@@ -13504,7 +13622,10 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
         // DYYYEnableBackgroundListen 镜像也默认开（setListenVideoStatus 的改写跟它走）。
         @"GHLBackgroundAudio" : @YES,
         @"GHLBackgroundListen" : @YES,
-        @"DYYYEnableBackgroundListen" : @YES
+        @"DYYYEnableBackgroundListen" : @YES,
+        // 1.0.24：接口保存默认接皇上给的原画质接口（装完不用填就能点「接口保存」；
+        // registerDefaults 只填没存过值的 key，用户改过/清空过的不覆盖）。
+        @"DYYYInterfaceDownload" : @"http://111.231.72.74/douyin-api/public/?apikey=AwemeX_&url="
     }];
 
     DYYYMigrateCombinedHDRModeIfNeeded();

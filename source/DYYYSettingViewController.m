@@ -7,6 +7,7 @@
 #import "DYYYConstants.h"
 #import "DYYYDownloadManagerViewController.h"
 #import "GHLAboutViewController.h"
+#import "GHLMemoListViewController.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYFloatingButtonCoordinator.h"
@@ -179,11 +180,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 // 1.0.4：统一视觉——深色跟随（关了就强制浅色：overrideUserInterfaceStyle 让系统颜色也跟着浅）。
 - (void)ghlApplySettingsAppearance {
-    // 1.0.22：卡片内页底改不透明（1.0.21 是透明，上一页的按键/文字从下面透上来，录屏实锤；
-    // 玻璃感只留给卡片外壳和首页，推上来的页面内容要盖实、字要看得清）。
+    // 1.0.24：卡片内页底改透明（卡片底已经铺了整张自定义背景图 + 淡白遮罩，
+    // 页底透明才能让图从列表后面透出来；行底是半透明白，字看得清）。
+    // 没自选图时卡片底是实心浅灰，透明页底露出来就是浅灰，和原来一样。
     if (self.ghlInFloatPanel) {
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
-        self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        self.view.backgroundColor = [UIColor clearColor];
         return;
     }
     self.overrideUserInterfaceStyle = GHLFollowSystemDarkEnabled() ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleLight;
@@ -193,11 +195,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 
 // 1.0.4：自定义背景铺底（有自选图就铺图 + 遮罩，没有就回默认分组底色）。
 - (void)ghlApplySettingsBackground {
-    // 1.0.22：卡片内不铺自定义背景图、表底改不透明（1.0.21 表底透明，背后的视频直接透过
-    // 每一行显示，字难读，录屏实锤；玻璃感只留给卡片外壳）。
+    // 1.0.24：卡片内不自己铺图（整张图已经铺在卡片底，见 GHLFeatures.xm；
+    // 这里再铺一张会和卡片底图错位出两道边），表底改透明让卡片底图透出来。
     if (self.ghlInFloatPanel) {
         self.tableView.backgroundView = nil;
-        self.tableView.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        self.tableView.backgroundColor = [UIColor clearColor];
         [self.tableView reloadData];
         return;
     }
@@ -348,7 +350,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
             // 1.0.4 下载管理页入口
             // 1.0.16：顾海龙日志已移到关于页（本行拿掉，不是复制）。
-            [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"下载管理（已保存统计/清理缓存）" key:GHL_KEY_DOWNLOAD_MANAGER type:DYYYSettingItemTypePicker],
+            // 1.0.24：保存相册详细——开后保存时把作者/文案/链接/发布时间/点赞评论分享收藏播放/
+            // 时长/视频 ID 写进文件说明里（相册里能看到）；默认关（原来这个开关没有设置入口）。
+            [DYYYSettingItem itemWithTitle:@"保存时附作品信息（相册详细）" key:DYYY_ALBUM_MEDIA_DESCRIPTION_KEY type:DYYYSettingItemTypeSwitch],
+            // 1.0.24：文案备忘录——只做备忘（定时发送不做），点开进列表页。
+            [DYYYSettingItem itemWithTitle:@"文案备忘录" key:GHL_KEY_MEMO_PAGE type:DYYYSettingItemTypePicker]
         ],
         @[
             // 顾海龙抖音（二）：32-43（xuu 行为参考，代码自己写）
@@ -468,6 +475,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"文案下移距离" key:@"DYYYDescriptionVerticalOffset" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"属地上移距离" key:@"DYYYIPLabelVerticalOffset" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"修改底栏高度" key:@"DYYYTabBarHeight" type:DYYYSettingItemTypeTextField placeholder:@"默认为空"],
+            // 1.0.24：底部字体大小（0.8-1.3 倍，复用弹幕字号缩放做法）；首页下移就是改底栏高度。
+            [DYYYSettingItem itemWithTitle:@"底部字体大小（0.8-1.3倍）" key:GHL_KEY_TAB_BAR_FONT_SCALE type:DYYYSettingItemTypeTextField placeholder:@"默认1.0"],
             [DYYYSettingItem itemWithTitle:@"设置首页标题" key:@"DYYYIndexTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置朋友标题" key:@"DYYYFriendsTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置消息标题" key:@"DYYYMsgTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
@@ -649,6 +658,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"功能排列" key:GHL_KEY_QUICK_PANEL_COLUMNS type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"自定义列数（1-6）" key:GHL_KEY_QUICK_PANEL_COLUMNS_CUSTOM type:DYYYSettingItemTypeTextField placeholder:@"默认3"],
             [DYYYSettingItem itemWithTitle:@"背景模糊度（0-100）" key:GHL_KEY_QUICK_PANEL_BLUR type:DYYYSettingItemTypeTextField placeholder:@"默认58"],
+            // 1.0.24：下载面板可调——格子高度/左右边距/格子透明度/格子颜色。
+            [DYYYSettingItem itemWithTitle:@"面板格子高度（72-120）" key:GHL_KEY_QUICK_PANEL_CELL_HEIGHT type:DYYYSettingItemTypeTextField placeholder:@"默认92"],
+            [DYYYSettingItem itemWithTitle:@"面板左右边距（0-48）" key:GHL_KEY_QUICK_PANEL_SIDE_MARGIN type:DYYYSettingItemTypeTextField placeholder:@"默认16"],
+            [DYYYSettingItem itemWithTitle:@"面板格子透明度（0.1-1.0）" key:GHL_KEY_QUICK_PANEL_CELL_ALPHA type:DYYYSettingItemTypeTextField placeholder:@"默认跟微透明"],
+            [DYYYSettingItem itemWithTitle:@"面板格子颜色" key:GHL_KEY_QUICK_PANEL_CELL_COLOR type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"长按菜单微透明" key:GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板过滤文案" key:@"DYYYLongPressFilterTitle" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板过滤作者" key:@"DYYYLongPressFilterUser" type:DYYYSettingItemTypeSwitch],
@@ -665,11 +679,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             [DYYYSettingItem itemWithTitle:@"启用双击打开评论" key:@"DYYYEnableDoubleOpenComment" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"启用双击打开菜单" key:@"DYYYEnableDoubleTapMenu" type:DYYYSettingItemTypeSwitch],
+            // 1.0.24：按位置双击（左半边直接保存，右半边弹菜单）；弹窗精简（只留下载相关）。
+            [DYYYSettingItem itemWithTitle:@"按位置双击（左存右弹）" key:GHL_KEY_DOUBLE_TAP_POSITION type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"双击弹窗精简（只留下载）" key:GHL_KEY_DOUBLE_TAP_POPUP_COMPACT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"发图发视频默认勾选原图" key:@"DYYYAutoSelectOriginalPhoto" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"资料默认进入作品" key:@"DYYYDefaultEnterWorks" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"禁用自动进入直播" key:@"DYYYDisableAutoEnterLive" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"左侧边栏快捷入口" key:@"DYYYEntrance" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"接口解析保存媒体" key:@"DYYYInterfaceDownload" type:DYYYSettingItemTypeTextField placeholder:@"不填关闭"],
+            // 1.0.24：默认接皇上给的原画质接口（行上显示默认地址，可改可清空）。
+            [DYYYSettingItem itemWithTitle:@"接口解析保存媒体" key:@"DYYYInterfaceDownload" type:DYYYSettingItemTypeTextField placeholder:@"默认原画质接口，可改可清空"],
             [DYYYSettingItem itemWithTitle:@"接口显示清晰选项" key:@"DYYYShowAllVideoQuality" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存作品信息" key:@"DYYYAlbumMediaDescription" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"移除评论实况水印" key:@"DYYYCommentLivePhotoNotWaterMark" type:DYYYSettingItemTypeSwitch],
@@ -843,6 +861,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         // 1.0.4 下载管理页入口
         return @[ @"打开下载管理" ];
+    } else if ([key isEqualToString:GHL_KEY_MEMO_PAGE]) {
+        // 1.0.24：文案备忘录入口
+        return @[ @"打开文案备忘录" ];
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         // 1.0.4 导入配置
         return @[ @"选择配置文件导入" ];
@@ -898,6 +919,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
         // 1.0.23 第二批：54 功能排列
         return @[ @"每排2个", @"每排3个", @"每排4个", @"横向等列", @"自定义" ];
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_CELL_COLOR]) {
+        // 1.0.24：格子颜色三选一
+        return @[ @"白色", @"金色", @"深灰" ];
     } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
         // 1.0.23 第二批：67 显示功能按钮三档
         return @[ @"关闭", @"倍速", @"快进" ];
@@ -918,6 +942,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_MEMO_PAGE]) {
+        return @"打开文案备忘录";
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         return @"选择配置文件导入";
     } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
@@ -966,6 +992,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return value ?: @"磨砂";
     } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
         return value ?: @"每排3个";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_CELL_COLOR]) {
+        return value ?: @"白色";
     } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
         return value ?: @"倍速";
     }
@@ -983,6 +1011,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"打开语音包管理器";
     } else if ([key isEqualToString:GHL_KEY_DOWNLOAD_MANAGER]) {
         return @"打开下载管理";
+    } else if ([key isEqualToString:GHL_KEY_MEMO_PAGE]) {
+        return @"打开文案备忘录";
     } else if ([key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
         return @"选择配置文件导入";
     } else if ([key isEqualToString:GHL_KEY_EXPORT_SETTINGS]) {
@@ -1022,6 +1052,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"磨砂";
     } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
         return @"每排3个";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_CELL_COLOR]) {
+        return @"白色";
     } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
         return @"倍速";
     }
@@ -1363,12 +1395,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             if (sectionItems.count == 1 && [sectionItems[0].key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
                 GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
                 aboutVC.settingsViewController = self;
+                // 1.0.24：卡片内推关于页也带上卡片标记，页底透明、卡半透明白，共用卡片底图。
+                aboutVC.ghlInFloatPanel = self.ghlInFloatPanel;
                 [self.navigationController pushViewController:aboutVC animated:YES];
                 [tableView deselectRowAtIndexPath:indexPath animated:YES];
                 return;
             }
         }
         DYYYSettingViewController *subVC = [[DYYYSettingViewController alloc] initWithSectionIndex:indexPath.row];
+        // 1.0.24：子页继承卡片标记（以前没传，子页按全屏走、自己又铺一张图；
+        // 现在卡片底图只有一张，子页页底透明共用它，行半透明白）。
+        subVC.ghlInFloatPanel = self.ghlInFloatPanel;
         [self.navigationController pushViewController:subVC animated:YES];
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
         return;
@@ -1379,6 +1416,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     if ([item.key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
         GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
         aboutVC.settingsViewController = self;
+        // 1.0.24：卡片内推关于页也带上卡片标记（同上）。
+        aboutVC.ghlInFloatPanel = self.ghlInFloatPanel;
         [self.navigationController pushViewController:aboutVC animated:YES];
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
         return;
@@ -1412,6 +1451,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              // 1.0.4 下载管理页
                                                              DYYYDownloadManagerViewController *downloadVC = [[DYYYDownloadManagerViewController alloc] init];
                                                              [self.navigationController pushViewController:downloadVC animated:YES];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_MEMO_PAGE]) {
+                                                             // 1.0.24：文案备忘录列表页
+                                                             GHLMemoListViewController *memoVC = [[GHLMemoListViewController alloc] init];
+                                                             memoVC.ghlInFloatPanel = self.ghlInFloatPanel;
+                                                             [self.navigationController pushViewController:memoVC animated:YES];
                                                          } else if ([item.key isEqualToString:GHL_KEY_IMPORT_SETTINGS]) {
                                                              // 1.0.4 导入配置
                                                              [self ghlPresentImportPicker];
@@ -1428,6 +1472,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              // 1.0.4 恢复默认背景
                                                              GHLClearCustomBackground();
                                                              [self ghlApplySettingsBackground];
+                                                             // 1.0.24：卡片底图也重铺（没自选图就回实心浅灰）。
+                                                             GHLRefreshFloatPanelCardBackground();
                                                              [DYYYUtils showToast:@"已恢复默认背景"];
                                                          } else if ([item.key isEqualToString:GHL_KEY_RESET_LOGO]) {
                                                              // 1.0.4 恢复默认龙头
@@ -1804,6 +1850,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
               [DYYYUtils showToast:@"面板背景图已更换，下次长按就生效"];
           } else {
               [strongSelf ghlApplySettingsBackground];
+              // 1.0.24：卡片底图也重铺，换完马上看到。
+              GHLRefreshFloatPanelCardBackground();
               [DYYYUtils showToast:@"背景图已更换"];
           }
         });

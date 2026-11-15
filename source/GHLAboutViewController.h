@@ -12,4 +12,7 @@
 // 配置三行（导出/导入/恢复默认）复用设置主页的逻辑，推本页时由设置主页填上。
 @property(nonatomic, weak, nullable) DYYYSettingViewController *settingsViewController;
 
+// 1.0.24：在卡片里打开时由设置主页填 YES——页底透明、卡半透明白，共用卡片底图。
+@property(nonatomic, assign) BOOL ghlInFloatPanel;
+
 @end
