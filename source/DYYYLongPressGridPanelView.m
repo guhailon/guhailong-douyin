@@ -60,11 +60,12 @@ static NSInteger GHLQuickPanelColumns(void) {
     return 3;
 }
 // 56 背景模糊度 0-100（默认 58，跟他演示的 58% 一致；实现成毛玻璃视图的 alpha）。
+// 1.0.26：钳下限 20（防调到 0 全透，面板糊黑空）。
 static CGFloat GHLQuickPanelBlurAmount(void) {
     NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_BLUR];
     if (!v || v.length == 0) return 58;
     CGFloat f = [v floatValue];
-    if (f < 0) f = 0;
+    if (f < 20) f = 20;
     if (f > 100) f = 100;
     return f;
 }
@@ -88,11 +89,13 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 @property(nonatomic, strong, nullable) UIPanGestureRecognizer *dismissPan;
 
 @property(nonatomic, strong) UIVisualEffectView *blurView;
+@property(nonatomic, strong, nullable) UIView *backingView; // 1.0.26：不透浅色底板（实白），垫在毛玻璃下面
 @property(nonatomic, strong, nullable) UIImageView *backgroundImageView; // 51 自选背景图（在毛玻璃下面，糊出来）
 @property(nonatomic, strong, nullable) UIView *liquidTintView;           // 53 液态玻璃的淡白 tint
 @property(nonatomic, strong) UIImageView *dragonImageView;
 @property(nonatomic, strong) UIScrollView *gridScrollView;
 @property(nonatomic, strong) NSMutableArray<UIButton *> *cells;
+@property(nonatomic, assign) BOOL didLogLayout; // 1.0.26：layout 日志每面板只记一次
 @property(nonatomic, assign) NSInteger gridColumns;     // 54 排列的列数（横向等列时为 4，仅作单行格宽参考）
 @property(nonatomic, assign) BOOL horizontalLayout;     // 54 横向等列：单行横滑
 @property(nonatomic, assign) CGFloat cellBackgroundAlpha; // 64 微透明：格子底透明度（默认 0.55，开了 0.40）
@@ -200,6 +203,18 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     } else {
         _cellBackgroundAlpha = GHLGetBool(GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT) ? 0.40 : 0.55;
     }
+
+    // 1.0.26：不透浅色底板（实白）垫在毛玻璃下面——面板自己没有实底色，底色全靠毛玻璃糊
+    // 背后的东西；1.0.24 藏表后背后只剩没设颜色的黑空，糊出来就是黑。有了这层底，
+    // 底板永远是亮的，藏表照样藏、重影照样不回来。
+    _backingView = [[UIView alloc] init];
+    _backingView.backgroundColor = [UIColor whiteColor];
+    _backingView.userInteractionEnabled = NO;
+    _backingView.layer.cornerRadius = 24;
+    _backingView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+    _backingView.layer.masksToBounds = YES;
+    _backingView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self addSubview:_backingView];
 
     // 51 自选背景图（在毛玻璃下面，糊出来；没选就只有毛玻璃）。
     UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
@@ -332,6 +347,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     CGRect bounds = self.bounds;
     if (bounds.size.width <= 0) return;
     self.blurView.frame = bounds;
+    if (self.backingView) self.backingView.frame = bounds;
     if (self.backgroundImageView) self.backgroundImageView.frame = bounds;
     if (self.liquidTintView) self.liquidTintView.frame = bounds;
 
@@ -364,6 +380,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
             iconView.frame = CGRectMake((cellWidth - 28) / 2, iconY, 28, 28);
             label.frame = CGRectMake(4, iconY + 34, cellWidth - 8, 18);
         }
+        [self ghl_logLayoutOnce];
         return;
     }
     CGFloat cellWidth = (bounds.size.width - GHLQuickPanelSideMargin() * 2 - kDYYYGridSpacing * (columns - 1)) / columns;
@@ -385,6 +402,49 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         UILabel *label = [cell viewWithTag:1002];
         iconView.frame = CGRectMake((cellWidth - 28) / 2, iconY, 28, 28);
         label.frame = CGRectMake(4, iconY + 34, cellWidth - 8, 18);
+    }
+    [self ghl_logLayoutOnce];
+}
+
+#pragma mark - 1.0.26：面板设置日志 / 背景图刷新
+
+// Show 时记一行解析到的面板设置（材质/模糊度/格子颜色/透明度/背景图有无），下次日志不用猜。
+- (void)ghl_logResolvedSettings {
+    NSString *cellColor = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR] ?: @"白色";
+    GHLLog(@"长按面板：材质=%@，模糊度=%.0f，格子颜色=%@，格子透明度=%.2f，背景图=%@",
+           GHLQuickPanelMaterial(), GHLQuickPanelBlurAmount(), cellColor, self.cellBackgroundAlpha,
+           self.backgroundImageView ? @"有" : @"无");
+}
+
+// 每面板只记一次 bounds＋首格 frame（格子看不见时，日志能定论是布局还是渲染问题）。
+- (void)ghl_logLayoutOnce {
+    if (self.didLogLayout || self.cells.count == 0) return;
+    self.didLogLayout = YES;
+    GHLLog(@"长按面板：bounds=%@，首格 frame=%@", NSStringFromCGRect(self.bounds), NSStringFromCGRect(self.cells[0].frame));
+}
+
+// 每次 Show 都刷新背景图：只在 init 读一次时，换图后旧面板一直沿用旧图（1.0.24 换图失败的主因）。
+- (void)ghl_refreshBackgroundImage {
+    UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
+    if (panelBG) {
+        if (self.backgroundImageView) {
+            self.backgroundImageView.image = panelBG;
+        } else {
+            UIImageView *iv = [[UIImageView alloc] initWithImage:panelBG];
+            iv.contentMode = UIViewContentModeScaleAspectFill;
+            iv.clipsToBounds = YES;
+            iv.layer.cornerRadius = 24;
+            iv.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+            iv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            iv.frame = self.bounds;
+            // 插在底板上面、毛玻璃下面。
+            if (self.backingView) [self insertSubview:iv aboveSubview:self.backingView];
+            else [self insertSubview:iv atIndex:0];
+            _backgroundImageView = iv;
+        }
+    } else if (self.backgroundImageView) {
+        [self.backgroundImageView removeFromSuperview];
+        self.backgroundImageView = nil;
     }
 }
 

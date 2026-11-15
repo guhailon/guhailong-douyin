@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 // 不留空）。抖音自己的 presentation 不一定採納 preferredContentSize，盡力而為，真機驗。
 + (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom;
 
+// 1.0.26：Show 时记一行解析到的面板设置（材质/模糊度/格子颜色/透明度/背景图有无），
+// 下次日志不用猜；每次 Show 刷新背景图（只在 init 读一次时，换图后旧面板一直沿用旧图）。
+- (void)ghl_logResolvedSettings;
+- (void)ghl_refreshBackgroundImage;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -1181,6 +1181,10 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
             gDYYYLongPressGridHiddenVC = vc;
             GHLLog(@"长按面板：原生列表已再次隐藏");
         }
+        // 1.0.26：面板复用时也刷新背景图（换图后旧面板沿用旧图，是 1.0.24 换图失败的主因），
+        // 并记一行解析到的面板设置。
+        [gDYYYLongPressGridPanel ghl_refreshBackgroundImage];
+        [gDYYYLongPressGridPanel ghl_logResolvedSettings];
         return; // 已盖上，成功状态，不记日志
     }
     NSArray *data = gDYYYLongPressPanelData;
@@ -1280,6 +1284,9 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     panel.frame = vc.view.bounds;
     [vc.view addSubview:panel];
     [panel setNeedsLayout];
+    // 1.0.26：新建面板也走同一套刷新＋记日志（init 只读一次图，双保险；设置值记一行，下次日志不用猜）。
+    [panel ghl_refreshBackgroundImage];
+    [panel ghl_logResolvedSettings];
     gDYYYLongPressGridPanel = panel;
     GHLLog(@"长按面板：网格已盖上（%lu 项，其中原生 %ld 项）：%@", (unsigned long)gridItems.count, (long)nativeItemCount, [[gridItems valueForKey:@"title"] componentsJoinedByString:@"、"]);
 }

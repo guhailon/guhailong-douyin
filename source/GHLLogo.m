@@ -2,6 +2,7 @@
 // 来源：workspace/goals/space/files/gu-hai-long-logo/header-logo-dragon-800.jpg
 // 头部居中裁切 460x460 (180,210)-(640,670) 再缩到 256x256，头卡 64pt 显示。1.0.3 重裁：龙头居中对齐。
 #import <UIKit/UIKit.h>
+#import "GHLFeatures.h" // 1.0.26：存图记 GHLLog（GHLLog 在 GHLFeatures.h 里声明）
 
 // 前向声明：GHLLogoImage 在文件上方调用下面的自选图读取函数。
 UIImage *GHLCustomLogoImage(void);
@@ -563,11 +564,21 @@ BOOL GHLHasCustomQuickPanelBackground(void) {
 }
 
 BOOL GHLSaveCustomQuickPanelBackgroundImage(UIImage *image) {
-    if (!image) return NO;
+    // 1.0.26：存图成功/失败记一行日志（路径＋ok/fail；以前只弹 toast，不进日志，换图失败只能靠猜）。
+    if (!image) {
+        GHLLog(@"面板背景图：保存失败（图为空）");
+        return NO;
+    }
     UIImage *resized = GHLImageScaledToMaxDimension(image, 1242);
     NSData *jpeg = UIImageJPEGRepresentation(resized, 0.85);
-    if (!jpeg) return NO;
-    return [jpeg writeToFile:GHLCustomQuickPanelBackgroundPath() atomically:YES];
+    if (!jpeg) {
+        GHLLog(@"面板背景图：保存失败（转 JPEG 失败）");
+        return NO;
+    }
+    NSString *path = GHLCustomQuickPanelBackgroundPath();
+    BOOL ok = [jpeg writeToFile:path atomically:YES];
+    GHLLog(@"面板背景图：保存%@（%@）", ok ? @"成功" : @"失败", path);
+    return ok;
 }
 
 void GHLClearCustomQuickPanelBackground(void) {
