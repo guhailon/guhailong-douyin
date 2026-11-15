@@ -50,6 +50,8 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
     GHLAboutRowResetBanner = 208,  // 恢复默认横幅（1.0.15）
     GHLAboutRowLogViewer = 209,    // 顾海龙日志（1.0.16，从设置页常用功能移过来）
+    GHLAboutRowClearCache = 210,   // 清除缓存（1.0.23 第二批 76 插件配置页）
+    GHLAboutRowTelegram = 211,     // Telegram（1.0.23 第二批 76；暂未开通，只提示，不链到别人的频道）
 };
 
 // 1.0.12 的声明全文；1.0.16 皇上改措辞：改成「免费使用，仅限学习交流」。
@@ -145,6 +147,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         // 1.0.14：QQ 行标签改成「QQ：QQ群交流：」+ 号码，点按复制不变。
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ：QQ群交流：%@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ群 %@", GHL_QQ_GROUP_NUMBER] icon:@"person.2" tag:GHLAboutRowQQGroup chevron:NO],
+        // 1.0.23 第二批 76：Telegram 行——咱们自己的 Telegram 频道还没开通，只提示，
+        // 不链到 @DouYinHook（那是抖音图层作者的频道）。
+        [self ghlRowSpecWithTitle:@"Telegram（暂未开通）" icon:@"paperplane" tag:GHLAboutRowTelegram chevron:NO],
     ]
                                                joinButton:YES
                                                       width:width - kGHLAboutCardMargin * 2];
@@ -163,6 +168,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         [self ghlRowSpecWithTitle:@"恢复默认横幅" icon:@"arrow.uturn.backward" tag:GHLAboutRowResetBanner chevron:YES],
         [self ghlRowSpecWithTitle:@"更新日志" icon:@"list.clipboard" tag:GHLAboutRowChangelog chevron:YES],
         [self ghlRowSpecWithTitle:@"检查更新" icon:@"sparkles" tag:GHLAboutRowCheckUpdate chevron:YES],
+        // 1.0.23 第二批 76：清除缓存（检查更新之后、声明之前；声明必须在最下面）。
+        [self ghlRowSpecWithTitle:@"清除缓存" icon:@"trash" tag:GHLAboutRowClearCache chevron:YES],
         // 1.0.16：顾海龙日志从设置页常用功能移过来（检查更新之后、声明之前；声明必须在最下面）。
         // 图标不用 list.clipboard（更新日志占了）和 doc.text（声明占了），用 doc.text.magnifyingglass。
         [self ghlRowSpecWithTitle:@"顾海龙日志" icon:@"doc.text.magnifyingglass" tag:GHLAboutRowLogViewer chevron:YES],
@@ -435,6 +442,16 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             break;
         case GHLAboutRowCheckUpdate:
             [self ghlCheckForUpdate];
+            break;
+        case GHLAboutRowClearCache:
+            // 1.0.23 第二批 76：清除缓存（DYYYUtils 现成的清缓存目录）。
+            [DYYYUtils clearCacheDirectory];
+            [DYYYUtils showToast:@"缓存已清除"];
+            GHLLog(@"关于：已清除缓存");
+            break;
+        case GHLAboutRowTelegram:
+            // 1.0.23 第二批 76：Telegram 暂未开通，只提示，不链到别人的频道。
+            [DYYYSettingsHelper showAboutDialog:@"Telegram" message:[NSString stringWithFormat:@"Telegram 交流群暂未开通，先加 QQ 群 %@ 交流", GHL_QQ_GROUP_NUMBER] onConfirm:nil];
             break;
         case GHLAboutRowLogViewer:
             // 1.0.16：顾海龙日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，

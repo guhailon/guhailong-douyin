@@ -8607,6 +8607,7 @@ static NSHashTable *processedParentViews = nil;
     NSInteger daysThreshold = DYYYGetInteger(@"DYYYFilterTimeLimit");
     BOOL skipFriendsVideo = DYYYGetBool(@"DYYYSkipFriendsVideo");
     BOOL skipLive = DYYYGetBool(@"DYYYSkipLive"); // 读取直播过滤开关
+    BOOL skipShopping = GHLGetBool(GHL_KEY_SKIP_SHOPPING); // 1.0.23 第二批：61 推荐页跳过购物视频
     NSInteger minLikesThreshold = DYYYGetInteger(@"DYYYFilterLowLikes"); // 读取低赞过滤阈值 (例如: 1000)
     BOOL skipPhotoText = DYYYGetBool(@"DYYYSkipPhotoText"); // 图文过滤
     BOOL skipPhoto = DYYYGetBool(@"DYYYSkipPhoto"); // 图集过滤
@@ -8619,6 +8620,7 @@ static NSHashTable *processedParentViews = nil;
 
     // 第一阶段：先做稳定字段过滤（直播/时间/类型）
     NSMutableArray *baseFiltered = [NSMutableArray arrayWithCapacity:orig.count];
+    NSInteger shoppingSkipped = 0; // 1.0.23 第二批：61 本次跳过的购物视频数
 
     for (id obj in orig) {
         if (![obj isKindOfClass:%c(AWEAwemeModel)]) {
@@ -8639,6 +8641,16 @@ static NSHashTable *processedParentViews = nil;
 
         if (skipLive && [m respondsToSelector:@selector(cellRoom)] && m.cellRoom != nil) {
             continue; // 命中直播过滤，跳过
+        }
+
+        // 2.4 购物视频过滤（推荐页，1.0.23 第二批 61 号）：带电商标签的视频跳过。
+        if (skipShopping &&
+            [m respondsToSelector:@selector(referString)] &&
+            [m.referString isEqualToString:@"homepage_hot"] &&
+            [m respondsToSelector:@selector(ecommerceBelowLabel)] &&
+            m.ecommerceBelowLabel != nil) {
+            shoppingSkipped++;
+            continue;
         }
 
         // 2.1 图文模式过滤逻辑（推荐页）
@@ -8692,6 +8704,10 @@ static NSHashTable *processedParentViews = nil;
         }
 
         [baseFiltered addObject:obj];
+    }
+
+    if (shoppingSkipped > 0) {
+        GHLLog(@"推荐页跳过购物视频：本次跳过 %ld 个", (long)shoppingSkipped);
     }
 
     if (minLikesThreshold <= 0 || baseFiltered.count == 0) {
@@ -11124,7 +11140,9 @@ static void DYYYApplyTabBarSelectedGold(AWENormalModeTabBar *tabBar, BOOL enable
 static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
     if (!tabBar) return;
     UIVisualEffectView *glass = objc_getAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey);
-    if (!GHLGetBool(GHL_KEY_TABBAR_GLASS)) {
+    // 1.0.23 第二批：78 底部悬浮毛玻璃胶囊栏——开胶囊就自带毛玻璃（不用再开底栏毛玻璃）。
+    BOOL capsuleOn = GHLGetBool(GHL_KEY_TABBAR_CAPSULE);
+    if (!GHLGetBool(GHL_KEY_TABBAR_GLASS) && !capsuleOn) {
         if (glass) {
             [glass removeFromSuperview];
             objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -11138,7 +11156,15 @@ static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    glass.frame = tabBar.bounds;
+    if (capsuleOn) {
+        // 胶囊：左右各留 12pt、上下各留 4pt，圆角取半高，底栏浮起来。
+        glass.frame = CGRectInset(tabBar.bounds, 12, 4);
+        glass.layer.cornerRadius = glass.frame.size.height / 2;
+        glass.layer.masksToBounds = YES;
+    } else {
+        glass.frame = tabBar.bounds;
+        glass.layer.cornerRadius = 0;
+    }
     if (glass.superview != tabBar) [tabBar insertSubview:glass atIndex:0];
     tabBar.backgroundColor = [UIColor clearColor];
     DYYYApplyTabBarSelectedGold(tabBar, YES);
@@ -11983,6 +12009,12 @@ static Class tabBarButtonClass = nil;
 %new
 - (void)speedButtonTapped:(UIButton *)sender {
     [(FloatingSpeedButton *)sender resetFadeTimer];
+    // 1.0.23 第二批：67 显示功能按钮——快进档点一下快进 10 秒，不切倍速。
+    NSString *functionMode = GHLGetString(GHL_KEY_FLOAT_FUNCTION_BUTTON) ?: @"倍速";
+    if ([functionMode isEqualToString:@"快进"]) {
+        GHLSeekCurrentPlayerBySeconds(10);
+        return;
+    }
     NSArray *speeds = getSpeedOptions();
     if (speeds.count == 0)
         return;
@@ -13417,12 +13449,27 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
 %end
 %end
 
+// 1.0.23 第二批：75 玻璃评论面板 + AI 解析——评论面板顶部加 评论/AI 解析 双页签。
+// 玻璃本身在 DYYYCommentBlurCoordinator 里做（GHL_KEY_COMMENT_GLASS_PANEL）；
+// 这里只挂页签和 AI 解析面板（开关在 hook 里运行时判断）。
+%group GHLCommentAIParseGroup
+%hook AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    if (!GHLGetBool(GHL_KEY_COMMENT_GLASS_PANEL)) return;
+    GHLInstallCommentAIParseSegment((UIViewController *)self);
+}
+%end
+%end
+
 %ctor {
     Class fullscreenCommentClass = objc_getClass("AWECommentPanelContainerSwiftImpl.CommentContainerInnerViewController");
     if (fullscreenCommentClass && [fullscreenCommentClass isSubclassOfClass:[UIViewController class]]) {
         %init(DYYYFullscreenCommentGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
         // 1.0.23：评论文字变蓝（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
         %init(GHLBlueCommentTextGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
+        // 1.0.23 第二批：75 AI 解析页签（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
+        %init(GHLCommentAIParseGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
     // 1.0.20：后台听视频开关首次出现——没存过值时，沿用旧「画中画 + 后台播放」开关的值
     // （皇上现在开着就继续开着，关着就继续关着）；从没存过旧值才默认开。

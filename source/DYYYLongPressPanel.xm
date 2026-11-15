@@ -364,13 +364,18 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
 
     // 接口保存功能
     NSString *apiKey = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYInterfaceDownload"];
-    if (enableApiDownload && apiKey.length > 0) {
+    // 1.0.23 第二批：49 接口保存——没填接口地址也显示，点按时提示去设置里填（跟他的一键保存做法一致，按钮一直都在）。
+    if (enableApiDownload) {
         AWELongPressPanelBaseViewModel *apiDownload = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         apiDownload.awemeModel = self.awemeModel;
         apiDownload.actionType = 673;
         apiDownload.duxIconName = @"ic_cloudarrowdown_outlined_20";
         apiDownload.describeString = @"接口保存";
         apiDownload.action = ^{
+          if (apiKey.length == 0) {
+              [DYYYUtils showToast:@"先在设置 → 功能设置 → 接口解析保存媒体 里填接口地址"];
+              return;
+          }
           NSString *shareLink = [self.awemeModel valueForKey:@"shareURL"];
           if (shareLink.length == 0) {
               [DYYYUtils showToast:@"无法获取分享链接"];
@@ -438,7 +443,7 @@ static void DYYYLongPressGridPanelRetryAfterData(UIViewController *vc);
         createVideoViewModel.awemeModel = self.awemeModel;
         createVideoViewModel.actionType = 677;
         createVideoViewModel.duxIconName = @"ic_videosearch_outlined_20";
-        createVideoViewModel.describeString = @"制作视频";
+        createVideoViewModel.describeString = @"保存视频"; // 1.0.23 第二批：68 按他的说法改叫保存视频
         createVideoViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
 
@@ -1672,13 +1677,18 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
 
     // 接口保存功能
     NSString *apiKey = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYInterfaceDownload"];
-    if (enableApiDownload && apiKey.length > 0) {
+    // 1.0.23 第二批：49 接口保存——没填接口地址也显示，点按时提示去设置里填（跟他的一键保存做法一致，按钮一直都在）。
+    if (enableApiDownload) {
         AWELongPressPanelBaseViewModel *apiDownload = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         apiDownload.awemeModel = self.awemeModel;
         apiDownload.actionType = 673;
         apiDownload.duxIconName = @"ic_cloudarrowdown_outlined_20";
         apiDownload.describeString = @"接口保存";
         apiDownload.action = ^{
+          if (apiKey.length == 0) {
+              [DYYYUtils showToast:@"先在设置 → 功能设置 → 接口解析保存媒体 里填接口地址"];
+              return;
+          }
           NSString *shareLink = [self.awemeModel valueForKey:@"shareURL"];
           if (shareLink.length == 0) {
               [DYYYUtils showToast:@"无法获取分享链接"];
@@ -1746,7 +1756,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         createVideoViewModel.awemeModel = self.awemeModel;
         createVideoViewModel.actionType = 677;
         createVideoViewModel.duxIconName = @"ic_videosearch_outlined_20";
-        createVideoViewModel.describeString = @"制作视频";
+        createVideoViewModel.describeString = @"保存视频"; // 1.0.23 第二批：68 按他的说法改叫保存视频
         createVideoViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
 

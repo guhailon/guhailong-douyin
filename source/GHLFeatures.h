@@ -207,6 +207,44 @@ void GHLProbeVoiceFeatures(void);
 // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）——获取作品数据、图片预览
 #define GHL_KEY_AWEME_DATA @"GHLAwemeData"                 // 获取作品数据（长按面板）
 #define GHL_KEY_IMAGE_PREVIEW @"GHLImagePreview"           // 图片预览（长按面板，图集才有）
+// MARK: - 1.0.23 第二批（影片清单 42–78 号，Lee 2026-11-15 勾中 22 项并进同一版，版本号不变）
+// 48 自动连播：播完自动切下一个（按视频时长累计，2 秒巡检采样，需真机验证）
+#define GHL_KEY_AUTO_PLAY_NEXT @"GHLAutoPlayNext"
+// 51 快捷面板背景图片（长按网格面板的背景自选图；只用在面板表面，不动设置卡片）
+#define GHL_KEY_QUICK_PANEL_BG @"GHLQuickPanelBackground"       // Picker 入口：从相册选图
+#define GHL_KEY_QUICK_PANEL_BG_CLEAR @"GHLQuickPanelBackgroundClear" // Picker 入口：恢复默认背景
+// 53 面板材质三选一（只用在长按网格面板）：磨砂 / 液态玻璃 / 清透玻璃
+// （真液态玻璃是 iOS 26 的 UIGlassEffect，iOS 16.5 上用加厚材质＋淡白 tint 近似）
+#define GHL_KEY_QUICK_PANEL_MATERIAL @"GHLQuickPanelMaterial"
+// 54 功能排列（长按网格面板）：每排2个 / 每排3个 / 每排4个 / 横向等列 / 自定义
+#define GHL_KEY_QUICK_PANEL_COLUMNS @"GHLQuickPanelColumns"
+#define GHL_KEY_QUICK_PANEL_COLUMNS_CUSTOM @"GHLQuickPanelColumnsCustom" // 自定义时的列数（1-6，默认 3）
+// 56 背景模糊度（长按网格面板，0-100，默认 58，跟他演示的 58% 一致）
+#define GHL_KEY_QUICK_PANEL_BLUR @"GHLQuickPanelBlur"
+// 59 仅看一次开启下载按钮（探测：查看器类没找到，开关只做探针日志）
+#define GHL_KEY_VIEW_ONCE_DOWNLOAD @"GHLViewOnceDownload"
+// 61 推荐页跳过购物视频（按 ecommerceBelowLabel 认购物视频，只在推荐页）
+#define GHL_KEY_SKIP_SHOPPING @"GHLSkipShopping"
+// 64 长按菜单微透明（长按网格面板格子底更透）
+#define GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT @"GHLLongPressPanelTranslucent"
+// 66 评论区视图微透（评论面板背景更透一点）
+#define GHL_KEY_COMMENT_VIEW_TRANSLUCENT @"GHLCommentViewTranslucent"
+// 67 显示功能按钮（视频页浮动按钮三档）：关闭 / 倍速 / 快进
+#define GHL_KEY_FLOAT_FUNCTION_BUTTON @"GHLFloatFunctionButton"
+// 70 双击消息快捷回复（消息列表/聊天页双击消息，打开输入框）
+#define GHL_KEY_IM_DOUBLE_TAP_REPLY @"GHLIMDoubleTapReply"
+// 71 消息界面点加号弹出相册图片（探测：加号按钮类没确认，开关只记探针日志）
+#define GHL_KEY_IM_PLUS_ALBUM_PROBE @"GHLIMPlusAlbumProbe"
+// 73 续火花自动发消息（长按联系人头像才触发；模板为空或找不到发送按钮时只填文字不自动发）
+#define GHL_KEY_STREAK_AUTO_SEND @"GHLStreakAutoSend"
+#define GHL_KEY_STREAK_TEMPLATES @"GHLStreakTemplates" // 多条模板用 | 分隔
+// 75 玻璃评论面板 + AI 解析
+#define GHL_KEY_COMMENT_GLASS_PANEL @"GHLCommentGlassPanel" // 玻璃评论面板（浅色玻璃＋顶部 评论/AI 解析 双页签）
+#define GHL_KEY_AI_PARSE_KEY @"GHLAIParseKey"               // AI 解析 API Key（OpenAI 兼容接口，用户自己填）
+#define GHL_KEY_AI_PARSE_BASE_URL @"GHLAIParseBaseURL"       // 接口地址，如 https://api.openai.com/v1
+#define GHL_KEY_AI_PARSE_MODEL @"GHLAIParseModel"           // 模型，默认 gpt-3.5-turbo
+// 78 底部悬浮毛玻璃胶囊栏（底栏收成悬浮圆角毛玻璃条）
+#define GHL_KEY_TABBAR_CAPSULE @"GHLTabBarCapsule"
 // (38) 左滑返回、界面缩放、深色键盘、自定义底栏
 #define GHL_KEY_LEFT_SWIPE_BACK @"GHLLeftSwipeBack"
 #define GHL_KEY_INTERFACE_SCALE @"GHLInterfaceScale"
@@ -333,6 +371,24 @@ void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model);
 // 图集的图片全屏翻页预览（不是图集就提示没有图片）。
 void GHLShowAwemeDataForAwemeModel(AWEAwemeModel *model);
 void GHLPreviewAwemeImagesForAwemeModel(AWEAwemeModel *model);
+
+// MARK: - 1.0.23 第二批（影片清单 42–78 号）
+// 51 快捷面板背景图（存在 Documents/DYYY/ghl-quick-panel-bg.jpg，不进仓库；
+// 读不到、损坏一律回退默认——面板照常用毛玻璃，不崩）
+UIImage *GHLCustomQuickPanelBackgroundImage(void);
+BOOL GHLSaveCustomQuickPanelBackgroundImage(UIImage *image); // 长边缩到 1242 → JPEG q85
+void GHLClearCustomQuickPanelBackground(void);
+BOOL GHLHasCustomQuickPanelBackground(void);
+// (48) 自动连播：2 秒巡检里按视频时长累计，播完切下一个（见 GHLHousekeepingTick）
+void GHLCheckAutoPlayNext(void);
+// (59)(70)(71)(73) 私信手势与探针：2 秒巡检里找消息列表/聊天页装手势（只装一次）
+void GHLInstallIMGesturesIfNeeded(void);
+// (59) 仅看一次探针：dump 仅看一次/闪照相关类（只记日志，不 hook）
+void GHLProbeViewOnce(void);
+// (75) AI 解析：收评论区文字调 LLM 总结（需要用户自己填 Key 和接口地址）
+void GHLAIParseCommentsFromView(UIView *panelView, UITextView *resultView, UILabel *statusLabel);
+// (75) 评论面板顶部 评论/AI 解析 双页签（只装一次；开关在调用方 hook 里判断）
+void GHLInstallCommentAIParseSegment(UIViewController *commentVC);
 
 // MARK: - Logo
 UIImage *GHLLogoImage(void);

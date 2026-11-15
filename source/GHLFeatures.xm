@@ -214,6 +214,13 @@ BOOL GHLPerformFloatButtonAction(NSString *action) {
 // 前向声明（实现在下面“手势”一节，切下一个视频和边缘滑动共用）。
 static void GHLScrollFeedToNextVideo(void);
 
+// 前向声明（实现在下面“1.0.23 第二批”一节；@implementation GHLFeatures 里的
+// 手势/按钮回调在它前面，要先声明）。
+static void GHLHandleIMDoubleTapReply(void);
+static void GHLHandleIMAvatarLongPress(UITableView *table, CGPoint point);
+static void GHLHandleAISegmentChanged(UISegmentedControl *segment);
+static void GHLHandleAIParseStart(UIButton *button);
+
 BOOL GHLPerformGestureAction(NSString *action) {
     if (!action || [action isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) return NO;
     if (GHLPerformFloatButtonAction(action)) return YES;
@@ -260,7 +267,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.20：卡片点不了修好（遮罩点按手势以前把卡片里所有轻点都取消了，现在手势只认卡片外的触摸，行/开关/按钮都能点）；卡片改成影片的深色毛玻璃＋底部「完成」按钮（里面还是设置页本身）；所有入口都开卡片（浮动钮、抖音设置行、双指长按，通通不再全屏）；双指长按叫出卡片；卡片记住上次停在哪一页，重开回到那页；「后台音频」拆成两个开关（切后台触发画中画／后台听视频）；日志页加「复制日志」文字按钮＋搜索框；画中画宿主改成 320×180 可见尺寸再测、C 路补时间戳（修 1 秒误杀）、切后台触发加 10 秒冷却。\n"
            @"1.0.21：卡片改浅色玻璃＋按键（影片的按键感＋照片里文件夹那种浅色毛玻璃：卡片首页是标题＋搜索框＋两列按键，通用设置进设置列表、播放互动进「常用功能」分区、诊断反馈进日志、关于进关于页，首页／朋友／消息／我切底栏是探针；长按面板和关于页也改同款浅色玻璃，关于页对齐重查一遍）；双指长按只开卡片，不再触发倍速；画中画：A 路排除自己的宿主图层（修自己图层被当成系统播放器捡起来的竞态）、KVO 就绪后回主线程再调 start、切后台重复触发 10 秒内直接丢弃；兜底播放器加硬上限：调 start 后 3 秒没系统回调就必停，后台任务结束时没出来也停（修 8.log 实锤：没窗口的兜底一直响到会话结束）；主线程卡住看门狗（抓冻住的证据，冻住原因还没定死）；划掉后台还在响：WillTerminate 尽力停兜底＋停画中画，切后台触发时记一行音频状态。\n"
            @"1.0.22：卡片玻璃重做（1.0.21 渲染出来是平灰块不是玻璃：遮罩黑 0.5 压暗一半改成 0.12，糊换更透的 ExtraLight、淡白 tint 降到 0.06，卡片收小不再近全屏；长按面板同款）；底栏四键探针改递归全树找底栏控制器（以前只查 rootVC 一层，17 次点按全死在没找到控制器），找到记控制器类名和 tab 标题列表；卡片里推上去的页面（设置列表／关于／日志）改不透明、导航栏也不透明（以前半透明，上一页的按键和 QQ 号从下面透出来，关于页滚到顶还被导航栏盖住；玻璃只留给卡片外壳和首页）；设置行右边被卡片裁掉修好（表按 view 最终尺寸排、宽变了重建行）；设置行太透背后视频透出来修好（行底改不透明）；日志页文字右边被裁修好、打开总停在最上面那段旧日志修好（等排版完再滚到底，重读记一行）；常用功能最底下一行被「完成」按钮盖住一半修好（列表底部留白）。\n"
-           @"1.0.23：卡片改回照片那款 A——8 按键首页拿掉，点开卡片直接就是设置列表，浅色实心卡不再追毛玻璃，金底「完成」保留，记页保留；跳过 AD 章节是探测（广告章节识别字段没确认，开关开后只在日志里 dump 章节模型字段，不跳过，等真机日志定下字段再接）；评论文字变蓝（开关，只改正文颜色，用户名/时间不动，正文标签是启发式定位，需真机验证）；长按面板新增获取作品数据（弹窗显示＋复制到剪贴板）和图片预览（图集全屏翻页看，点一下关闭）；复制下载链接和解析保存不用加——咱们已经有了（687 复制无水印链接、673 接口保存＋666 保存视频／668 保存音频）。";
+           @"1.0.23：卡片改回照片那款 A——8 按键首页拿掉，点开卡片直接就是设置列表，浅色实心卡不再追毛玻璃，金底「完成」保留，记页保留；跳过 AD 章节是探测（广告章节识别字段没确认，开关开后只在日志里 dump 章节模型字段，不跳过，等真机日志定下字段再接）；评论文字变蓝（开关，只改正文颜色，用户名/时间不动，正文标签是启发式定位，需真机验证）；长按面板新增获取作品数据（弹窗显示＋复制到剪贴板）和图片预览（图集全屏翻页看，点一下关闭）；复制下载链接和解析保存不用加——咱们已经有了（687 复制无水印链接、673 接口保存＋666 保存视频／668 保存音频）。\n"
+           @"1.0.23（第二批，影片功能）：自动连播（播满当前视频时长切下一个，直播间不跑）；推荐页跳过购物视频（带购物标签的推荐视频直接跳过）；长按面板可换背景图、材质三选一（磨砂／液态玻璃／清透玻璃；真液态玻璃要 iOS 26，iOS 16 上液态玻璃用加粗材质近似）、排列可调（每排 2/3/4 个／横向等列／自定义列数）、背景模糊度可调（默认 58）、格子微透明；评论区仅复制评论文字（长按评论只复制正文）；首页全屏播放、发图发视频默认勾选原图（改名对齐已有功能）；显示功能按钮（关闭／倍速／快进三档，快进点一下 +10 秒）；解析图片增加保存视频按钮（图集「制作视频」改叫「保存视频」）；消息防撤回是探测（与原来 (24) 同功能，只改名；撤回处理类没定位到，只记日志）；仅看一次开启下载按钮是探测（没找到可验证的 hook 点，开关开后 dump 相关类名记日志）；双击消息快捷回复（消息页双击聚焦输入框，输入框是启发式找的，需真机验证）；消息界面点加号弹出相册图片是探测（开关开后 dump 输入栏按钮类名记日志，等真机日志定 hook 点）；续火花自动发消息（长按联系人头像触发，模板在设置里填、用 | 分隔多条，多条时目前只发第 1 条，发送按钮找不到时只填文字不自动发）；玻璃评论面板（评论面板改 ExtraLight 毛玻璃，评论／AI 解析双页签在面板顶部，AI 解析要自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示）；插件配置页（关于页加清除缓存、Telegram 暂未开通提示行，其余版本／更新日志／QQ群／自定义图片早有了）；底部悬浮毛玻璃胶囊栏（底栏改悬浮圆角毛玻璃条）。";
 }
 
 // ===== 画中画查找（1.0.15 重写）=====
@@ -2463,6 +2471,29 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     GHLHandleLeftSwipeBack(gesture);
 }
 
+// 1.0.23 第二批：70 双击消息快捷回复、73 长按头像续火花、75 AI 解析页签／开始解析。
+// 实现在下面“1.0.23 第二批”一节，这里只做转发。
++ (void)ghl_handleIMDoubleTap:(UITapGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateRecognized) return;
+    GHLHandleIMDoubleTapReply();
+}
+
++ (void)ghl_handleIMAvatarLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    UITableView *table = (UITableView *)gesture.view;
+    if (![table isKindOfClass:[UITableView class]]) return;
+    CGPoint point = [gesture locationInView:table];
+    GHLHandleIMAvatarLongPress(table, point);
+}
+
++ (void)ghl_handleAISegmentChanged:(UISegmentedControl *)segment {
+    GHLHandleAISegmentChanged(segment);
+}
+
++ (void)ghl_handleAIParseStart:(UIButton *)button {
+    GHLHandleAIParseStart(button);
+}
+
 // 1.0.5 手势自定义
 + (void)ghl_handleCustomTripleTap:(UITapGestureRecognizer *)gesture {
     GHLHandleCustomTripleTap(gesture);
@@ -4371,6 +4402,437 @@ static void GHLStartMainThreadWatchdog(void) {
 
 #pragma mark 巡检定时器（2 秒一次）
 
+#pragma mark - 1.0.23 第二批：影片功能（48/59/70/71/73/75）
+
+// 48 自动连播：没有播放结束回调（BDSimMediaPlayer 不暴露进度），
+// 用 2 秒巡检累计当前视频已播时长（videoDuration 是毫秒），播满就切下一个。
+// 直播间不跑（直播没有固定时长）；切视频/换作者就重置累计。
+static NSString *ghlAutoPlayItemID = nil;
+static double ghlAutoPlayElapsed = 0;
+void GHLCheckAutoPlayNext(void) {
+    if (!GHLGetBool(GHL_KEY_AUTO_PLAY_NEXT)) {
+        ghlAutoPlayItemID = nil;
+        ghlAutoPlayElapsed = 0;
+        return;
+    }
+    if (GHLIsInLiveRoom()) {
+        ghlAutoPlayItemID = nil;
+        ghlAutoPlayElapsed = 0;
+        return;
+    }
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    if (!model || !model.itemID) {
+        ghlAutoPlayItemID = nil;
+        ghlAutoPlayElapsed = 0;
+        return;
+    }
+    double duration = model.videoDuration / 1000.0;
+    if (duration <= 0) {
+        ghlAutoPlayItemID = nil;
+        ghlAutoPlayElapsed = 0;
+        return;
+    }
+    if (![model.itemID isEqualToString:ghlAutoPlayItemID]) {
+        ghlAutoPlayItemID = [model.itemID copy];
+        ghlAutoPlayElapsed = 0;
+        return;
+    }
+    ghlAutoPlayElapsed += 2.0;
+    if (ghlAutoPlayElapsed >= duration) {
+        ghlAutoPlayElapsed = 0;
+        ghlAutoPlayItemID = nil;
+        GHLLog(@"自动连播：当前视频播满 %.0f 秒，切下一个", duration);
+        GHLScrollFeedToNextVideo();
+    }
+}
+
+// 59 仅看一次开启下载按钮：probe-only——GHLProbePrivacyFeatures 已 dump 过
+// Burn/Disappear/SecretChat 相关类，没找到可验证的 hook 点；
+// 开关开后这里再 dump 一次含 Once/ViewOnce/Flash 的类名，等真机日志定 hook 点。
+void GHLProbeViewOnce(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
+    NSMutableArray<NSString *> *hits = [NSMutableArray array];
+    for (unsigned int i = 0; i < count; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        if ([name containsString:@"ViewOnce"] || [name containsString:@"Once"] || [name containsString:@"Flash"]) {
+            if (hits.count < 30) [hits addObject:name];
+        }
+    }
+    free(classes);
+    GHLLog(@"仅看一次探针：疑似相关类 %lu 个：%@", (unsigned long)hits.count, hits);
+    GHLLog(@"仅看一次探针：以上只做记录；没找到可验证的 hook 点，下载按钮目前加不上，开关先留着等日志");
+}
+
+// 70/71/73 消息页手势：IM 控制器类名没写进 AwemeHeaders（只有少量 AWEIM* 声明），
+// 所以按类名含 "IM" 找顶层消息控制器，再在它的 view 里找消息列表（UITableView）。
+// 找到才装手势，只装一次；不在消息页时什么都不做。
+static void GHLCollectIMViewControllers(UIViewController *vc, NSMutableArray<UIViewController *> *out) {
+    if (!vc) return;
+    if ([NSStringFromClass([vc class]) containsString:@"IM"]) [out addObject:vc];
+    for (UIViewController *child in vc.childViewControllers) GHLCollectIMViewControllers(child, out);
+    GHLCollectIMViewControllers(vc.presentedViewController, out);
+}
+
+static UIViewController *GHLTopIMViewController(void) {
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    if (!window) return nil;
+    NSMutableArray<UIViewController *> *found = [NSMutableArray array];
+    GHLCollectIMViewControllers(window.rootViewController, found);
+    return found.lastObject;
+}
+
+// 最顶层控制器（沿 presented 链走到头）：续火花点开会话后，输入框在新推上来的聊天页里。
+static UIViewController *GHLTopmostViewController(void) {
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    UIViewController *vc = window.rootViewController;
+    while (vc.presentedViewController) vc = vc.presentedViewController;
+    return vc;
+}
+
+static UITableView *GHLFindTableViewInView(UIView *view) {
+    if (!view) return nil;
+    if ([view isKindOfClass:[UITableView class]]) return (UITableView *)view;
+    for (UIView *sub in view.subviews) {
+        UITableView *found = GHLFindTableViewInView(sub);
+        if (found) return found;
+    }
+    return nil;
+}
+
+// 消息输入框：抖音消息页一般是 UITextView，兜底也认 UITextField；
+// 是启发式找的（第一个文本输入框），万一找到的是搜索框，真机日志会露出来。
+static UIView *GHLFindTextInputInView(UIView *view) {
+    if (!view) return nil;
+    if ([view isKindOfClass:[UITextView class]] || [view isKindOfClass:[UITextField class]]) return view;
+    for (UIView *sub in view.subviews) {
+        UIView *found = GHLFindTextInputInView(sub);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static UIButton *GHLFindSendButtonInView(UIView *view) {
+    if (!view) return nil;
+    if ([view isKindOfClass:[UIButton class]]) {
+        UIButton *button = (UIButton *)view;
+        NSString *title = [button titleForState:UIControlStateNormal] ?: @"";
+        NSString *axLabel = button.accessibilityLabel ?: @"";
+        if ([title containsString:@"发送"] || [axLabel containsString:@"发送"]) return button;
+    }
+    for (UIView *sub in view.subviews) {
+        UIButton *found = GHLFindSendButtonInView(sub);
+        if (found) return found;
+    }
+    return nil;
+}
+
+// 71 探针：dump 消息页输入栏一带的按钮类名（只跑一次），等真机日志定加号按钮的 hook 点。
+static void GHLProbeIMInputBar(UIViewController *imVC) {
+    if (!imVC) return;
+    NSMutableArray<NSString *> *buttons = [NSMutableArray array];
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:imVC.view];
+    while (stack.count > 0 && buttons.count < 20) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UIButton class]]) {
+            UIButton *button = (UIButton *)view;
+            NSString *title = [button titleForState:UIControlStateNormal] ?: (button.accessibilityLabel ?: @"");
+            [buttons addObject:[NSString stringWithFormat:@"%@(%@)", NSStringFromClass([view class]), title]];
+        }
+        [stack addObjectsFromArray:view.subviews];
+    }
+    GHLLog(@"消息加号探针：消息页按钮 %lu 个：%@", (unsigned long)buttons.count, buttons);
+    GHLLog(@"消息加号探针：以上只做记录；加号按钮的 hook 点还没定，开关目前只记日志");
+}
+
+static char kGHLIMGesturesInstalledKey;
+
+void GHLInstallIMGesturesIfNeeded(void) {
+    if (!GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) && !GHLGetBool(GHL_KEY_STREAK_AUTO_SEND) && !GHLGetBool(GHL_KEY_IM_PLUS_ALBUM_PROBE)) return;
+    UIViewController *imVC = GHLTopIMViewController();
+    if (!imVC) return;
+    UITableView *table = GHLFindTableViewInView(imVC.view);
+    if (!table) return;
+    if (objc_getAssociatedObject(table, &kGHLIMGesturesInstalledKey)) return;
+    objc_setAssociatedObject(table, &kGHLIMGesturesInstalledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (GHLGetBool(GHL_KEY_IM_PLUS_ALBUM_PROBE)) {
+        static BOOL ghlIMProbeDone = NO;
+        if (!ghlIMProbeDone) {
+            ghlIMProbeDone = YES;
+            GHLProbeIMInputBar(imVC);
+        }
+    }
+    if (GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY)) {
+        UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleIMDoubleTap:)];
+        doubleTap.numberOfTapsRequired = 2;
+        doubleTap.numberOfTouchesRequired = 1;
+        doubleTap.cancelsTouchesInView = NO;
+        [table addGestureRecognizer:doubleTap];
+    }
+    if (GHLGetBool(GHL_KEY_STREAK_AUTO_SEND)) {
+        UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleIMAvatarLongPress:)];
+        longPress.minimumPressDuration = 0.5;
+        longPress.cancelsTouchesInView = NO;
+        [table addGestureRecognizer:longPress];
+    }
+    GHLLog(@"消息手势：已装到 %@（双击回复 %@，长按头像续火花 %@）", NSStringFromClass([imVC class]),
+           GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) ? @"开" : @"关",
+           GHLGetBool(GHL_KEY_STREAK_AUTO_SEND) ? @"开" : @"关");
+}
+
+// 70 双击消息快捷回复：双击消息列表，聚焦输入框（只聚焦，不替用户发）。
+static void GHLHandleIMDoubleTapReply(void) {
+    UIViewController *imVC = GHLTopIMViewController();
+    if (!imVC) return;
+    UIView *input = GHLFindTextInputInView(imVC.view);
+    if (!input) {
+        GHLLog(@"双击消息快捷回复：没找到输入框");
+        return;
+    }
+    [input becomeFirstResponder];
+    GHLLog(@"双击消息快捷回复：已聚焦输入框");
+}
+
+// 73 续火花：长按联系人头像才触发（不要自动发）——点开该会话、填模板、点发送按钮。
+// 模板在设置里填，用 | 分隔多条；多条时目前只发第 1 条（多选 UI 还没做，
+// 提示里会列出全部模板，想发别的条先在设置里把它放第一行）。
+// 发送按钮找不到时只填文字不自动发（留给用户自己点发送），绝不静默重试。
+static void GHLHandleIMAvatarLongPress(UITableView *table, CGPoint point) {
+    if (!table) return;
+    NSIndexPath *indexPath = [table indexPathForRowAtPoint:point];
+    if (!indexPath) return;
+    UITableViewCell *cell = [table cellForRowAtIndexPath:indexPath];
+    if (!cell) return;
+    // 头像判断：cell 里靠左（x < 70）的方形图片（28–64pt）；点在别处不触发。
+    BOOL hitAvatar = NO;
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:cell.contentView];
+    while (stack.count > 0 && !hitAvatar) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UIImageView class]] && view.superview) {
+            CGRect frame = [cell.contentView convertRect:view.frame fromView:view.superview];
+            CGFloat w = CGRectGetWidth(frame), h = CGRectGetHeight(frame);
+            if (CGRectGetMinX(frame) < 70 && w >= 28 && w <= 64 && fabs(w - h) < 6) hitAvatar = YES;
+        }
+        [stack addObjectsFromArray:view.subviews];
+    }
+    if (!hitAvatar) return;
+    NSString *templatesRaw = GHLGetString(GHL_KEY_STREAK_TEMPLATES) ?: @"";
+    NSMutableArray<NSString *> *templates = [NSMutableArray array];
+    for (NSString *part in [templatesRaw componentsSeparatedByString:@"|"]) {
+        NSString *trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length > 0) [templates addObject:trimmed];
+    }
+    if (templates.count == 0) {
+        [DYYYUtils showToast:@"续火花：先在设置里填自动发送的文本模板"];
+        GHLLog(@"续火花：没填模板，长按头像没发");
+        return;
+    }
+    NSString *text = templates.firstObject;
+    void (^sendNow)(void) = ^{
+      // 点开该会话（长按本身不会触发选中，手动调 delegate 打开聊天页）。
+      id<UITableViewDelegate> delegate = table.delegate;
+      if ([delegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) {
+          [delegate tableView:table didSelectRowAtIndexPath:indexPath];
+      }
+      // 等会话页打开，再填文本、点发送。
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIViewController *chatVC = GHLTopmostViewController();
+        UIView *input = chatVC ? GHLFindTextInputInView(chatVC.view) : nil;
+        if (!input) {
+            GHLLog(@"续火花：会话打开了，但没找到输入框，没发");
+            [DYYYUtils showToast:@"续火花：没找到输入框，没发出去"];
+            return;
+        }
+        if ([input respondsToSelector:@selector(setText:)]) {
+            [input performSelector:@selector(setText:) withObject:text];
+        }
+        UIButton *sendButton = chatVC ? GHLFindSendButtonInView(chatVC.view) : nil;
+        if (!sendButton) {
+            GHLLog(@"续火花：已填好文本，但没找到发送按钮，只填文字不自动发");
+            [DYYYUtils showToast:@"续火花：已填好文本，请手动点发送"];
+            return;
+        }
+        [sendButton sendActionsForControlEvents:UIControlEventTouchUpInside];
+        GHLLog(@"续火花：已发「%@」", text);
+      });
+    };
+    if (templates.count > 1) {
+        NSMutableString *list = [NSMutableString string];
+        [templates enumerateObjectsUsingBlock:^(NSString *templateText, NSUInteger idx, BOOL *stop) {
+          (void)stop;
+          [list appendFormat:@"%lu. %@\n", (unsigned long)(idx + 1), templateText];
+        }];
+        [DYYYBottomAlertView showAlertWithTitle:@"续火花自动发消息"
+                                         message:[NSString stringWithFormat:@"共 %lu 条模板，点确定发第 1 条：\n%@（想发别的条，先在设置里把它放第一行）", (unsigned long)templates.count, list]
+                                       avatarURL:nil
+                                cancelButtonText:@"取消"
+                               confirmButtonText:@"发送第 1 条"
+                                    cancelAction:nil
+                                     closeAction:nil
+                                   confirmAction:sendNow];
+        return;
+    }
+    sendNow();
+}
+
+// 75 玻璃评论面板 + AI 解析：页签只在玻璃开关开时装（hook 里已判断）；
+// AI 解析要用户自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示，
+// 不编造解析结果、不调任何默认接口。
+static char kGHLAISegmentKey;
+static char kGHLAIOverlayKey;
+static char kGHLAIResultViewKey;
+static char kGHLAIStatusLabelKey;
+
+void GHLInstallCommentAIParseSegment(UIViewController *commentVC) {
+    if (!commentVC || !commentVC.view) return;
+    if (objc_getAssociatedObject(commentVC, &kGHLAISegmentKey)) return;
+    GHLRunOnMain(^{
+      UIView *view = commentVC.view;
+      UISegmentedControl *segment = [[UISegmentedControl alloc] initWithItems:@[@"评论", @"AI 解析"]];
+      segment.selectedSegmentIndex = 0;
+      segment.frame = CGRectMake(16, 8, view.bounds.size.width - 32, 30);
+      segment.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+      [segment addTarget:[GHLFeatures class] action:@selector(ghl_handleAISegmentChanged:) forControlEvents:UIControlEventValueChanged];
+      [view addSubview:segment];
+      objc_setAssociatedObject(commentVC, &kGHLAISegmentKey, segment, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+      UIView *panel = [[UIView alloc] initWithFrame:CGRectMake(0, 46, view.bounds.size.width, view.bounds.size.height - 46)];
+      panel.backgroundColor = [UIColor whiteColor];
+      panel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+      panel.hidden = YES;
+      UILabel *statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 12, panel.bounds.size.width - 32, 20)];
+      statusLabel.font = [UIFont systemFontOfSize:13];
+      statusLabel.textColor = [UIColor grayColor];
+      statusLabel.text = @"点「开始解析」总结当前评论区";
+      statusLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+      [panel addSubview:statusLabel];
+      UIButton *parseButton = [UIButton buttonWithType:UIButtonTypeSystem];
+      [parseButton setTitle:@"开始解析" forState:UIControlStateNormal];
+      parseButton.frame = CGRectMake(16, 40, 100, 36);
+      [parseButton addTarget:[GHLFeatures class] action:@selector(ghl_handleAIParseStart:) forControlEvents:UIControlEventTouchUpInside];
+      [panel addSubview:parseButton];
+      UITextView *resultView = [[UITextView alloc] initWithFrame:CGRectMake(12, 84, panel.bounds.size.width - 24, panel.bounds.size.height - 96)];
+      resultView.font = [UIFont systemFontOfSize:15];
+      resultView.editable = NO;
+      resultView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+      [panel addSubview:resultView];
+      [view addSubview:panel];
+      objc_setAssociatedObject(commentVC, &kGHLAIOverlayKey, panel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      objc_setAssociatedObject(commentVC, &kGHLAIResultViewKey, resultView, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      objc_setAssociatedObject(commentVC, &kGHLAIStatusLabelKey, statusLabel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      GHLLog(@"AI 解析页签：已装到评论面板");
+    });
+}
+
+static void GHLHandleAISegmentChanged(UISegmentedControl *segment) {
+    if (!segment) return;
+    UIResponder *responder = segment.nextResponder;
+    while (responder && ![responder isKindOfClass:[UIViewController class]]) responder = responder.nextResponder;
+    UIViewController *vc = (UIViewController *)responder;
+    if (!vc) return;
+    UIView *panel = objc_getAssociatedObject(vc, &kGHLAIOverlayKey);
+    if (panel) panel.hidden = (segment.selectedSegmentIndex == 0);
+    GHLLog(@"AI 解析页签：切到 %@", segment.selectedSegmentIndex == 0 ? @"评论" : @"AI 解析");
+}
+
+static void GHLHandleAIParseStart(UIButton *button) {
+    if (!button) return;
+    UIResponder *responder = button.nextResponder;
+    while (responder && ![responder isKindOfClass:[UIViewController class]]) responder = responder.nextResponder;
+    UIViewController *vc = (UIViewController *)responder;
+    if (!vc) return;
+    UITextView *resultView = objc_getAssociatedObject(vc, &kGHLAIResultViewKey);
+    UILabel *statusLabel = objc_getAssociatedObject(vc, &kGHLAIStatusLabelKey);
+    GHLAIParseCommentsFromView(vc.view, resultView, statusLabel);
+}
+
+void GHLAIParseCommentsFromView(UIView *panelView, UITextView *resultView, UILabel *statusLabel) {
+    NSString *apiKey = GHLGetString(GHL_KEY_AI_PARSE_KEY) ?: @"";
+    NSString *baseURL = GHLGetString(GHL_KEY_AI_PARSE_BASE_URL) ?: @"";
+    NSString *model = GHLGetString(GHL_KEY_AI_PARSE_MODEL) ?: @"";
+    if (apiKey.length == 0) {
+        if (statusLabel) statusLabel.text = @"先在设置里填 AI 接口 Key（OpenAI 兼容接口）";
+        GHLLog(@"AI 解析：没填 Key，只显示配置提示");
+        return;
+    }
+    if (baseURL.length == 0) baseURL = @"https://api.openai.com/v1";
+    if (model.length == 0) model = @"gpt-3.5-turbo";
+    // 收集评论文字：遍历面板里的 UILabel，取长度 >= 4 的正文，最多 20 条；
+    // 跳过 AI 面板自己里面的字（不然会把上次的解析结果也当评论喂进去）。
+    UIView *aiPanel = resultView ? resultView.superview : nil;
+    NSMutableArray<NSString *> *comments = [NSMutableArray array];
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:panelView];
+    while (stack.count > 0 && comments.count < 20) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+        if (aiPanel && (view == aiPanel || [view isDescendantOfView:aiPanel])) continue;
+        if ([view isKindOfClass:[UILabel class]]) {
+            NSString *text = [(UILabel *)view text];
+            if (text.length >= 4 && ![comments containsObject:text]) [comments addObject:text];
+        }
+        [stack addObjectsFromArray:view.subviews];
+    }
+    if (comments.count == 0) {
+        if (statusLabel) statusLabel.text = @"没找到评论文字，先滑一滑评论区再试";
+        GHLLog(@"AI 解析：没找到评论文字");
+        return;
+    }
+    if (statusLabel) statusLabel.text = [NSString stringWithFormat:@"正在解析 %lu 条评论…", (unsigned long)comments.count];
+    NSString *prompt = [NSString stringWithFormat:@"请用简体中文总结以下抖音评论的主要观点和情绪（不超过 200 字）：\n%@", [comments componentsJoinedByString:@"\n"]];
+    NSDictionary *body = @{@"model" : model,
+                           @"messages" : @[ @{@"role" : @"user", @"content" : prompt} ]};
+    NSError *jsonError = nil;
+    NSData *bodyData = [NSJSONSerialization dataWithJSONObject:body options:0 error:&jsonError];
+    if (!bodyData) {
+        if (statusLabel) statusLabel.text = @"请求组装失败";
+        GHLLog(@"AI 解析：请求组装失败 %@", jsonError);
+        return;
+    }
+    NSString *trimmedBaseURL = [baseURL stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    while ([trimmedBaseURL hasSuffix:@"/"]) trimmedBaseURL = [trimmedBaseURL substringToIndex:trimmedBaseURL.length - 1];
+    NSURL *url = [NSURL URLWithString:[trimmedBaseURL stringByAppendingString:@"/chat/completions"]];
+    if (!url) {
+        if (statusLabel) statusLabel.text = @"接口地址填错了，检查一下";
+        GHLLog(@"AI 解析：接口地址无效 %@", baseURL);
+        return;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:[@"Bearer " stringByAppendingString:apiKey] forHTTPHeaderField:@"Authorization"];
+    request.HTTPBody = bodyData;
+    request.timeoutInterval = 30;
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request
+                                                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+      (void)response;
+      NSString *summary = nil;
+      NSString *statusText = nil;
+      if (error) {
+          statusText = [NSString stringWithFormat:@"请求失败：%@", error.localizedDescription];
+          GHLLog(@"AI 解析：请求失败 %@", error);
+      } else {
+          NSError *parseError = nil;
+          NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&parseError];
+          id content = json[@"choices"][0][@"message"][@"content"];
+          if ([content isKindOfClass:[NSString class]] && [(NSString *)content length] > 0) {
+              summary = (NSString *)content;
+              statusText = @"解析完成";
+          } else {
+              statusText = @"接口没返回解析结果（检查 Key/地址/模型）";
+              GHLLog(@"AI 解析：接口返回异常 %@", json);
+          }
+      }
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (summary && resultView) resultView.text = summary;
+        if (statusLabel) statusLabel.text = statusText;
+      });
+    }];
+    [task resume];
+    GHLLog(@"AI 解析：已发请求（%lu 条评论，模型 %@）", (unsigned long)comments.count, model);
+}
+
 void GHLHousekeepingTick(void) {
     // 1.0.18 计时日志（只加日志，不改行为）：每跳记耗时＋上跳间隔——
     // 某跳 >500ms 或间隔明显拉长（主线程被堵、定时器晚跳）即证实是 tick 拖慢主线程；
@@ -4394,6 +4856,9 @@ void GHLHousekeepingTick(void) {
         }
         // 1.0.18：浮动钮显隐每 2 秒刷一次（只在视频 feed 页出现；开关关了就藏）。
         GHLRefreshFloatPanelButton();
+        // 1.0.23 第二批：48 自动连播、70/71/73 消息手势（只在相关开关开时跑）。
+        GHLCheckAutoPlayNext();
+        GHLInstallIMGesturesIfNeeded();
         if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD)) {
             GHLUpdateLiveDurationLabel();
         }
@@ -4443,6 +4908,6 @@ void GHLStartHousekeepingTimer(void) {
                                                                (void)timer;
                                                                GHLHousekeepingTick();
                                                              }];
-    GHLLog(@"巡检定时器：已启动（2 秒一次，管红包/抽奖/直播时长/底栏/数字改写/直播静音）");
+    GHLLog(@"巡检定时器：已启动（2 秒一次，管红包/抽奖/直播时长/底栏/数字改写/直播静音/自动连播/消息手势）");
 }
 

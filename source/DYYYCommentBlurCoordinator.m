@@ -1,6 +1,7 @@
 #import "DYYYCommentBlurCoordinator.h"
 #import "DYYYFullscreenCoordinator.h"
 #import "DYYYUtils.h"
+#import "GHLFeatures.h"
 #import <objc/runtime.h>
 
 @interface DYYYCommentBlurState : NSObject
@@ -14,6 +15,7 @@
 @property(nonatomic, weak) UIVisualEffectView *effectView;
 @property(nonatomic, assign) UIBlurEffectStyle style;
 @property(nonatomic, assign) CGFloat transparency;
+@property(nonatomic, assign) BOOL glassEffectApplied; // 1.0.23 第二批：75 玻璃面板的 ExtraLight 是否已盖上
 @end
 @implementation DYYYCommentBlurState
 @end
@@ -36,7 +38,11 @@
     UIView *view = controller.viewIfLoaded;
     if (!view) return;
     DYYYCommentBlurState *state = objc_getAssociatedObject(view, @selector(updatePanel:));
-    if (!DYYYGetBool(@"DYYYEnableCommentBlur")) {
+    // 1.0.23 第二批：66 评论区视图微透 / 75 玻璃评论面板——没开毛玻璃时也进（只做自己的那份处理）。
+    BOOL blurOn = DYYYGetBool(@"DYYYEnableCommentBlur");
+    BOOL translucentOn = GHLGetBool(GHL_KEY_COMMENT_VIEW_TRANSLUCENT);
+    BOOL glassOn = GHLGetBool(GHL_KEY_COMMENT_GLASS_PANEL);
+    if (!blurOn && !translucentOn && !glassOn) {
         if (!state) return;
         [state.effectView removeFromSuperview];
         for (UIView *background in state.danmuBackgrounds.objectEnumerator) [background removeFromSuperview];
@@ -88,6 +94,12 @@
     CGFloat transparency = [[[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYCommentBlurTransparent"] floatValue];
     if (transparency <= 0 || transparency > 1) transparency = 0.9;
     UIBlurEffectStyle style = [DYYYUtils isDarkMode] ? UIBlurEffectStyleDark : UIBlurEffectStyleLight;
+    // 1.0.23 第二批：66 微透固定 0.85；75 玻璃面板固定 0.9（样式 ExtraLight 在下面盖）。
+    if (glassOn) {
+        transparency = 0.9;
+    } else if (translucentOn) {
+        transparency = 0.85;
+    }
     UIVisualEffectView *effect = state.effectView;
     if (!effect || effect.superview != view) {
         [DYYYUtils applyBlurEffectToView:view transparency:transparency blurViewTag:999];
@@ -101,10 +113,21 @@
         }
         state.style = style;
         state.transparency = transparency;
+        state.glassEffectApplied = NO;
     } else if (state.style != style || fabs(state.transparency - transparency) > 0.001) {
         [DYYYUtils applyBlurEffectToView:view transparency:transparency blurViewTag:999];
         state.style = style;
         state.transparency = transparency;
+        state.glassEffectApplied = NO;
+    }
+    // 1.0.23 第二批：75 玻璃面板固定浅色 ExtraLight（applyBlurEffectToView 按深色给 Dark/Light，这里盖掉）。
+    if (glassOn && effect) {
+        if (!state.glassEffectApplied) {
+            effect.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleExtraLight];
+            state.glassEffectApplied = YES;
+        }
+    } else {
+        state.glassEffectApplied = NO;
     }
     if (effect && !CGRectEqualToRect(effect.frame, view.bounds)) effect.frame = view.bounds;
 }

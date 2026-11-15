@@ -293,6 +293,24 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             // 1.0.23：评论文字变蓝（清单 5 号）——只改评论正文颜色，用户名/时间不动；
             // 正文标签是启发式定位的，需真机验证。
             [DYYYSettingItem itemWithTitle:@"评论文字变蓝" key:GHL_KEY_BLUE_COMMENT_TEXT type:DYYYSettingItemTypeSwitch],
+            // 1.0.23 第二批（影片清单 42–78 号，Lee 勾中并进同一版）：
+            // 48 自动连播——按视频时长累计，播完切下一个（2 秒巡检采样，需真机验证）。
+            [DYYYSettingItem itemWithTitle:@"自动连播" key:GHL_KEY_AUTO_PLAY_NEXT type:DYYYSettingItemTypeSwitch],
+            // 59 仅看一次开启下载按钮——探测：查看器类没找到，开关只做探针日志。
+            [DYYYSettingItem itemWithTitle:@"仅看一次开启下载按钮（探测，需真机日志验证）" key:GHL_KEY_VIEW_ONCE_DOWNLOAD type:DYYYSettingItemTypeSwitch],
+            // 61 推荐页跳过购物视频——按电商标签认，只在推荐页。
+            [DYYYSettingItem itemWithTitle:@"推荐页跳过购物视频" key:GHL_KEY_SKIP_SHOPPING type:DYYYSettingItemTypeSwitch],
+            // 70 双击消息快捷回复——消息列表/聊天页双击消息，打开输入框（需真机验证）。
+            [DYYYSettingItem itemWithTitle:@"双击消息快捷回复" key:GHL_KEY_IM_DOUBLE_TAP_REPLY type:DYYYSettingItemTypeSwitch],
+            // 71 消息界面点加号弹出相册图片——探测：加号按钮类没确认，开关只记探针日志。
+            [DYYYSettingItem itemWithTitle:@"消息界面点加号弹出相册图片（探测，需真机日志验证）" key:GHL_KEY_IM_PLUS_ALBUM_PROBE type:DYYYSettingItemTypeSwitch],
+            // 73 续火花自动发消息——长按联系人头像才触发，模板在下面填（用 | 分隔多条）。
+            [DYYYSettingItem itemWithTitle:@"续火花自动发消息（长按联系人头像）" key:GHL_KEY_STREAK_AUTO_SEND type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"续火花模板（用 | 分隔多条）" key:GHL_KEY_STREAK_TEMPLATES type:DYYYSettingItemTypeTextField placeholder:@"如：宝贝早安|火花不能断"],
+            // 75 AI 解析——OpenAI 兼容接口，用户自己填 Key 和地址；不填就只显示配置提示。
+            [DYYYSettingItem itemWithTitle:@"AI 解析 API Key" key:GHL_KEY_AI_PARSE_KEY type:DYYYSettingItemTypeTextField placeholder:@"填 OpenAI 兼容接口的 Key"],
+            [DYYYSettingItem itemWithTitle:@"AI 解析接口地址" key:GHL_KEY_AI_PARSE_BASE_URL type:DYYYSettingItemTypeTextField placeholder:@"如：https://api.openai.com/v1"],
+            [DYYYSettingItem itemWithTitle:@"AI 解析模型" key:GHL_KEY_AI_PARSE_MODEL type:DYYYSettingItemTypeTextField placeholder:@"默认 gpt-3.5-turbo"],
             [DYYYSettingItem itemWithTitle:@"点赞自动保存视频" key:GHL_KEY_AUTO_SAVE_LIKED type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"夜间护眼" key:GHL_KEY_NIGHT_MODE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"夜间亮度（0-1小数）" key:GHL_KEY_NIGHT_BRIGHTNESS type:DYYYSettingItemTypeTextField placeholder:@"默认0.3"],
@@ -312,7 +330,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"弹幕浮层（评论飘在视频上）" key:GHL_KEY_COMMENT_DANMAKU type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"侧边栏自定义排序" key:GHL_KEY_SIDEBAR_REORDER type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"侧边栏顺序（逗号分隔，从上到下）" key:GHL_KEY_SIDEBAR_ORDER type:DYYYSettingItemTypeTextField placeholder:@"如：评论,点赞,分享,收藏"],
-            [DYYYSettingItem itemWithTitle:@"私信防撤回（实验，需真机日志验证）" key:GHL_KEY_ANTI_RECALL type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"消息防撤回（实验，需真机日志验证）" key:GHL_KEY_ANTI_RECALL type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"视频截图去水印" key:GHL_KEY_SCREENSHOT_CLEAN type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"楼中楼一键展开" key:GHL_KEY_EXPAND_REPLIES type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"视频原声提取" key:GHL_KEY_EXTRACT_AUDIO type:DYYYSettingItemTypeSwitch],
@@ -415,13 +433,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"推荐视频时限" key:@"DYYYFilterTimeLimit" type:DYYYSettingItemTypeTextField placeholder:@"填0关闭，单位为天"],
             [DYYYSettingItem itemWithTitle:@"全局HDR设置" key:@"DYYYHDRMode" type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"启用首页净化" key:@"DYYYEnablePure" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"启用首页全屏" key:@"DYYYEnableFullScreen" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"首页全屏播放" key:@"DYYYEnableFullScreen" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"启用屏蔽广告" key:@"DYYYNoAds" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"屏蔽检测更新" key:@"DYYYNoUpdates" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"禁用作品浏览记录上传" key:@"DYYYDisableAwemeViewRecordUpload" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"启用绕登录" key:@"DYYYEnableLoginBypass" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"去青少年弹窗" key:@"DYYYHideTeenMode" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"评论区毛玻璃" key:@"DYYYEnableCommentBlur" type:DYYYSettingItemTypeSwitch],
+            // 1.0.23 第二批：66 评论区视图微透——评论面板背景更透一点；
+            // 75 玻璃评论面板——浅色玻璃＋顶部 评论/AI 解析 双页签。
+            [DYYYSettingItem itemWithTitle:@"评论区视图微透" key:GHL_KEY_COMMENT_VIEW_TRANSLUCENT type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"玻璃评论面板" key:GHL_KEY_COMMENT_GLASS_PANEL type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"通知玻璃效果" key:@"DYYYEnableNotificationTransparency" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"毛玻璃透明度" key:@"DYYYCommentBlurTransparent" type:DYYYSettingItemTypeTextField placeholder:@"0-1小数"],
             [DYYYSettingItem itemWithTitle:@"通知圆角半径" key:@"DYYYNotificationCornerRadius" type:DYYYSettingItemTypeTextField placeholder:@"默认12"],
@@ -463,6 +485,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"侧边栏图标圆角底" key:GHL_KEY_SIDEBAR_PILL_BG type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"头像金边" key:GHL_KEY_AVATAR_GOLD_RING type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"底栏毛玻璃（选中态变金）" key:GHL_KEY_TABBAR_GLASS type:DYYYSettingItemTypeSwitch],
+            // 1.0.23 第二批：78 底部悬浮毛玻璃胶囊栏——底栏收成悬浮圆角毛玻璃条。
+            [DYYYSettingItem itemWithTitle:@"底部悬浮毛玻璃胶囊栏" key:GHL_KEY_TABBAR_CAPSULE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击爱心探针（实验，需真机日志验证）" key:GHL_KEY_DOUBLE_TAP_HEART_PROBE type:DYYYSettingItemTypeSwitch]
         ],
         @[
@@ -617,6 +641,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"长按面板复制链接" key:@"DYYYLongPressCopyLink" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板接口解析" key:@"DYYYLongPressApiDownload" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板定时关闭" key:@"DYYYLongPressTimerClose" type:DYYYSettingItemTypeSwitch],
+            // 1.0.23 第二批：快捷面板外观（只用在长按网格面板表面，不动设置卡片）——
+            // 51 背景图、53 材质三选一、54 排列、56 模糊度、64 微透明。
+            [DYYYSettingItem itemWithTitle:@"快捷面板背景图片" key:GHL_KEY_QUICK_PANEL_BG type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"恢复面板默认背景" key:GHL_KEY_QUICK_PANEL_BG_CLEAR type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"面板材质" key:GHL_KEY_QUICK_PANEL_MATERIAL type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"功能排列" key:GHL_KEY_QUICK_PANEL_COLUMNS type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"自定义列数（1-6）" key:GHL_KEY_QUICK_PANEL_COLUMNS_CUSTOM type:DYYYSettingItemTypeTextField placeholder:@"默认3"],
+            [DYYYSettingItem itemWithTitle:@"背景模糊度（0-100）" key:GHL_KEY_QUICK_PANEL_BLUR type:DYYYSettingItemTypeTextField placeholder:@"默认58"],
+            [DYYYSettingItem itemWithTitle:@"长按菜单微透明" key:GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板过滤文案" key:@"DYYYLongPressFilterTitle" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按面板过滤作者" key:@"DYYYLongPressFilterUser" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"双击面板保存视频" key:@"DYYYDoubleTapDownload" type:DYYYSettingItemTypeSwitch],
@@ -632,7 +665,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         @[
             [DYYYSettingItem itemWithTitle:@"启用双击打开评论" key:@"DYYYEnableDoubleOpenComment" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"启用双击打开菜单" key:@"DYYYEnableDoubleTapMenu" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"启用自动勾选原图" key:@"DYYYAutoSelectOriginalPhoto" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"发图发视频默认勾选原图" key:@"DYYYAutoSelectOriginalPhoto" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"资料默认进入作品" key:@"DYYYDefaultEnterWorks" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"禁用自动进入直播" key:@"DYYYDisableAutoEnterLive" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"左侧边栏快捷入口" key:@"DYYYEntrance" type:DYYYSettingItemTypeSwitch],
@@ -647,7 +680,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"保存评论区表情包" key:@"DYYYForceDownloadEmotion" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存预览页表情包" key:@"DYYYForceDownloadPreviewEmotion" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"保存聊天页表情包" key:@"DYYYForceDownloadIMEmotion" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"长按评论复制评论" key:@"DYYYCommentCopyText" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"评论区仅复制评论文字" key:@"DYYYCommentCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按简介复制简介" key:@"DYYYBioCopyText" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按文案复制文案" key:@"DYYYLongPressCopyTextEnabled" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"下载完成震动反馈" key:@"DYYYHapticFeedbackEnabled" type:DYYYSettingItemTypeSwitch]
@@ -674,7 +707,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏按钮点一下" key:GHL_KEY_CLEAR_BUTTON_TAP type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"清屏按钮长按" key:GHL_KEY_CLEAR_BUTTON_LONGPRESS type:DYYYSettingItemTypePicker],
             // 1.0.18：视频页左上角龙头浮动钮，点开快捷面板（默认开）
-            [DYYYSettingItem itemWithTitle:@"视频页浮动按钮（龙头，点开快捷面板）" key:GHL_KEY_FLOAT_PANEL_BUTTON type:DYYYSettingItemTypeSwitch]
+            [DYYYSettingItem itemWithTitle:@"视频页浮动按钮（龙头，点开快捷面板）" key:GHL_KEY_FLOAT_PANEL_BUTTON type:DYYYSettingItemTypeSwitch],
+            // 1.0.23 第二批：67 显示功能按钮——视频页浮动按钮三档：关闭/倍速/快进。
+            [DYYYSettingItem itemWithTitle:@"显示功能按钮" key:GHL_KEY_FLOAT_FUNCTION_BUTTON type:DYYYSettingItemTypePicker]
         ],
         @[
             // 1.0.14 关于分区：只剩单一入口行「关于顾海龙抖音」，点整行直接进深色品牌页
@@ -851,6 +886,21 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @[ @"蓝光帧彩", @"蓝光", @"超清", @"高清", @"标清", @"自动" ];
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return @[ @"关闭", @"全局屏蔽HDR效果", @"全局过滤HDR作品" ];
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG]) {
+        // 1.0.23 第二批：51 快捷面板背景图片（相册选图）
+        return @[ @"从相册选图" ];
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG_CLEAR]) {
+        // 1.0.23 第二批：51 恢复面板默认背景
+        return @[ @"恢复默认背景" ];
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_MATERIAL]) {
+        // 1.0.23 第二批：53 面板材质三选一
+        return @[ @"磨砂", @"液态玻璃", @"清透玻璃" ];
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
+        // 1.0.23 第二批：54 功能排列
+        return @[ @"每排2个", @"每排3个", @"每排4个", @"横向等列", @"自定义" ];
+    } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
+        // 1.0.23 第二批：67 显示功能按钮三档
+        return @[ @"关闭", @"倍速", @"快进" ];
     }
     return @[];
 }
@@ -904,6 +954,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     } else if ([key isEqualToString:@"DYYYLiveQuality"]) {
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return value ?: @"关闭";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG]) {
+        // 1.0.23 第二批：51 换过自选图就显示状态，没换过就显示动作
+        if ([value isKindOfClass:[NSString class]] && [(NSString *)value isEqualToString:@"从相册选图"]) {
+            return GHLHasCustomQuickPanelBackground() ? @"已换自选图" : @"从相册选图";
+        }
+        return GHLHasCustomQuickPanelBackground() ? @"已换自选图" : @"从相册选图";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG_CLEAR]) {
+        return @"恢复默认背景";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_MATERIAL]) {
+        return value ?: @"磨砂";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
+        return value ?: @"每排3个";
+    } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
+        return value ?: @"倍速";
     }
     return [NSString stringWithFormat:@"%@", value];
 }
@@ -950,6 +1014,16 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @"自动";
     } else if ([key isEqualToString:@"DYYYHDRMode"]) {
         return @"关闭";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG]) {
+        return @"从相册选图";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_BG_CLEAR]) {
+        return @"恢复默认背景";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_MATERIAL]) {
+        return @"磨砂";
+    } else if ([key isEqualToString:GHL_KEY_QUICK_PANEL_COLUMNS]) {
+        return @"每排3个";
+    } else if ([key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
+        return @"倍速";
     }
     return nil;
 }
@@ -1368,6 +1442,16 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
                                                              }
                                                          } else if ([item.key isEqualToString:GHL_KEY_SLEEP_TIMER]) {
                                                              GHLRestartSleepTimer();
+                                                         } else if ([item.key isEqualToString:GHL_KEY_QUICK_PANEL_BG]) {
+                                                             // 1.0.23 第二批：51 快捷面板背景图片（相册选图，kind 2）
+                                                             [self ghlPresentImagePickerForKind:2];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_QUICK_PANEL_BG_CLEAR]) {
+                                                             // 1.0.23 第二批：51 恢复面板默认背景
+                                                             GHLClearCustomQuickPanelBackground();
+                                                             [DYYYUtils showToast:@"已恢复面板默认背景"];
+                                                         } else if ([item.key isEqualToString:GHL_KEY_FLOAT_FUNCTION_BUTTON]) {
+                                                             // 1.0.23 第二批：67 显示功能按钮换档，立即刷新浮动按钮显隐/标题
+                                                             [FloatingSpeedButton reloadConfiguration];
                                                          } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
                                                              GHLPreviewVoicePackage((NSString *)option);
                                                          }
@@ -1485,6 +1569,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         [defaults setBool:sender.isOn forKey:@"DYYYCommentShowDanmaku"];
     } else if ([item.key isEqualToString:GHL_KEY_ANTI_RECALL]) {
         if (sender.isOn) GHLProbeAntiRecall();
+    } else if ([item.key isEqualToString:GHL_KEY_VIEW_ONCE_DOWNLOAD]) {
+        // 1.0.23 第二批：59 仅看一次下载——探测：开后 dump 相关类，只记日志。
+        if (sender.isOn) GHLProbeViewOnce();
     } else if ([item.key isEqualToString:GHL_KEY_VOICE_PACKAGE]) {
         if (sender.isOn) GHLProbeLiveVoiceSender();
     } else if ([item.key isEqualToString:GHL_KEY_BACKGROUND_LISTEN]) {
@@ -1675,7 +1762,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     [self ghlPresentImagePickerForKind:1];
 }
 
-// 相册选图（kind 0 = 换龙头，1 = 换背景图）。拒绝了相册权限就提示，不硬打开。
+// 相册选图（kind 0 = 换龙头，1 = 换背景图，2 = 快捷面板背景图）。拒绝了相册权限就提示，不硬打开。
 - (void)ghlPresentImagePickerForKind:(NSInteger)kind {
     PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
     if (status == PHAuthorizationStatusDenied || status == PHAuthorizationStatusRestricted) {
@@ -1699,6 +1786,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         BOOL ok = NO;
         if (pickedKind == 0) {
             ok = GHLSaveCustomLogoImage(image);
+        } else if (pickedKind == 2) {
+            // 1.0.23 第二批：51 快捷面板背景图
+            ok = GHLSaveCustomQuickPanelBackgroundImage(image);
         } else {
             ok = GHLSaveCustomBackgroundImage(image);
         }
@@ -1710,6 +1800,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
           if (pickedKind == 0) {
               strongSelf.logoImageView.image = GHLLogoImage();
               [DYYYUtils showToast:@"龙头已更换"];
+          } else if (pickedKind == 2) {
+              [DYYYUtils showToast:@"面板背景图已更换，下次长按就生效"];
           } else {
               [strongSelf ghlApplySettingsBackground];
               [DYYYUtils showToast:@"背景图已更换"];

@@ -181,6 +181,22 @@ void updateSpeedButtonUI() {
     if (!speedButton)
         return;
 
+    // 1.0.23 第二批：67 快进档按钮显示 +10s，不显示倍速。
+    NSString *functionMode = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_FLOAT_FUNCTION_BUTTON] ?: @"倍速";
+    if ([functionMode isEqualToString:@"快进"]) {
+        if ([NSThread isMainThread]) {
+            [speedButton setTitle:@"+10s" forState:UIControlStateNormal];
+        } else {
+            __weak FloatingSpeedButton *weakButton = speedButton;
+            dispatch_async(dispatch_get_main_queue(), ^{
+              FloatingSpeedButton *strongButton = weakButton;
+              if (!strongButton) return;
+              [strongButton setTitle:@"+10s" forState:UIControlStateNormal];
+            });
+        }
+        return;
+    }
+
     float currentSpeed = getCurrentSpeed();
 
     NSString *formattedSpeed;
@@ -276,6 +292,9 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
     }
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     BOOL enabled = [defaults boolForKey:@"DYYYEnableFloatSpeedButton"];
+    // 1.0.23 第二批：67 显示功能按钮——选「关闭」就当没开（按钮不显示）。
+    NSString *functionMode = [defaults stringForKey:GHL_KEY_FLOAT_FUNCTION_BUTTON] ?: @"倍速";
+    if ([functionMode isEqualToString:@"关闭"]) enabled = NO;
     BOOL showX = [defaults boolForKey:@"DYYYSpeedButtonShowX"];
     CGFloat configuredSize = [defaults floatForKey:@"DYYYSpeedButtonSize"];
     CGFloat size = MIN(MAX(configuredSize > 0 ? configuredSize : 32.0, 20.0), 60.0);
