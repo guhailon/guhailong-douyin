@@ -3,7 +3,7 @@
 #import "DYYYConstants.h"
 #import "GHLFeatures.h"
 
-static NSString *const kGHLBackupFileName = @"顾海龙抖音配置.plist";
+static NSString *const kGHLBackupFileName = @"SeaDragon Douyin 配置.plist";
 static NSString *const kGHLBackupVersionKey = @"version";
 static NSString *const kGHLBackupSettingsKey = @"settings";
 

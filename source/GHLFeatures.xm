@@ -1660,7 +1660,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"顾海龙抖音 1.0.28 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"SeaDragon Douyin 1.0.29 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
@@ -2175,7 +2175,7 @@ void GHLPreviewVoicePackage(NSString *voiceId) {
     }
     GHLVoicePackageInfo *info = GHLVoicePackageForID(voiceId);
     if (!info) return;
-    NSString *sample = [NSString stringWithFormat:@"顾海龙抖音语音包试听，现在是%@音色。", info.displayName];
+    NSString *sample = [NSString stringWithFormat:@"SeaDragon Douyin 语音包试听，现在是%@音色。", info.displayName];
     if (info.source == GHLVoicePackageSourceCustom) {
         // 1.0.24：导入的录音直接播文件（不能合成文字，所以不念试听句）。
         GHLRunOnMain(^{
@@ -3204,7 +3204,7 @@ static void GHLRefreshFloatPanelButton(void) {
         button.layer.masksToBounds = YES;
         button.layer.borderWidth = 1.5;
         button.layer.borderColor = [DYYYUtils dYYYGoldAccentColor].CGColor;
-        button.accessibilityLabel = @"顾海龙抖音快捷面板";
+        button.accessibilityLabel = @"SeaDragon Douyin 快捷面板";
         [button addTarget:[GHLFeatures class] action:@selector(ghl_floatPanelButtonTapped) forControlEvents:UIControlEventTouchUpInside];
         [window addSubview:button];
         ghlFloatPanelButton = button;

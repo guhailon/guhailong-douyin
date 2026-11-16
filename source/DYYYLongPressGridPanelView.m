@@ -258,7 +258,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     _dragonImageView.layer.masksToBounds = YES;
     _dragonImageView.layer.borderWidth = 2;
     _dragonImageView.layer.borderColor = [DYYYUtils dYYYGoldAccentColor].CGColor;
-    _dragonImageView.accessibilityLabel = @"顾海龙抖音";
+    _dragonImageView.accessibilityLabel = @"SeaDragon Douyin";
     [self addSubview:_dragonImageView];
 
     _gridScrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];

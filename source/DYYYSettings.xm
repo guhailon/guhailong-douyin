@@ -1404,7 +1404,7 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
     // 顾海龙抖音主项：点开直接进顾海龙抖音设置页（第一区就是全部新功能开关）
     AWESettingItemModel *ghlSettingItem = [[%c(AWESettingItemModel) alloc] init];
     ghlSettingItem.identifier = @"GHLSettings";
-    ghlSettingItem.title = @"顾海龙抖音";
+    ghlSettingItem.title = @"SeaDragon Douyin";
     ghlSettingItem.type = 0;
     ghlSettingItem.svgIconImageName = @"ic_gearsimplify_outlined_20";
     ghlSettingItem.cellType = 26;

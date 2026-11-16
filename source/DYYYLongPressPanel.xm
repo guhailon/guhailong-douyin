@@ -774,7 +774,7 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
         voiceShareViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
           NSString *text = awemeModel.descriptionString;
-          if (text.length == 0) text = @"顾海龙抖音";
+          if (text.length == 0) text = @"SeaDragon Douyin";
           NSString *voiceId = GHLGetString(GHL_KEY_VOICE_PACKAGE_ID);
           [DYYYUtils showToast:@"正在用语音包合成语音…"];
           GHLSynthesizeVoicePackageText(text, voiceId, ^(NSURL *fileURL) {
@@ -2121,7 +2121,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         voiceShareViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
           NSString *text = awemeModel.descriptionString;
-          if (text.length == 0) text = @"顾海龙抖音";
+          if (text.length == 0) text = @"SeaDragon Douyin";
           NSString *voiceId = GHLGetString(GHL_KEY_VOICE_PACKAGE_ID);
           [DYYYUtils showToast:@"正在用语音包合成语音…"];
           GHLSynthesizeVoicePackageText(text, voiceId, ^(NSURL *fileURL) {

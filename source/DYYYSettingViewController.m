@@ -728,7 +728,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             // 配置三行废弃：配置三行搬进关于页的配置管理区，逻辑不动）。
             // 1.0.15：主页点「关于」分类行时不再进这个子页（didSelectRowAtIndexPath 里
             // 直接 push GHLAboutViewController），这个分区只剩搜索结果的兜底入口。
-            [DYYYSettingItem itemWithTitle:@"关于顾海龙抖音" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker]
+            [DYYYSettingItem itemWithTitle:@"关于 SeaDragon Douyin" key:GHL_KEY_ABOUT_PAGE type:DYYYSettingItemTypePicker]
         ]
     ];
 }
@@ -790,7 +790,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     CGFloat textX = 92;
     CGFloat textW = card.bounds.size.width - textX - 16;
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 14, textW, 24)];
-    nameLabel.text = @"顾海龙抖音";
+    nameLabel.text = @"SeaDragon Douyin";
     nameLabel.font = [UIFont boldSystemFontOfSize:20];
     nameLabel.textColor = [DYYYUtils dYYYSettingsHeaderTitleColor];
     nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;

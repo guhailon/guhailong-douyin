@@ -1,10 +1,10 @@
 #ifndef DYYYConstants_h
 #define DYYYConstants_h
 
-#define DYYY_NAME @"顾海龙抖音"
-#define DYYY_SETTINGS_NAME @"顾海龙抖音设置"
+#define DYYY_NAME @"SeaDragon Douyin"
+#define DYYY_SETTINGS_NAME @"SeaDragon Douyin 设置"
 
-#define DYYY_VERSION @"1.0.28"
+#define DYYY_VERSION @"1.0.29"
 
 // 顾海龙集团越狱源（关于页用）
 #define GHL_REPO_URL @"https://guhailong-repo.pages.dev"

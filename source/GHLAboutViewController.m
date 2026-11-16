@@ -53,7 +53,7 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
 };
 
 // 1.0.12 的声明全文；1.0.16 皇上改措辞：改成「免费使用，仅限学习交流」。
-static NSString *const kGHLAboutDisclaimerText = @"声明：顾海龙抖音基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，免费使用，仅限学习交流。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。";
+static NSString *const kGHLAboutDisclaimerText = @"声明：SeaDragon Douyin 基于开源项目 DYYY（MIT 协议，Copyright (c) 2024 huami）二次开发，免费使用，仅限学习交流。使用第三方插件可能违反抖音用户协议，存在账号限制风险，请自行承担风险；作者与本插件不承担任何责任。";
 
 @interface GHLAboutViewController ()
 
@@ -212,7 +212,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     [banner.layer addSublayer:fade];
 
     UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 0, 0, 38)];
-    titleLabel.text = @"顾海龙抖音";
+    titleLabel.text = @"SeaDragon Douyin";
     titleLabel.font = [UIFont boldSystemFontOfSize:30];
     titleLabel.textColor = [DYYYUtils dYYYGoldAccentColor];
     titleLabel.textAlignment = NSTextAlignmentCenter;
@@ -450,7 +450,7 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
 
 // 点版本行复制：版本＋运行时读到的机型标识＋系统版本，不写死机型。
 - (void)ghlVersionLabelTapped {
-    NSString *info = [NSString stringWithFormat:@"顾海龙抖音 %@／%@／iOS %@", DYYY_VERSION, [self ghlDeviceModelIdentifier], [UIDevice currentDevice].systemVersion];
+    NSString *info = [NSString stringWithFormat:@"SeaDragon Douyin %@／%@／iOS %@", DYYY_VERSION, [self ghlDeviceModelIdentifier], [UIDevice currentDevice].systemVersion];
     [UIPasteboard generalPasteboard].string = info;
     [DYYYUtils showToast:@"已复制"];
 }
