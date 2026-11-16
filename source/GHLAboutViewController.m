@@ -49,7 +49,7 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
     GHLAboutRowLogViewer = 209,    // 抖音日志（1.0.16，从设置页常用功能移过来）
     GHLAboutRowClearCache = 210,   // 清除缓存（1.0.23 第二批 76 插件配置页）
-    GHLAboutRowTelegram = 211,     // Telegram（1.0.23 第二批 76；暂未开通，只提示，不链到别人的频道）
+    GHLAboutRowTelegram = 211,     // Telegram 交流群（1.0.30：点开进群；不链到别人的频道）
 };
 
 // 1.0.12 的声明全文；1.0.16 皇上改措辞：改成「免费使用，仅限学习交流」。
@@ -144,9 +144,9 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         // 1.0.24：QQ 行改成个人号「QQ：」+ 号码（2309103548 是个人 QQ，群是 1130823454，另有 QQ群行），点按复制不变。
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ：%@", GHL_QQ_CONTACT_NUMBER] icon:@"message" tag:GHLAboutRowQQContact chevron:NO],
         [self ghlRowSpecWithTitle:[NSString stringWithFormat:@"QQ群 %@", GHL_QQ_GROUP_NUMBER] icon:@"person.2" tag:GHLAboutRowQQGroup chevron:NO],
-        // 1.0.23 第二批 76：Telegram 行——咱们自己的 Telegram 频道还没开通，只提示，
+        // 1.0.30：Telegram 行——Lee 的 Telegram 交流群已开通，点开进群；
         // 不链到 @DouYinHook（那是抖音图层作者的频道）。
-        [self ghlRowSpecWithTitle:@"Telegram（暂未开通）" icon:@"paperplane" tag:GHLAboutRowTelegram chevron:NO],
+        [self ghlRowSpecWithTitle:@"Telegram 交流群" icon:@"paperplane" tag:GHLAboutRowTelegram chevron:NO],
     ]
                                                joinButton:YES
                                                       width:width - kGHLAboutCardMargin * 2];
@@ -418,8 +418,8 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             GHLLog(@"关于：已清除缓存");
             break;
         case GHLAboutRowTelegram:
-            // 1.0.23 第二批 76：Telegram 暂未开通，只提示，不链到别人的频道。
-            [DYYYSettingsHelper showAboutDialog:@"Telegram" message:[NSString stringWithFormat:@"Telegram 交流群暂未开通，先加 QQ 群 %@ 交流", GHL_QQ_GROUP_NUMBER] onConfirm:nil];
+            // 1.0.30：Telegram 交流群已开通，点开邀请链接进群。
+            [self ghlOpenURLString:GHL_TELEGRAM_GROUP_URL fallbackMessage:@"打开失败，请检查网络后重试"];
             break;
         case GHLAboutRowLogViewer:
             // 1.0.16：抖音日志从设置页移过来（日志查看器是普通 VC，关于页是浅色玻璃页，

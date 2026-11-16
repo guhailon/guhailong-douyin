@@ -4,7 +4,7 @@
 #define DYYY_NAME @"SeaDragon Douyin"
 #define DYYY_SETTINGS_NAME @"SeaDragon Douyin 设置"
 
-#define DYYY_VERSION @"1.0.29"
+#define DYYY_VERSION @"1.0.30"
 
 // 顾海龙集团越狱源（关于页用）
 #define GHL_REPO_URL @"https://guhailong-repo.pages.dev"
@@ -14,6 +14,8 @@
 #define GHL_QQ_CONTACT_NUMBER @"2309103548"
 #define GHL_QQ_GROUP_NUMBER @"1130823454"
 #define GHL_QQ_GROUP_JOIN_URL @"https://qun.qq.com/universal-share/share?ac=1&authKey=1jedvqhgrhj4mHm9Sn3c2xEkV3wYRdGeXsFSXn8hHJsRBfOUByIchAevdyEfS5zF&busi_data=eyJncm91cENvZGUiOiIxMTMwODIzNDU0IiwidG9rZW4iOiJxOE5XZTRWSi85emU0RjdNZXNyd2k2Y0lMYmw4MmtnNWVjNjRCeE56SnpNMWRYditLaFJFSU5iV2xoYzViNEl5IiwidWluIjoiMjMwOTEwMzU0OCJ9&data=nYcdCBHCI0lOt1ACENZWO6AfqrZ-Ha1TSfx7CBzkhHazin64W38fmSNXGIU0a9oPEvGgEk8ggiqR2imYH4J-pg&svctype=4&tempid=h5_group_info"
+// Telegram 交流群邀请链接（1.0.30：Lee 刚建的群，关于页 Telegram 行点开进群）
+#define GHL_TELEGRAM_GROUP_URL @"https://t.me/+UaeIYedetWtiZGQ1"
 
 // 默认的远程 ABTest 配置地址
 #define DYYY_DEFAULT_ABTEST_URL @"https://github.com/Nathalie-Annis/AWEABTestDataPatch/releases/latest/download/ABTestDataPatch_A.json"

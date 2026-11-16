@@ -1660,7 +1660,7 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"SeaDragon Douyin 1.0.29 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"SeaDragon Douyin 1.0.30 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
         // 画中画/截屏/音量监听全是死的）。
