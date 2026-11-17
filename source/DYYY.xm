@@ -11307,6 +11307,11 @@ static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
     if (self.window && DYYYGetBool(@"DYYYHidePlusButton")) {
         self.userInteractionEnabled = NO;
         self.hidden = YES;
+    } else if (self.window) {
+        // 1.0.33：开关关了就要把加号还回来——之前这里只会藏、不会还，
+        // 加号容器又不一定在隐藏主流程的候选按钮里，关了开关、重开抖音它还是藏着。
+        self.userInteractionEnabled = YES;
+        self.hidden = NO;
     }
 }
 
@@ -11316,6 +11321,10 @@ static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
     if (DYYYGetBool(@"DYYYHidePlusButton")) {
         self.userInteractionEnabled = NO;
         self.hidden = YES;
+    } else {
+        // 1.0.33：同上，开关关了就恢复显示，不然关了开关加号也回不来。
+        self.userInteractionEnabled = YES;
+        self.hidden = NO;
     }
 }
 
