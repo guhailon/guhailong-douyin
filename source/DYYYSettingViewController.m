@@ -5,6 +5,7 @@
 #import "DYYYBackupPickerDelegate.h"
 #import "DYYYBottomAlertView.h"
 #import "DYYYConstants.h"
+#import "DYYYCustomInputView.h"
 #import "DYYYDownloadManagerViewController.h"
 #import "GHLAboutViewController.h"
 #import "GHLMemoListViewController.h"
@@ -74,6 +75,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
 @property(nonatomic, strong, nullable) NSArray<NSDictionary *> *searchResults;
 @property(nonatomic, strong, nullable) UISearchBar *searchBar;
 @property(nonatomic, strong, nullable) UILabel *statsLabel;
+// 1.0.31：头卡名字（点一下改自定义显示名，见 ghlNameLabelTapped）。
+@property(nonatomic, strong, nullable) UILabel *nameLabel;
 // 1.0.4：头卡龙头（点一下换图、长按恢复默认）、相册/文件选择器的 delegate（要强引用留着，等回调）。
 @property(nonatomic, strong, nullable) UIImageView *logoImageView;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
@@ -145,6 +148,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     // 从子页返回时刷新头卡统计（已开启数可能变了）。
     if ([self isHomeMode]) {
         [self refreshHeaderStats];
+        // 1.0.31：自定义名称可能在基本设置子页里改过，回来刷新头卡名字。
+        [self ghlRefreshHeaderName];
         // 龙头可能在子页里换过（恢复默认龙头行），回来刷新。
         self.logoImageView.image = GHLLogoImage();
     }
@@ -271,6 +276,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     // 1.0.2 白色卡片样式：系统默认白底导航栏 + 黑字大标题（旧的深色毛玻璃 + 金色渐变标题已去掉）。
     self.navigationController.navigationBar.prefersLargeTitles = YES;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
+    // 1.0.31：大标题字缩小到 26（原来 34 号字，「SeaDragon Douyin 设置」一行放不下被截成
+    // 「SeaDragon Douyi…」；大标题保留，不改标题文字）。
+    self.navigationController.navigationBar.largeTitleTextAttributes = @{NSFontAttributeName : [UIFont boldSystemFontOfSize:26]};
     self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
 }
 
@@ -476,6 +484,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"设置朋友标题" key:@"DYYYFriendsTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置消息标题" key:@"DYYYMsgTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
             [DYYYSettingItem itemWithTitle:@"设置我的标题" key:@"DYYYSelfTitle" type:DYYYSettingItemTypeTextField placeholder:@"不填默认"],
+            // 1.0.31：头卡自定义名称（和点名字改是同一把 key，留空恢复默认 SeaDragon Douyin）。
+            [DYYYSettingItem itemWithTitle:@"自定义名称" key:GHL_KEY_CUSTOM_DISPLAY_NAME type:DYYYSettingItemTypeTextField placeholder:@"默认 SeaDragon Douyin"],
             // 1.0.4 深色模式 + 换背景图 + 恢复默认龙头
             [DYYYSettingItem itemWithTitle:@"跟随系统深色" key:GHL_KEY_FOLLOW_SYSTEM_DARK type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"更换背景图" key:GHL_KEY_CHANGE_BACKGROUND type:DYYYSettingItemTypePicker],
@@ -790,11 +800,17 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     CGFloat textX = 92;
     CGFloat textW = card.bounds.size.width - textX - 16;
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 14, textW, 24)];
-    nameLabel.text = @"SeaDragon Douyin";
+    nameLabel.text = [self ghlDisplayName];
     nameLabel.font = [UIFont boldSystemFontOfSize:20];
     nameLabel.textColor = [DYYYUtils dYYYSettingsHeaderTitleColor];
     nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    // 1.0.31：名字太长自动缩字不截断；点一下改自定义显示名。
+    nameLabel.adjustsFontSizeToFitWidth = YES;
+    nameLabel.minimumScaleFactor = 0.7;
+    nameLabel.userInteractionEnabled = YES;
+    [nameLabel addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ghlNameLabelTapped)]];
     [card.contentView addSubview:nameLabel];
+    self.nameLabel = nameLabel;
 
     UILabel *versionLabel = [[UILabel alloc] initWithFrame:CGRectMake(textX, 40, textW, 18)];
     versionLabel.text = [NSString stringWithFormat:@"Version: %@", DYYY_VERSION];
@@ -819,6 +835,42 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     self.searchBar = searchBar;
 
     self.tableView.tableHeaderView = header;
+}
+
+// 1.0.31：头卡显示名——自定义名称（GHL_KEY_CUSTOM_DISPLAY_NAME）没填/留空就显示默认名。
+- (NSString *)ghlDisplayName {
+    NSString *customName = GHLGetString(GHL_KEY_CUSTOM_DISPLAY_NAME);
+    if (customName.length > 0) return customName;
+    return DYYY_NAME;
+}
+
+// 1.0.31：刷新头卡名字（头卡不在本页时 self.nameLabel 为空，直接跳过）。
+- (void)ghlRefreshHeaderName {
+    if (!self.nameLabel) return;
+    self.nameLabel.text = [self ghlDisplayName];
+}
+
+// 1.0.31：点头卡名字改自定义显示名（留空恢复默认）。
+- (void)ghlNameLabelTapped {
+    NSString *currentCustomName = GHLGetString(GHL_KEY_CUSTOM_DISPLAY_NAME) ?: @"";
+    DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"自定义名称" defaultText:currentCustomName placeholder:@"默认 SeaDragon Douyin"];
+    __weak typeof(self) weakSelf = self;
+    inputView.onConfirm = ^(NSString *text) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        if (name.length == 0) {
+            [defaults removeObjectForKey:GHL_KEY_CUSTOM_DISPLAY_NAME];
+            [DYYYUtils showToast:@"已恢复默认名字"];
+        } else {
+            [defaults setObject:name forKey:GHL_KEY_CUSTOM_DISPLAY_NAME];
+            [DYYYUtils showToast:@"名字已保存"];
+        }
+        [strongSelf ghlRefreshHeaderName];
+    };
+    inputView.onCancel = ^{};
+    [inputView show];
 }
 
 - (void)refreshHeaderStats {
@@ -1678,6 +1730,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:textField.tag % 1000 inSection:textField.tag / 1000];
     DYYYSettingItem *item = self.settingSections[indexPath.section][indexPath.row];
     [[NSUserDefaults standardUserDefaults] setObject:textField.text forKey:item.key];
+    // 1.0.31：自定义名称改了就刷新头卡名字（子页里改时头卡不在本页，刷新是空操作，
+    // 回主页时 viewWillAppear 再刷一次）。
+    if ([item.key isEqualToString:GHL_KEY_CUSTOM_DISPLAY_NAME]) {
+        [self ghlRefreshHeaderName];
+    }
     // 顾海龙抖音：输入值同步到上游键
     if ([item.key isEqualToString:GHL_KEY_DANMAKU_COLOR_VALUE]) {
         [[NSUserDefaults standardUserDefaults] setObject:textField.text forKey:@"DYYYDanmuColor"];
