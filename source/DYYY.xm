@@ -11016,14 +11016,23 @@ static CGFloat DYYYTabBarCenterXInTabBar(UIView *view, UIView *tabBar) {
     return CGRectGetMidX(boundsInTabBar);
 }
 
+// 1.0.32：底栏按钮该不该藏（隐藏开关 + 标签匹配），隐藏主流程和 setHidden: 拦截共用。
+// 标签为空时不藏——刚创建还没贴标签的按钮不能误藏。
+static BOOL DYYYTabBarButtonShouldHide(UIView *button, NSString *label) {
+    if (!label.length) return NO;
+    if (DYYYTabBarViewIsPlusButton(button, label) && DYYYGetBool(@"DYYYHidePlusButton")) return YES;
+    if ([label containsString:@"商城"] && DYYYGetBool(@"DYYYHideShopButton")) return YES;
+    if (DYYYTabBarLabelMatchesTitle(label, @"消息", @"DYYYMsgTitle", NO) && DYYYGetBool(@"DYYYHideMessageButton")) return YES;
+    if (DYYYTabBarLabelMatchesTitle(label, @"朋友", @"DYYYFriendsTitle", NO) && DYYYGetBool(@"DYYYHideFriendsButton")) return YES;
+    if (DYYYTabBarLabelMatchesTitle(label, @"我", @"DYYYSelfTitle", YES) && DYYYGetBool(@"DYYYHideMyButton")) return YES;
+    return NO;
+}
+
 // 底栏隐藏主流程：识别 → 隐藏 → 剩余按钮均匀重排 → 节流诊断日志。
 // 认不出的按钮保持可见，只记进日志，绝不误藏。
 static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
     if (!tabBar || CGRectGetWidth(tabBar.bounds) <= 0) return;
-    BOOL hideShop = DYYYGetBool(@"DYYYHideShopButton");
-    BOOL hideMsg = DYYYGetBool(@"DYYYHideMessageButton");
     BOOL hideFri = DYYYGetBool(@"DYYYHideFriendsButton");
-    BOOL hideMe = DYYYGetBool(@"DYYYHideMyButton");
     BOOL hidePlus = DYYYGetBool(@"DYYYHidePlusButton");
     BOOL isPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
 
@@ -11051,11 +11060,7 @@ static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
         if (label.length > 0) [seenLabels addObject:label];
         BOOL isPlus = DYYYTabBarViewIsPlusButton(candidate, label);
         if (isPlus) plusIdentified = YES;
-        BOOL shouldHide = (isPlus && hidePlus) ||
-                          ([label containsString:@"商城"] && hideShop) ||
-                          (DYYYTabBarLabelMatchesTitle(label, @"消息", @"DYYYMsgTitle", NO) && hideMsg) ||
-                          (DYYYTabBarLabelMatchesTitle(label, @"朋友", @"DYYYFriendsTitle", NO) && hideFri) ||
-                          (DYYYTabBarLabelMatchesTitle(label, @"我", @"DYYYSelfTitle", YES) && hideMe);
+        BOOL shouldHide = DYYYTabBarButtonShouldHide(candidate, label);
         candidate.userInteractionEnabled = !shouldHide;
         candidate.hidden = shouldHide;
         if (shouldHide) {
@@ -11112,10 +11117,18 @@ static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
         UIView *button = visibleButtons[i];
         CGRect currentInTabBar = [button convertRect:button.bounds toView:tabBar];
         CGRect targetInTabBar = CGRectMake(offsetX + i * buttonWidth, currentInTabBar.origin.y, buttonWidth, currentInTabBar.size.height);
+        CGRect newFrame;
         if (button.superview && button.superview != tabBar) {
-            button.frame = [tabBar convertRect:targetInTabBar toView:button.superview];
+            newFrame = [tabBar convertRect:targetInTabBar toView:button.superview];
         } else {
-            button.frame = targetInTabBar;
+            newFrame = targetInTabBar;
+        }
+        // 1.0.32：已经在位的按钮不再重复写 frame，避免每轮布局都惊动抖音自己的选中态。
+        if (fabs(newFrame.origin.x - button.frame.origin.x) > 0.5 ||
+            fabs(newFrame.origin.y - button.frame.origin.y) > 0.5 ||
+            fabs(newFrame.size.width - button.frame.size.width) > 0.5 ||
+            fabs(newFrame.size.height - button.frame.size.height) > 0.5) {
+            button.frame = newFrame;
         }
     }
 
@@ -11497,6 +11510,34 @@ static Class tabBarButtonClass = nil;
         }
     }
     return %orig;
+}
+
+// 1.0.32：底栏隐藏加固——抖音切 tab 做动画时会直接把藏起来的按钮 setHidden:NO 显示回来，
+// 只靠 layoutSubviews + 0.5 秒补查追不上，才会一闪一闪（朋友 tab 就是这样：平时藏着，
+// 切 tab 那一下冒出来，0.5 秒后又被藏回去）。这里在 setHidden: 这一关直接拦住：
+// 开关要藏的按钮，任何人想显示都当场改回隐藏；didMoveToWindow 是第二道（重进窗口时也藏）。
+// 开关全关时原样放行，不动抖音自己的显示逻辑。
+- (void)setHidden:(BOOL)hidden {
+    if (!hidden) {
+        NSString *label = DYYYTabBarLabelTextInView((UIView *)self, 3);
+        if (DYYYTabBarButtonShouldHide((UIView *)self, label)) {
+            static NSDate *lastLog = nil;
+            if (!lastLog || [[NSDate date] timeIntervalSinceDate:lastLog] > 10.0) {
+                lastLog = [NSDate date];
+                GHLLog(@"底栏：拦截重现 %@（已重新隐藏）", label);
+            }
+            %orig(YES);
+            return;
+        }
+    }
+    %orig(hidden);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window && DYYYTabBarButtonShouldHide((UIView *)self, DYYYTabBarLabelTextInView((UIView *)self, 3))) {
+        self.hidden = YES;
+    }
 }
 
 %end
