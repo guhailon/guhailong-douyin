@@ -11028,6 +11028,26 @@ static BOOL DYYYTabBarButtonShouldHide(UIView *button, NSString *label) {
     return NO;
 }
 
+// 1.0.34：开关关了也要把加号整棵子树还回来——1.0.33 只还了容器，
+// 内层加号按钮（AWENormalModeTabBarGeneralPlusButton，继承容器类、自己也可能重写了
+// layout）可能被别的路藏住，主流程又只认容器、不碰内层，关了开关它就一直藏着，
+// 干净重测（关开关、杀掉重开）加号还是不回来就是这个原因。
+// 所以主流程每次跑完，都把 tabBar 子树里类名含 Plus 的视图全部恢复显示；
+// 开关开着时不动，全交给藏的那几处。
+static void DYYYRestorePlusButtonSubtree(UIView *view, NSInteger depth, NSUInteger *plusCount, NSUInteger *wasHiddenCount) {
+    if (!view || depth < 0) return;
+    for (UIView *subview in [view.subviews copy]) {
+        NSString *className = NSStringFromClass(subview.class);
+        if ([className containsString:@"Plus"]) {
+            (*plusCount)++;
+            if (subview.hidden) (*wasHiddenCount)++;
+            subview.hidden = NO;
+            subview.userInteractionEnabled = YES;
+        }
+        DYYYRestorePlusButtonSubtree(subview, depth - 1, plusCount, wasHiddenCount);
+    }
+}
+
 // 底栏隐藏主流程：识别 → 隐藏 → 剩余按钮均匀重排 → 节流诊断日志。
 // 认不出的按钮保持可见，只记进日志，绝不误藏。
 static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
@@ -11132,6 +11152,13 @@ static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
         }
     }
 
+    // 1.0.34：开关关了就把加号整棵子树（容器＋内层按钮）都恢复显示，
+    // 主流程每次布局＋0.5 秒补查都会跑到，现关开关不用重开也能回来。
+    NSUInteger plusFound = 0, plusWasHidden = 0;
+    if (!hidePlus) {
+        DYYYRestorePlusButtonSubtree(tabBar, 5, &plusFound, &plusWasHidden);
+    }
+
     // 诊断（节流：每个底栏 10 秒最多一条，方便皇上在“抖音日志”里核对）。
     NSDate *lastLog = objc_getAssociatedObject(tabBar, &kDYYYTabBarHideLastLogKey);
     if (!lastLog || [[NSDate date] timeIntervalSinceDate:lastLog] > 10.0) {
@@ -11144,6 +11171,9 @@ static void DYYYApplyTabBarHideSettings(AWENormalModeTabBar *tabBar) {
         GHLLog(@"底栏：类 General=%@ Plus容器=%@ Plus=%@ Plus内层=%@ | 候选 %lu 看到按钮 %@ | 开关 朋友=%@ 加号=%@ | 已隐藏 %lu",
                generalClass ? @"有" : @"无", plusContainerClass ? @"有" : @"无", plusClass ? @"有" : @"无", plusInnerClass ? @"有" : @"无",
                (unsigned long)candidates.count, [labelsToShow componentsJoinedByString:@","], hideFri ? @"开" : @"关", hidePlus ? @"开" : @"关", (unsigned long)hiddenCount);
+        if (!hidePlus) {
+            GHLLog(@"底栏：加号恢复 类Plus共%lu个 恢复前藏着%lu个", (unsigned long)plusFound, (unsigned long)plusWasHidden);
+        }
     }
 }
 
