@@ -132,6 +132,13 @@ NSString *GHLFileSizeText(NSString *path); // “1.2 MB”这种
 void GHLProbeVoiceFeatures(void);
 // 运行期探针：抖音里有没有直播发语音的相关类（只记日志，不 hook、不发包；语音包开关开时跑一次）
 void GHLProbeLiveVoiceSender(void);
+// 1.0.38 探针版：语音评论录制探针（只记日志，不改行为；无开关，常驻）
+void GHLProbeCommentVoiceInputOpened(UIViewController *inputVC);
+void GHLProbeCommentVoiceInputClosed(void);
+void GHLProbeCommentVoiceRecorderInit(NSURL *url);
+void GHLProbeCommentVoiceRecordStarted(NSURL *url);
+void GHLProbeCommentVoiceRecordStopped(NSURL *url, NSTimeInterval duration);
+void GHLProbeCommentVoiceRecordPaused(void);
 
 // MARK: - 32-43（xuu 抖音助手行为参考，代码全部自己写；只学功能清单，不抄它的代码）
 // (33) 自动抢红包

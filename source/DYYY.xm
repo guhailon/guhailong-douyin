@@ -4956,6 +4956,91 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
 
 %end
 
+// 1.0.38 探针版：语音评论录制探针（只记日志，不改行为）。
+// 抓评论输入框打开/关闭 + 系统录音 AVAudioRecorder 的起止与文件。
+// 不 hook 上传/发送方法（还不知道是哪一个），不猜类名。
+
+%hook AWECommentInputViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    @try {
+        GHLProbeCommentVoiceInputOpened(self);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：评论输入框打开钩子异常");
+    }
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    %orig;
+    @try {
+        GHLProbeCommentVoiceInputClosed();
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：评论输入框关闭钩子异常");
+    }
+}
+
+%end
+
+%hook AVAudioRecorder
+
+- (instancetype)initWithURL:(NSURL *)url settings:(NSDictionary<NSString *,id> *)settings error:(NSError **)error {
+    self = %orig;
+    @try {
+        if (self) GHLProbeCommentVoiceRecorderInit(url);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：录音机创建钩子异常");
+    }
+    return self;
+}
+
+- (BOOL)record {
+    BOOL result = %orig;
+    @try {
+        if (result) GHLProbeCommentVoiceRecordStarted(self.url);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：开始录音钩子异常");
+    }
+    return result;
+}
+
+- (BOOL)recordForDuration:(NSTimeInterval)duration {
+    BOOL result = %orig;
+    @try {
+        if (result) GHLProbeCommentVoiceRecordStarted(self.url);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：开始录音钩子异常");
+    }
+    return result;
+}
+
+- (void)stop {
+    NSURL *url = nil;
+    NSTimeInterval duration = 0;
+    @try {
+        url = self.url;
+        duration = self.currentTime;
+    } @catch (__unused NSException *exception) {
+    }
+    %orig;
+    @try {
+        GHLProbeCommentVoiceRecordStopped(url, duration);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：停止录音钩子异常");
+    }
+}
+
+- (void)pause {
+    %orig;
+    @try {
+        GHLProbeCommentVoiceRecordPaused();
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：录音暂停钩子异常");
+    }
+}
+
+%end
+
 %hook UIMenu
 
 + (instancetype)menuWithTitle:(NSString *)title image:(UIImage *)image identifier:(UIMenuIdentifier)identifier options:(UIMenuOptions)options children:(NSArray<UIMenuElement *> *)children {

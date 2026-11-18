@@ -255,7 +255,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.34：加号还是不回来再修——1.0.33 只还了加号容器，内层加号按钮还藏着没人还（主流程只认容器、不碰内层），干净重测（关开关、杀掉重开）加号还是不回来；现在主流程每次布局都把加号整棵子树（容器＋内层按钮）全部恢复显示，现关开关不用重开也能回来，日志里加一行「加号恢复」方便核对。\n"
            @"1.0.35：恢复原版 DYYY（改版后很多东西不显示）——图层全部拿掉、实验全取消，只留：改名/品牌、关于页全套、长按面板、后台听视频、自动跳过开屏广告、评论图片存原图、弹幕浮层、侧边栏排序、截图去水印、语音包、自动抢红包、自动开直播抽奖、评论语音保存、底栏加固/高度钳制/朋友闪烁/加号恢复/冻住看门狗/长按面板修法/卡片修点按、画中画装回来（设置行＋面板 688 格＋切后台触发）、接口解析入口、悬浮按钮自定义、面板背景图、面板材质、主题预设、语音包导入、双击下载/长按下载/下载进度；面板外观固定回 1.0.22 默认（3 列、满强度磨砂、格子白底 0.55）。\n"
            @"1.0.36：清掉 1.0.35 漏掉的三处残留——#27 保存相册详细的代码还在（说明里写视频 ID／时长／点赞评论分享收藏播放数／音乐那段整个拿掉，函数恢复成原版 DYYY；「保存作品信息」开关是原版的，留着）；巡检定时器日志不再列自动连播；面板图标映射里视频原声提取（686）的死分支删掉。\n"
-           @"1.0.37：长按面板新增作品日期显示——面板顶部龙头下方多一行「发布时间：yyyy-MM-dd HH:mm」（取作品 createTime，为 0/缺失时那行不显示）；设置里新增「作品日期显示」开关，默认开。";
+           @"1.0.37：长按面板新增作品日期显示——面板顶部龙头下方多一行「发布时间：yyyy-MM-dd HH:mm」（取作品 createTime，为 0/缺失时那行不显示）；设置里新增「作品日期显示」开关，默认开。\n"
+           @"1.0.38：探针版——只记录语音评论录制时的信息（评论输入框打开时的控制器/响应链、系统录音的起止与文件、录音开始时相关类清单），帮助定位替换语音评论的钩点；没有新功能、不改任何行为。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -1718,7 +1719,8 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"SeaDragon Douyin 1.0.37 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"SeaDragon Douyin 1.0.38 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"语音探针：1.0.38 探针版已启用（只记日志，不改行为；录一次语音评论后把日志发回来）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         // 1.0.15：监听的 token 必须存下来（以前返回值丢了，监听立刻失效，截屏监听是死的）。
         ghlScreenshotObserverToken = [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
@@ -2951,6 +2953,156 @@ void GHLProbeVoiceFeatures(void) {
     }
 
     GHLLog(@"语音探针：只记录类/属性存在，保存流程待真机日志进一步验证");
+}
+
+#pragma mark - 1.0.38 语音评论录制探针（只记日志，不改行为）
+
+// 1.0.38 探针版：找抖音录制/上传语音评论的钩点。
+// 抓三样：评论输入框打开时的控制器/响应链、系统录音 AVAudioRecorder 的起止与文件、
+// 录音开始那一刻名字里带 Comment/Voice/Audio/Record 的类（候选清单）。
+// 全部只记日志，不改任何行为；所有探针包 @try/@catch，绝不崩、绝不卡主线程。
+// 计数器只在日志行里用，偶有竞态也只影响一行数字，不影响行为。
+
+static NSInteger ghlVoiceProbeSessionRecorderInits = 0;
+static NSInteger ghlVoiceProbeSessionRecordStarts = 0;
+static NSInteger ghlVoiceProbeSessionRecordStops = 0;
+static BOOL ghlVoiceProbeInputOpen = NO;
+static BOOL ghlVoiceProbeClassScanDone = NO;
+
+static void GHLProbeCommentVoiceClassScan(void) {
+    @try {
+        unsigned int count = 0;
+        Class *classes = objc_copyClassList(&count);
+        NSMutableArray<NSString *> *hits = [NSMutableArray array];
+        NSArray<NSString *> *keywords = @[ @"Comment", @"Voice", @"Audio", @"Record" ];
+        for (unsigned int i = 0; i < count; i++) {
+            NSString *name = NSStringFromClass(classes[i]);
+            for (NSString *kw in keywords) {
+                if ([name containsString:kw]) {
+                    if (hits.count < 40) [hits addObject:name];
+                    break;
+                }
+            }
+        }
+        free(classes);
+        GHLLog(@"语音探针：录音开始时疑似相关类 %lu 个（前 40）：%@", (unsigned long)hits.count, hits);
+        NSMutableArray<NSString *> *known = [NSMutableArray array];
+        for (NSString *name in @[ @"AWECommentInputViewController", @"AWECommentAudioModel", @"DYZSVoiceManagerView", @"IESLiveVoiceFragment", @"IESLiveVoiceSender" ]) {
+            if (NSClassFromString(name)) [known addObject:name];
+        }
+        GHLLog(@"语音探针：已知类存在情况：%@", known.count > 0 ? [known componentsJoinedByString:@"、"] : @"一个都不存在");
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：类扫描异常");
+    }
+}
+
+static void GHLProbeCommentVoiceSnapshotTopVC(void) {
+    @try {
+        UIViewController *top = GHLTopViewController();
+        if (!top) {
+            GHLLog(@"语音探针：录音开始时顶层控制器没找到");
+            return;
+        }
+        NSMutableArray<NSString *> *children = [NSMutableArray array];
+        for (UIViewController *child in top.childViewControllers) {
+            if (children.count < 10) [children addObject:NSStringFromClass([child class])];
+        }
+        GHLLog(@"语音探针：录音开始时顶层控制器=%@，子控制器=%@", NSStringFromClass([top class]), children.count > 0 ? [children componentsJoinedByString:@"、"] : @"无");
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：顶层控制器快照异常");
+    }
+}
+
+void GHLProbeCommentVoiceInputOpened(UIViewController *inputVC) {
+    @try {
+        ghlVoiceProbeInputOpen = YES;
+        ghlVoiceProbeSessionRecorderInits = 0;
+        ghlVoiceProbeSessionRecordStarts = 0;
+        ghlVoiceProbeSessionRecordStops = 0;
+        ghlVoiceProbeClassScanDone = NO;
+        if (!inputVC) {
+            GHLLog(@"语音探针：评论输入框已打开（控制器为空）");
+            return;
+        }
+        NSMutableArray<NSString *> *chain = [NSMutableArray array];
+        UIResponder *responder = (UIResponder *)inputVC.view;
+        while (responder && chain.count < 12) {
+            [chain addObject:NSStringFromClass([responder class])];
+            responder = [responder nextResponder];
+        }
+        NSMutableArray<NSString *> *children = [NSMutableArray array];
+        for (UIViewController *child in inputVC.childViewControllers) {
+            if (children.count < 12) [children addObject:NSStringFromClass([child class])];
+        }
+        NSMutableArray<NSString *> *subviews = [NSMutableArray array];
+        for (UIView *sub in inputVC.view.subviews) {
+            if (subviews.count < 20) [subviews addObject:NSStringFromClass([sub class])];
+        }
+        GHLLog(@"语音探针：评论输入框已打开，控制器=%@，子控制器=%@，视图响应链=%@，直接子视图=%@",
+               NSStringFromClass([inputVC class]),
+               children.count > 0 ? [children componentsJoinedByString:@"、"] : @"无",
+               [chain componentsJoinedByString:@" → "],
+               subviews.count > 0 ? [subviews componentsJoinedByString:@"、"] : @"无");
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：评论输入框打开快照异常");
+    }
+}
+
+void GHLProbeCommentVoiceInputClosed(void) {
+    @try {
+        if (!ghlVoiceProbeInputOpen) return;
+        ghlVoiceProbeInputOpen = NO;
+        GHLLog(@"语音探针：评论输入框已关闭，本次会话：录音机创建 %ld 次、开始录音 %ld 次、停止录音 %ld 次、类扫描%@",
+               (long)ghlVoiceProbeSessionRecorderInits,
+               (long)ghlVoiceProbeSessionRecordStarts,
+               (long)ghlVoiceProbeSessionRecordStops,
+               ghlVoiceProbeClassScanDone ? @"已做" : @"未做");
+        ghlVoiceProbeClassScanDone = NO;
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：评论输入框关闭汇总异常");
+    }
+}
+
+void GHLProbeCommentVoiceRecorderInit(NSURL *url) {
+    @try {
+        ghlVoiceProbeSessionRecorderInits++;
+        GHLLog(@"语音探针：AVAudioRecorder 创建，文件=%@", url ? [url path] : @"（空）");
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：录音机创建日志异常");
+    }
+}
+
+void GHLProbeCommentVoiceRecordStarted(NSURL *url) {
+    @try {
+        ghlVoiceProbeSessionRecordStarts++;
+        GHLLog(@"语音探针：开始录音，文件=%@", url ? [url path] : @"（空）");
+        if (!ghlVoiceProbeClassScanDone) {
+            ghlVoiceProbeClassScanDone = YES;
+            GHLProbeCommentVoiceClassScan();
+            GHLRunOnMain(^{
+                GHLProbeCommentVoiceSnapshotTopVC();
+            });
+        }
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：开始录音日志异常");
+    }
+}
+
+void GHLProbeCommentVoiceRecordStopped(NSURL *url, NSTimeInterval duration) {
+    @try {
+        ghlVoiceProbeSessionRecordStops++;
+        GHLLog(@"语音探针：停止录音，文件=%@，时长=%.1f 秒", url ? [url path] : @"（空）", duration);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：停止录音日志异常");
+    }
+}
+
+void GHLProbeCommentVoiceRecordPaused(void) {
+    @try {
+        GHLLog(@"语音探针：录音暂停");
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音探针：录音暂停日志异常");
+    }
 }
 
 #pragma mark - 1.0.18 浮动按钮＋卡片面板（快手「人民的快手」式入口，只学样子与行为）
