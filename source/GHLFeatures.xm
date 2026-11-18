@@ -17,9 +17,7 @@
 #import "DYYYSettingsHelper.h"
 #import "DYYYSettingViewController.h"
 #import "GHLAboutViewController.h"
-#import "GHLImagePreviewViewController.h"
 #import "GHLLogViewerViewController.h"
-#import "GHLMemoListViewController.h"
 #import "DYYYToast.h"
 #import "DYYYOptionsSelectionView.h"
 #import "DYYYBackupPickerDelegate.h"
@@ -56,12 +54,6 @@ BOOL GHLGetBool(NSString *key) {
 NSString *GHLGetString(NSString *key) {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:key];
     return [value isKindOfClass:[NSString class]] ? value : nil;
-}
-
-BOOL GHLKeywordFilterEnabled(void) {
-    id value = [[NSUserDefaults standardUserDefaults] objectForKey:GHL_KEY_KEYWORD_FILTER];
-    if (!value) return YES; // 没设置过默认开，保持上游已有过滤行为不变
-    return [value boolValue];
 }
 
 BOOL GHLFollowSystemDarkEnabled(void) {
@@ -226,40 +218,6 @@ BOOL GHLPerformFloatButtonAction(NSString *action) {
     return YES;
 }
 
-// 1.0.5 手势自定义：执行一个手势动作；返回 YES 表示已处理。
-// 动作候选只给已经存在的功能（前 5 个复用悬浮按钮那套）+ 静音开关 + 下一个视频。
-// 前向声明（实现在下面“手势”一节，切下一个视频和边缘滑动共用）。
-static void GHLScrollFeedToNextVideo(void);
-
-// 前向声明（实现在下面“1.0.23 第二批”一节；@implementation GHLFeatures 里的
-// 手势/按钮回调在它前面，要先声明）。
-static void GHLHandleIMDoubleTapReply(void);
-static void GHLHandleIMAvatarLongPress(UITableView *table, CGPoint point);
-static void GHLHandleAISegmentChanged(UISegmentedControl *segment);
-static void GHLHandleAIParseStart(UIButton *button);
-
-BOOL GHLPerformGestureAction(NSString *action) {
-    if (!action || [action isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) return NO;
-    if (GHLPerformFloatButtonAction(action)) return YES;
-    if ([action isEqualToString:GHL_GESTURE_ACTION_MUTE]) {
-        // 静音开关：抖音头文件里没有静音接口，直接开关已定位的 AVPlayer 的 muted（公开 API，
-        // 快进/截图用的就是这个播放器）。只管当前视频，切视频后新播放器默认有声，要再按一次。
-        AVPlayer *player = GHLFindPlayingAVPlayer();
-        if (!player) {
-            [DYYYUtils showToast:@"当前没有视频"];
-            return YES;
-        }
-        player.muted = !player.muted;
-        [DYYYUtils showToast:player.muted ? @"已静音" : @"已取消静音"];
-        return YES;
-    }
-    if ([action isEqualToString:GHL_GESTURE_ACTION_NEXT]) {
-        GHLScrollFeedToNextVideo();
-        return YES;
-    }
-    return NO;
-}
-
 // 更新日志文本（1.0.1–1.0.11 各一行真实改动，以 git log 为准）。
 NSString *GHLChangelogText(void) {
     return @"1.0.1：修主设置页两行空白，功能设置标注改小字两行显示。\n"
@@ -294,17 +252,21 @@ NSString *GHLChangelogText(void) {
            @"1.0.31：设置页大标题字缩小，「SeaDragon Douyin 设置」一行显示不再截断；头卡名字可自定义（点名字直接改，或在基本设置里填「自定义名称」，留空恢复默认）。\n"
            @"1.0.32：底栏隐藏加固——藏起来的朋友 tab 切 tab 时会闪出来再被藏回去（抖音动画里直接重现按钮，只靠 0.5 秒补查追不上），现在 setHidden 那关直接拦住不再闪；底栏重排只动位置变了的按钮，选中态不再跟着闪。\n"
            @"1.0.33：加号关了开关也回不来修好——加号容器那几处钩子以前只会藏、不会还，关了「隐藏底栏加号」又重开抖音它还是藏着（隐藏主流程的候选按钮里不一定有它），现在开关关了就主动恢复显示。\n"
-           @"1.0.34：加号还是不回来再修——1.0.33 只还了加号容器，内层加号按钮还藏着没人还（主流程只认容器、不碰内层），干净重测（关开关、杀掉重开）加号还是不回来；现在主流程每次布局都把加号整棵子树（容器＋内层按钮）全部恢复显示，现关开关不用重开也能回来，日志里加一行「加号恢复」方便核对。";
+           @"1.0.34：加号还是不回来再修——1.0.33 只还了加号容器，内层加号按钮还藏着没人还（主流程只认容器、不碰内层），干净重测（关开关、杀掉重开）加号还是不回来；现在主流程每次布局都把加号整棵子树（容器＋内层按钮）全部恢复显示，现关开关不用重开也能回来，日志里加一行「加号恢复」方便核对。\n"
+           @"1.0.35：恢复原版 DYYY（改版后很多东西不显示）——图层全部拿掉、实验全取消，只留：改名/品牌、关于页全套、长按面板、后台听视频、自动跳过开屏广告、评论图片存原图、弹幕浮层、侧边栏排序、截图去水印、语音包、自动抢红包、自动开直播抽奖、评论语音保存、底栏加固/高度钳制/朋友闪烁/加号恢复/冻住看门狗/长按面板修法/卡片修点按、画中画装回来（设置行＋面板 688 格＋切后台触发）、接口解析入口、悬浮按钮自定义、面板背景图、面板材质、主题预设、语音包导入、双击下载/长按下载/下载进度；面板外观固定回 1.0.22 默认（3 列、满强度磨砂、格子白底 0.55）。";
 }
 
-// ===== 播放器查找（1.0.15；1.0.28：画中画下架后只剩 A 路）=====
+// ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
 // 全部窗口（所有 scene 的窗口，不只 keyWindow）里递归找 AVPlayerLayer
 // （图层树也递归——旧代码只查 view.layer.sublayers 一层，包在容器图层里的就漏了）。
-// 供快进/静音/截图/直播静音这些要找当前播放器用的；详细日志只在 verbose 时记，
-// 平时调用不记，免得 2 秒巡检（直播静音开着时）把日志刷爆。
+// 供快进/静音/截图/画中画这些要找当前播放器用的；详细日志只在 verbose 时记，
+// 平时调用不记，免得 2 秒巡检把日志刷爆。
 // 什么都没找到时，日志写明现场（窗口数、各类图层数），方便下一步判断——
 // 比如满屏都是 AVSampleBufferDisplayLayer，就说明这版抖音走自有播放器渲染，
 // 而不是 AVPlayerLayer。
+
+// 前向声明（实现在下面画中画一节；B 路探针先用到）。
+static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out);
 
 // 全部窗口（去重）：sharedApplication.windows 再加每个 UIWindowScene 的 windows。
 static NSArray<UIWindow *> *GHLAllAppWindows(void) {
@@ -323,6 +285,12 @@ static NSArray<UIWindow *> *GHLAllAppWindows(void) {
     return windows;
 }
 
+
+// 1.0.21：A 路排除自己的宿主图层——宿主 view 和合成图层的声明必须放在 finder 前面
+// （以前在 600 行以后，finder 看不到，自己的兜底图层会被当成系统播放器捡起来，
+// 8.log 18:21:26 实锤的竞态：前一次 D 路兜底还在 KVO 加载，A 路把它捡起来又调了一次 start）。
+static UIView *ghlPiPLayerHostView = nil; // 合成图层宿主 view（挂在窗口里，320x180）
+static AVPlayerLayer *ghlPiPSyntheticLayer = nil; // C/D 路新建的图层（控制器会留住，这里再强引用一份）
 
 // 递归收图层：AVPlayerLayer 直接收；AVSampleBufferDisplayLayer / Metal / GL 图层只计数
 // （诊断用：它们出现说明抖音在用自有播放器渲染，而不是 AVPlayerLayer）。
@@ -407,6 +375,134 @@ AVPlayerLayer *GHLFindPlayingAVPlayerLayer(void) {
     return GHLFindPlayingAVPlayerLayerVerbose(NO, NULL, NULL);
 }
 
+// 1.0.16：运行时 VC 类名全 dump（判别播放器控制器是不是改名了——B 路只认 3 个类名，
+// 控制器改名会让 B 路永远 0 个；这一行打出来就能看到底有没有播放器控制器、叫什么）。
+// 只在 verbose 时调（画中画查找那次），平时不记。
+static void GHLCollectAllViewControllerClassesInVC(UIViewController *vc, NSMutableSet<NSString *> *out) {
+    if (!vc || !out) return;
+    [out addObject:NSStringFromClass([vc class])];
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLCollectAllViewControllerClassesInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLCollectAllViewControllerClassesInVC(vc.presentedViewController, out);
+}
+
+// B 路：在播放器控制器上 KVC 探针找 AVPlayer / AVPlayerLayer（verbose 时记结果）。
+// 键名是按惯例猜的：拿不到就记一行，不崩；拿到了先验类再用。
+static AVPlayer *GHLProbePlayerFromPlayerVCs(BOOL verbose, AVPlayerLayer **outLayer) {
+    static NSArray<NSString *> *playerKeys = nil;
+    static NSArray<NSString *> *layerKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      playerKeys = @[@"player", @"avPlayer", @"videoPlayer", @"currentPlayer", @"playerController", @"videoController", @"mediaPlayer", @"enginePlayer"];
+      layerKeys = @[@"playerLayer", @"videoLayer", @"avPlayerLayer"];
+    });
+    __block AVPlayer *foundPlayer = nil;
+    __block AVPlayerLayer *foundLayer = nil;
+    void (^probe)(void) = ^{
+      @try {
+          NSArray<UIWindow *> *windows = GHLAllAppWindows();
+          NSMutableArray *playerVCs = [NSMutableArray array];
+          NSMutableArray<NSString *> *vcClasses = [NSMutableArray array];
+          for (UIWindow *window in windows) {
+              UIViewController *root = window.rootViewController;
+              while (root.presentedViewController) root = root.presentedViewController;
+              GHLFindPlayerViewControllersInVC(root, playerVCs);
+          }
+          for (UIViewController *vc in playerVCs) {
+              [vcClasses addObject:NSStringFromClass([vc class])];
+          }
+          if (verbose) {
+              GHLLog(@"画中画查找 B 路：播放器控制器 %lu 个（%@）", (unsigned long)playerVCs.count, playerVCs.count > 0 ? [vcClasses componentsJoinedByString:@"、"] : @"无");
+              // 1.0.16：窗口里控制器类名全 dump（B 路 0 个时看看到底有没有播放器控制器、叫什么）——
+              // 40 个封顶，免得一行太长；只在画中画查找那次记。
+              NSMutableSet<NSString *> *allVCClasses = [NSMutableSet set];
+              for (UIWindow *window in windows) {
+                  UIViewController *root = window.rootViewController;
+                  while (root.presentedViewController) root = root.presentedViewController;
+                  GHLCollectAllViewControllerClassesInVC(root, allVCClasses);
+              }
+              NSArray<NSString *> *sortedVCClasses = [[allVCClasses allObjects] sortedArrayUsingSelector:@selector(compare:)];
+              if (sortedVCClasses.count > 40) sortedVCClasses = [sortedVCClasses subarrayWithRange:NSMakeRange(0, 40)];
+              GHLLog(@"画中画查找 B 路：窗口里控制器共 %lu 类：%@", (unsigned long)allVCClasses.count, [sortedVCClasses componentsJoinedByString:@"、"]);
+          }
+          // 1.0.17：键存在但值不是播放器/图层时补记一行（之前是盲点：只记命中，键存在但类型不对时静默跳过）。
+          // 只在 verbose 时记，8 条封顶，免得刷屏。
+          __block NSInteger mismatchLogCount = 0;
+          for (UIViewController *vc in playerVCs) {
+              if (foundPlayer || foundLayer) break;
+              for (NSString *key in layerKeys) {
+                  @try {
+                      id value = [vc valueForKey:key];
+                      if ([value isKindOfClass:[AVPlayerLayer class]]) {
+                          foundLayer = (AVPlayerLayer *)value;
+                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayerLayer", NSStringFromClass([vc class]), key);
+                          break;
+                      } else if (value && verbose && mismatchLogCount < 8) {
+                          mismatchLogCount++;
+                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayerLayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
+                      }
+                  } @catch (__unused NSException *exception) {
+                  }
+              }
+              if (foundLayer) break;
+              for (NSString *key in playerKeys) {
+                  @try {
+                      id value = [vc valueForKey:key];
+                      if ([value isKindOfClass:[AVPlayer class]]) {
+                          foundPlayer = (AVPlayer *)value;
+                          if (verbose) GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 拿到 AVPlayer", NSStringFromClass([vc class]), key);
+                          break;
+                      } else if (value && verbose && mismatchLogCount < 8) {
+                          mismatchLogCount++;
+                          GHLLog(@"画中画查找 B 路：%@ 上 KVC 键 %@ 存在，但值是 %@（不是 AVPlayer）", NSStringFromClass([vc class]), key, NSStringFromClass([value class]));
+                      }
+                  } @catch (__unused NSException *exception) {
+                  }
+              }
+          }
+          if (verbose && !foundPlayer && !foundLayer) {
+              GHLLog(@"画中画查找 B 路：KVC 探针什么都没拿到");
+          }
+      } @catch (__unused NSException *exception) {
+          if (verbose) GHLLog(@"画中画查找 B 路：遍历控制器时异常");
+      }
+    };
+    if ([NSThread isMainThread]) {
+        probe();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), probe);
+    }
+    if (outLayer) *outLayer = foundLayer;
+    return foundPlayer;
+}
+
+static AVPlayer *GHLFindPlayingAVPlayerForPiP(AVPlayerLayer **outLayer) {
+    AVPlayerLayer *layer = GHLFindPlayingAVPlayerLayerVerbose(YES, NULL, NULL);
+    AVPlayer *player = layer.player;
+    if (player) {
+        if (outLayer) *outLayer = layer;
+        return player;
+    }
+    if (layer) {
+        // 图层找到了但上面没挂播放器：记一笔，再走 B 路。
+        GHLLog(@"画中画查找：找到 AVPlayerLayer 但 player 是 nil，继续 B 路探针");
+    }
+    AVPlayerLayer *probeLayer = nil;
+    AVPlayer *probePlayer = GHLProbePlayerFromPlayerVCs(YES, &probeLayer);
+    if (probeLayer) {
+        if (outLayer) *outLayer = probeLayer;
+        return probeLayer.player;
+    }
+    if (probePlayer) {
+        if (outLayer) *outLayer = nil;
+        return probePlayer;
+    }
+    if (outLayer) *outLayer = nil;
+    GHLLog(@"画中画查找：A 路 B 路都没找到播放器（图层和 KVC 探针都是空）");
+    return nil;
+}
+
 AVPlayer *GHLFindPlayingAVPlayer(void) {
     return GHLFindPlayingAVPlayerLayer().player;
 }
@@ -447,113 +543,837 @@ void GHLPauseCurrentPlayer(void) {
     GHLLog(@"已暂停当前视频");
 }
 
-#pragma mark - (1) 睡眠定时
+#pragma mark - (2) 画中画
 
-static NSTimer *ghlSleepTimer = nil;
+static AVPictureInPictureController *ghlPiPController = nil;
+// （1.0.21：ghlPiPSyntheticLayer 的声明挪到 finder 前面了，A 路排除自己图层要用。）
 
-void GHLRestartSleepTimer(void) {
-    GHLRunOnMain(^{
-      [ghlSleepTimer invalidate];
-      ghlSleepTimer = nil;
-      NSString *choice = GHLGetString(GHL_KEY_SLEEP_TIMER) ?: @"关闭";
-      NSTimeInterval minutes = 0;
-      if ([choice isEqualToString:@"15分钟"]) minutes = 15;
-      else if ([choice isEqualToString:@"30分钟"]) minutes = 30;
-      else if ([choice isEqualToString:@"60分钟"]) minutes = 60;
-      if (minutes <= 0) {
-          GHLLog(@"睡眠定时：关闭");
-          return;
-      }
-      ghlSleepTimer = [NSTimer scheduledTimerWithTimeInterval:minutes * 60
-                                                      repeats:NO
-                                                        block:^(NSTimer *timer) {
-                                                          GHLPauseCurrentPlayer();
-                                                          [DYYYUtils showToast:@"睡眠定时到，已暂停播放"];
-                                                          GHLLog(@"睡眠定时到（%@），已暂停", choice);
-                                                        }];
-      [DYYYUtils showToast:[NSString stringWithFormat:@"睡眠定时已设：%@后暂停", choice]];
-      GHLLog(@"睡眠定时：已设 %@", choice);
-    });
-}
+// ===== 画中画兜底 D 路（1.0.16）=====
+// 抖音自有播放器（Metal 渲染）没有 AVPlayerLayer，A/B/C 全空时只能自起播放器。
+// 老实边界：从头播（接不上进度）、链接可能是带签名的短效链接（过期播不了）、
+// 后台/锁屏/与原视频声音冲突都要真机验证。player/item 都强引用留住（画中画停了
+// 也不放，下次同视频复用）；item 就绪（KVO status）后再 startPictureInPicture。
+static AVPlayer *ghlPiPFallbackPlayer = nil;
+static AVPlayerItem *ghlPiPFallbackItem = nil;
+static BOOL ghlPiPFallbackObserving = NO;
+static BOOL ghlPiPFallbackStarted = NO;
+static char kGHLPiPFallbackKVOContext;
 
-#pragma mark - (9) 夜间护眼
+// 画中画 start 回调标记：didStart/失败任一到就置 YES；每次调 startPictureInPicture 前清掉。
+// 3 秒都没回调＝系统根本没接上（1.0.18 日志：8 次调用 0 成功、7 次没任何回调；
+// 8.log：没窗口的兜底一直响到会话结束），看门狗就把兜底播放器停掉，别让它在后台一直出声。
+static BOOL ghlPiPStartCallbackReceived = NO;
+static CFAbsoluteTime ghlPiPLastStartTime = 0;
+// （1.0.21：ghlPiPLayerHostView 的声明挪到 finder 前面了，A 路排除自己图层要用。）
+// 1.0.21：第 7 项去重——上次切后台触发的时间（不管有没有调 start）；10 秒内重复触发直接丢弃。
+// （8.log：D 里 4 秒内重复触发 5 次，每次都重建兜底播放器，旧看门狗全被新播放器顶掉。
+//  旧的冷却只看上次 start，没调 start 时挡不住——通知中心下拉也会触发 WillResignActive，
+//  回来又 DidBecomeActive 清掉 guard，一拉一回就是一次新触发。）
+static CFAbsoluteTime ghlPiPLastTriggerTime = 0;
+// 1.0.21：兜底播放器建的时候 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）。
+// 建的时候在后台、就绪时已回前台＝用户回来了，别再启动画中画，直接停掉兜底（免得两个声音叠着响）。
+static BOOL ghlPiPFallbackCreatedWhileBackground = NO;
 
-void GHLApplyNightMode(BOOL on) {
-    GHLRunOnMain(^{
-      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-      if (on) {
-          if (![defaults objectForKey:@"GHLNightSavedBrightness"]) {
-              [defaults setFloat:[UIScreen mainScreen].brightness forKey:@"GHLNightSavedBrightness"];
-          }
-          NSString *value = GHLGetString(GHL_KEY_NIGHT_BRIGHTNESS);
-          CGFloat target = value.length > 0 ? [value floatValue] : 0.3f;
-          if (target <= 0 || target > 1) target = 0.3f;
-          [UIScreen mainScreen].brightness = target;
-          if (window) window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-          GHLLog(@"夜间护眼：开，亮度 %.2f", target);
-      } else {
-          NSNumber *saved = [defaults objectForKey:@"GHLNightSavedBrightness"];
-          if (saved) [UIScreen mainScreen].brightness = [saved floatValue];
-          [defaults removeObjectForKey:@"GHLNightSavedBrightness"];
-          if (window) window.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
-          GHLLog(@"夜间护眼：关，已恢复亮度");
-      }
-    });
-}
+// 前向声明（定义在下面 GHLStartPiP 前；GHLPiPDelegate 的 KVO 回调里先用到）。
+static void GHLCleanupFallbackPiPObserver(void);
+static void GHLCleanupFallbackPiPPlayer(void);
+static void GHLNotePiPStartAttempted(void);
+static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason); // 1.0.21：3 秒看门狗／后台任务结束时的共用停播
 
-// %ctor 里 addObserverForName:usingBlock: 的返回值要存进 file-static 变量——
-// ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销
-// （照 DYYY.xm 的 dyyy*Token 写法）。
+// 1.0.15：%ctor 里三个 addObserverForName:usingBlock: 的返回值以前全丢了——
+// ARC 下 token 立刻释放，NSNotificationCenter 只弱引用它，监听随即注销，
+// GHLStartPiP() 一次都没跑过（皇上 19:53「滑出抖音没有小窗」的根因）。
+// 现在把 token 存进 file-static 变量（照 DYYY.xm 的 dyyy*Token 写法），
+// applicationWillTerminate 时移除（见 %ctor 后面的 %hook AppDelegate）。
 static id ghlScreenshotObserverToken = nil;
 static id ghlVolumeObserverToken = nil;
+static id ghlPiPWillResignActiveToken = nil;
+static id ghlPiPDidEnterBackgroundToken = nil;
+static id ghlPiPDidBecomeActiveToken = nil;
+// 一次后台只触发一次画中画：WillResignActive 先触发，DidEnterBackground 兜底时
+// 靠它跳过；回到前台（DidBecomeActive）再清掉，下次切后台重新触发。
+static BOOL ghlPiPTriggeredForCurrentBackground = NO;
+// 兜底路径的后台任务：DidEnterBackground 里起画中画时 App 随时被挂起，
+// 开一个后台任务撑到系统回调（didStart/失败）或 10 秒超时。
+static UIBackgroundTaskIdentifier ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
 
-// 直播间净化涉及的上游隐藏键
-static NSArray<NSString *> *GHLLiveHideKeys(void) {
-    return @[
-        @"DYYYHideLiveView", @"DYYYHideLiveRoomShareCompanion", @"DYYYHideLiveRoomMirroring",
-        @"DYYYHideLiveRoomFullscreen", @"DYYYHideLiveRoomClose", @"DYYYHideLiveRoomClear",
-        @"DYYYHideLivePopup", @"DYYYHideLivePlayground", @"DYYYHideLiveLikeAnimation",
-        @"DYYYHideLiveHotMessage", @"DYYYHideLiveGoodsMsg", @"DYYYHideLiveGIF",
-        @"DYYYHideLiveDiscovery", @"DYYYHideLiveDetail", @"DYYYHideLiveDanmaku",
-        @"DYYYHideLiveCapsuleView", @"DYYYHideEnterLive", @"DYYYHideAvatarLive",
-        @"DYYYHideTabLive", @"DYYYHideLiveDuration"
-    ];
+static void GHLEndPiPBackgroundTask(void) {
+    if (ghlPiPBackgroundTask == UIBackgroundTaskInvalid) return;
+    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
+    ghlPiPBackgroundTask = UIBackgroundTaskInvalid;
+    [[UIApplication sharedApplication] endBackgroundTask:task];
 }
 
-void GHLApplyLivePurification(BOOL on) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if (on) {
-        NSMutableDictionary *saved = [NSMutableDictionary dictionary];
-        for (NSString *key in GHLLiveHideKeys()) {
-            saved[key] = @([defaults boolForKey:key]);
-            [defaults setBool:YES forKey:key];
-        }
-        [defaults setObject:saved forKey:@"GHLLivePurifySaved"];
-        GHLLog(@"直播间净化：开，已全开 %lu 个直播间隐藏项", (unsigned long)GHLLiveHideKeys().count);
-    } else {
-        NSDictionary *saved = [defaults objectForKey:@"GHLLivePurifySaved"];
-        if ([saved isKindOfClass:[NSDictionary class]]) {
-            for (NSString *key in GHLLiveHideKeys()) {
-                NSNumber *value = saved[key];
-                if (value) [defaults setBool:[value boolValue] forKey:key];
+// 1.0.20：兜底画中画的后台任务——WillResignActive 和 DidEnterBackground 两条路都开
+// （以前只在 DidEnterBackground 的兜底分支开；正常流程 WillResignActive 先触发，
+// D 路等 item 就绪要几秒，App 已在后台，没任务撑着随时被挂起）。
+static void GHLBeginPiPBackgroundTaskIfNeeded(void) {
+    if (ghlPiPTriggeredForCurrentBackground) return;
+    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
+    if (ghlPiPBackgroundTask != UIBackgroundTaskInvalid) return;
+    ghlPiPBackgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+      // 1.0.21：系统要收回后台时间了——画中画还没出来就先停兜底，别让它没窗口一直响。
+      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务到期");
+      GHLEndPiPBackgroundTask();
+    }];
+    UIBackgroundTaskIdentifier task = ghlPiPBackgroundTask;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      // 1.0.21：10 秒到了——没出来就停兜底，再结束这个任务（只结束自己这一份，
+      // 别动后来新开的任务；以前直接调 GHLEndPiPBackgroundTask，会误结束新任务）。
+      GHLStopFallbackPlayerIfPiPNotStarted(@"后台任务 10 秒到");
+      if (ghlPiPBackgroundTask == task) GHLEndPiPBackgroundTask();
+    });
+}
+
+static void GHLRemovePiPObservers(void) {
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    if (ghlScreenshotObserverToken) {
+        [center removeObserver:ghlScreenshotObserverToken];
+        ghlScreenshotObserverToken = nil;
+    }
+    if (ghlVolumeObserverToken) {
+        [center removeObserver:ghlVolumeObserverToken];
+        ghlVolumeObserverToken = nil;
+    }
+    if (ghlPiPWillResignActiveToken) {
+        [center removeObserver:ghlPiPWillResignActiveToken];
+        ghlPiPWillResignActiveToken = nil;
+    }
+    if (ghlPiPDidEnterBackgroundToken) {
+        [center removeObserver:ghlPiPDidEnterBackgroundToken];
+        ghlPiPDidEnterBackgroundToken = nil;
+    }
+    if (ghlPiPDidBecomeActiveToken) {
+        [center removeObserver:ghlPiPDidBecomeActiveToken];
+        ghlPiPDidBecomeActiveToken = nil;
+    }
+}
+
+// 1.0.21：第 7 项——音频状态一行（切后台触发／已进后台／将终止三处共用，格式统一才好对照）。
+// 两路会叠加：兜底播放器在播＋抖音自己的后台音频（status 2）同时响，日志里要分得清。
+// （status 是 setListenVideoStatus 钩子记下的改写后值；-1 表示还没见过。）
+static void GHLLogAudioState(NSString *when) {
+    GHLLog(@"%@：音频状态：兜底播放器%@（%@），抖音后台听视频 status=%ld（开关 %@／%@），PiP 回调%@／小窗%@",
+           when,
+           ghlPiPFallbackPlayer ? @"在" : @"不在",
+           (ghlPiPFallbackPlayer && ghlPiPFallbackPlayer.rate > 0) ? @"在播" : @"没播",
+           (long)GHLCurrentListenVideoStatus(),
+           GHLGetBool(GHL_KEY_BACKGROUND_LISTEN) ? @"开" : @"关",
+           [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableBackgroundListen"] ? @"开" : @"关",
+           ghlPiPStartCallbackReceived ? @"有" : @"无",
+           (ghlPiPController && ghlPiPController.pictureInPictureActive) ? @"已出" : @"没出");
+}
+
+// 切后台时触发一次画中画（开关关着就不触发；已触发过就跳过，等回到前台再重置）。
+static void GHLTriggerPiPForBackground(void) {
+    if (ghlPiPTriggeredForCurrentBackground) return;
+    // 1.0.21：第 7 项去重——距上次触发不足 10 秒直接丢弃，不要重复建兜底播放器
+    // （8.log：D 里 4 秒内重复触发 5 次；旧冷却只看上次 start，没调 start 时挡不住——
+    //  通知中心下拉也会触发 WillResignActive，回来又 DidBecomeActive 清掉 guard，
+    //  一拉一回就是一次新触发，每次都重建兜底，旧看门狗全被新播放器顶掉）。
+    if (ghlPiPLastTriggerTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastTriggerTime < 10) {
+        GHLLog(@"画中画：距上次触发不足 10 秒，丢弃重复触发");
+        return;
+    }
+    // 1.0.20：距上次 start 未满 10 秒直接忽略（6.log 17:18 七秒连触三次，
+    // 第三次 start 才 1 秒就被切后台 3 秒重查误杀；冷却后同一次后台只会触发一次）。
+    if (ghlPiPLastStartTime > 0 && CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 10) {
+        GHLLog(@"画中画：距上次启动不足 10 秒，跳过这次切后台触发");
+        return;
+    }
+    if (!GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) return;
+    ghlPiPTriggeredForCurrentBackground = YES;
+    ghlPiPLastTriggerTime = CFAbsoluteTimeGetCurrent();
+    // 1.0.21：第 7 项——每次切后台触发记一行音频状态。
+    GHLLogAudioState(@"画中画：切后台触发");
+    // 1.0.16：切后台触发也记调用方（判别是网格点按还是切后台）。
+    GHLStartPiPWithCaller(@"切后台");
+}
+
+// 画中画 delegate：系统回调如实记日志（startPictureInPicture 只表示已调用，
+// 小窗真出来要等 didStart；失败也只在这里才知道）。
+@interface GHLPiPDelegate : NSObject <AVPictureInPictureControllerDelegate>
++ (instancetype)sharedDelegate;
+@end
+
+@implementation GHLPiPDelegate
+
++ (instancetype)sharedDelegate {
+    static GHLPiPDelegate *shared = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      shared = [[self alloc] init];
+    });
+    return shared;
+}
+
+- (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    GHLLog(@"画中画：系统已开始画中画");
+    ghlPiPStartCallbackReceived = YES;
+    GHLEndPiPBackgroundTask();
+}
+
+- (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
+    GHLLog(@"画中画：系统启动失败：%@", error.localizedDescription ?: @"未知错误");
+    ghlPiPStartCallbackReceived = YES;
+    GHLEndPiPBackgroundTask();
+    // 兜底播放器：画中画没接上就不能让它继续放，否则切后台后声音一直讲
+    // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）；只清兜底播放器，C 路用的原播放器不动。
+    if (pictureInPictureController == ghlPiPController && ghlPiPFallbackPlayer) {
+        GHLCleanupFallbackPiPPlayer();
+    }
+}
+
+- (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    GHLLog(@"画中画：已退出画中画");
+    // 兜底播放器是自己起的：小窗关了就停播，别让它在后台继续出声。
+    if (ghlPiPFallbackPlayer) [ghlPiPFallbackPlayer pause];
+    GHLEndPiPBackgroundTask();
+}
+
+// 兜底 item 的 KVO：就绪后再 startPictureInPicture（没就绪就直接调大概率失败）。
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if (context == &kGHLPiPFallbackKVOContext) {
+        AVPlayerItem *item = (AVPlayerItem *)object;
+        if (item != ghlPiPFallbackItem) return; // 已换视频，旧 item 的回调不管
+        if (item.status == AVPlayerItemStatusReadyToPlay) {
+            if (!ghlPiPFallbackStarted) {
+                ghlPiPFallbackStarted = YES;
+                // 1.0.21：KVO 回调不在主线程跑（AVFoundation 内部线程），startPictureInPicture
+                // 必须回主线程调——后台线程调很可能系统根本不接（0 回调的嫌疑之一）。
+                // 兜底是切后台建的、就绪时已回前台＝用户回来了：别启动，直接停掉兜底
+                // （免得兜底和抖音自己的声音叠着响）。
+                GHLRunOnMain(^{
+                  if (!ghlPiPFallbackPlayer || !ghlPiPController) return; // 已经被停了（看门狗／3 秒检查）
+                  if (ghlPiPFallbackCreatedWhileBackground &&
+                      [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+                      GHLLog(@"画中画：兜底就绪时已回前台，不启动画中画，停掉兜底播放器");
+                      GHLCleanupFallbackPiPPlayer();
+                      return;
+                  }
+                  [ghlPiPFallbackPlayer play];
+                  [ghlPiPController startPictureInPicture];
+                  GHLNotePiPStartAttempted();
+                  GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+                });
             }
-            [defaults removeObjectForKey:@"GHLLivePurifySaved"];
+            GHLCleanupFallbackPiPObserver(); // 就绪了就不用再监听
+        } else if (item.status == AVPlayerItemStatusFailed) {
+            GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
+            [DYYYUtils showToast:@"画中画启动失败"];
+            GHLCleanupFallbackPiPPlayer();
         }
-        GHLLog(@"直播间净化：关，已恢复之前的值");
+        return;
+    }
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+}
+
+@end
+
+// 画中画前先把音频会话切到 playback 并激活（抖音原播放器没走这条路时 PiP 容易没声音）。
+// 正常路和兜底路共用。只在类别不是 playback 时才改（只改类别、不动别的设置；失败如实记日志，不硬来）。
+static void GHLPreparePiPAudioSession(void) {
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    if (![session.category isEqualToString:AVAudioSessionCategoryPlayback]) {
+        NSString *oldCategory = session.category ?: @"未知";
+        NSError *categoryError = nil;
+        [session setCategory:AVAudioSessionCategoryPlayback error:&categoryError];
+        if (categoryError) {
+            GHLLog(@"画中画：音频会话改 playback 失败：%@", categoryError.localizedDescription);
+        } else {
+            GHLLog(@"画中画：音频会话已改成 playback（原来 %@）", oldCategory);
+        }
+    }
+    NSError *activeError = nil;
+    [session setActive:YES error:&activeError];
+    if (activeError) {
+        GHLLog(@"画中画：音频会话激活失败：%@", activeError.localizedDescription);
     }
 }
 
-void GHLApplyCleanMode(BOOL on) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setBool:on forKey:@"DYYYEnablePure"];
-    if (on) {
-        [defaults setBool:YES forKey:@"DYYYEnableFloatClearButton"];
-        reloadClearButtonConfiguration();
-        GHLLog(@"一键清爽：开（首页净化+清屏按钮）");
-    } else {
-        GHLLog(@"一键清爽：关（首页净化已关）");
+// 兜底 D 路（1.0.16）：A/B/C 全空时用当前视频链接自起一个 AVPlayer 做画中画。
+// 老实边界：会从头播（接不上当前进度）；播放地址可能是带签名的短效链接（过期播不了）；
+// 后台行为、锁屏控制、与抖音原播放器的声音冲突都要真机验证。
+// 直播分支（1.0.17）：直播间没有 video.playURL，改从 room model 取 HLS 拉流地址
+// （见 GHLProbeLiveStreamURL）；只有 FLV/RTMP 时记一行，不转封装。
+
+// 当前视频的播放地址（复用保存视频那套取法：video.playURL.originURLList 首个；
+// 图集视频走当前图的 clipVideo.playURL）。
+static NSURL *GHLCurrentVideoPlayURL(void) {
+    AWEAwemeModel *model = GHLCurrentAwemeModel();
+    if (!model) return nil;
+    @try {
+        AWEVideoModel *videoModel = model.video;
+        if (videoModel && videoModel.playURL && videoModel.playURL.originURLList.count > 0) {
+            NSString *urlString = videoModel.playURL.originURLList.firstObject;
+            if (urlString.length > 0) return [NSURL URLWithString:urlString];
+        }
+        if (model.awemeType == 68 && model.albumImages.count > 0 && model.currentImageIndex > 0 && model.currentImageIndex <= (NSInteger)model.albumImages.count) {
+            AWEImageAlbumImageModel *imageModel = model.albumImages[model.currentImageIndex - 1];
+            if (imageModel.clipVideo && imageModel.clipVideo.playURL) {
+                return [imageModel.clipVideo.playURL getDYYYSrcURLDownload];
+            }
+        }
+    } @catch (__unused NSException *exception) {
     }
+    return nil;
+}
+
+// ===== 1.0.17：直播画中画探针（D 路直播分支用）=====
+// 背景（2026-11-14 21:45 定死，GuHaiLongDouyin-3.log）：照片里卡住的小窗是抖音自己的
+// 原生小窗，咱们一次都没启动过，修不了；普通视频走 1.0.16 的 D 路兜底能绕过去，
+// 但直播间没有 video.playURL，D 路覆盖不了直播。
+// 探针只在两处跑：画中画查找发生在直播间时、进直播间时各一次——绝不进 2 秒巡检，
+// 免得刷屏。日志只记栏位名＋URL 长度＋前 60 字符，不记完整签名 URL。
+// AVPlayer 只能播 HLS（.m3u8），不能播 FLV/RTMP：只有 FLV/RTMP 时如实记一行，不转封装。
+
+// 递归收全部 VC（对象，不是类名）：子 VC + presented VC 都走。
+static void GHLCollectAllViewControllersInVC(UIViewController *vc, NSMutableArray<UIViewController *> *out) {
+    if (!vc || !out) return;
+    [out addObject:vc];
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLCollectAllViewControllersInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLCollectAllViewControllersInVC(vc.presentedViewController, out);
+}
+
+// 对象属性名清单（往上走 3 层父类，去重，60 个封顶）。
+static NSArray<NSString *> *GHLPropertyNamesOfObject(id obj) {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    Class cls = [obj class];
+    for (NSInteger level = 0; level < 3 && cls && cls != [NSObject class]; level++) {
+        unsigned int count = 0;
+        objc_property_t *props = class_copyPropertyList(cls, &count);
+        for (unsigned int i = 0; i < count && names.count < 60; i++) {
+            NSString *name = [NSString stringWithUTF8String:property_getName(props[i])];
+            if (name.length > 0 && ![seen containsObject:name]) {
+                [seen addObject:name];
+                [names addObject:name];
+            }
+        }
+        free(props);
+        cls = class_getSuperclass(cls);
+    }
+    return names;
+}
+
+// URL 分类：看内容，不看栏位名（栏位名可能骗人，内容不会）。
+static NSString *GHLClassifyStreamURLString(NSString *urlString) {
+    if (!urlString || urlString.length == 0) return nil;
+    NSString *lower = urlString.lowercaseString;
+    if ([lower containsString:@"m3u8"] || [lower containsString:@"hls"]) return @"HLS";
+    if ([lower containsString:@"flv"]) return @"FLV";
+    if ([lower containsString:@"rtmp"]) return @"RTMP";
+    return @"其他";
+}
+
+// 前 60 字符（不记完整签名 URL）。
+static NSString *GHLTruncatedURLString(NSString *urlString) {
+    if (!urlString) return @"";
+    if (urlString.length <= 60) return urlString;
+    return [urlString substringToIndex:60];
+}
+
+// 一个候选值里找拉流地址：字符串直接分类；数组取首个字符串；字典在里面按
+// hls/flv/rtmp 键找一层；其他对象枚举它的字符串属性（只找一层嵌套，HLS 优先）。
+// 命中记进 hits（@{key,type,where,url}），HLS 地址另记进 hlsURLs。
+static void GHLCollectStreamURLHitFromValue(id value, NSString *key, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs) {
+    if (!value) return;
+    NSString *urlString = nil;
+    NSString *hitKey = key;
+    if ([value isKindOfClass:[NSString class]]) {
+        urlString = (NSString *)value;
+    } else if ([value isKindOfClass:[NSArray class]]) {
+        for (id element in (NSArray *)value) {
+            if ([element isKindOfClass:[NSString class]] && ((NSString *)element).length > 0) {
+                urlString = (NSString *)element;
+                break;
+            }
+        }
+    } else if ([value isKindOfClass:[NSDictionary class]]) {
+        for (NSString *subKey in @[@"hls_pull_url", @"flv_pull_url", @"rtmp_pull_url", @"pull_url", @"url"]) {
+            id sub = ((NSDictionary *)value)[subKey];
+            if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
+                urlString = (NSString *)sub;
+                hitKey = [NSString stringWithFormat:@"%@.%@", key, subKey];
+                break;
+            }
+        }
+    } else if ([value isKindOfClass:[NSObject class]]) {
+        // 嵌套对象（比如 stream_url 对象）：先找名字带 hls 的属性，再找任意 url/pull/stream/play 属性。
+        NSArray<NSString *> *props = GHLPropertyNamesOfObject(value);
+        for (NSInteger pass = 0; pass < 2 && !urlString; pass++) {
+            for (NSString *prop in props) {
+                NSString *lower = prop.lowercaseString;
+                BOOL isURLish = [lower containsString:@"url"] || [lower containsString:@"pull"] || [lower containsString:@"stream"] || [lower containsString:@"play"];
+                if (!isURLish) continue;
+                if (pass == 0 && ![lower containsString:@"hls"]) continue;
+                @try {
+                    id sub = [value valueForKey:prop];
+                    if ([sub isKindOfClass:[NSString class]] && ((NSString *)sub).length > 0) {
+                        urlString = (NSString *)sub;
+                        hitKey = [NSString stringWithFormat:@"%@.%@", key, prop];
+                        break;
+                    }
+                } @catch (__unused NSException *exception) {
+                }
+            }
+        }
+    }
+    if (!urlString || urlString.length == 0) return;
+    NSString *type = GHLClassifyStreamURLString(urlString);
+    if (!type) return;
+    [hits addObject:@{@"key": hitKey, @"type": type, @"where": where, @"url": urlString}];
+    if ([type isEqualToString:@"HLS"] && ![hlsURLs containsObject:urlString]) [hlsURLs addObject:urlString];
+}
+
+// 探一个模型对象：先按候选键逐个试，再把对象全部字符串属性里名字带 url/pull/stream/play 的都扫一遍
+// （候选键没覆盖到的也抓出来）。
+// 1.0.18：再往下探一层——1.0.17 定死：IESLiveRoomService 上用键 roomModel 拿到的是服务外壳，
+// 真正的房间数据在它里面的 roomModel 属性里，之前从不往下探。容器键只认这几个，深度只多一层，
+// 同一个对象不重复探（probed 按指针去重），避免循环引用兜圈子。
+static void GHLProbeStreamURLOnModelDeep(id model, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs, NSMutableSet<NSNumber *> *probed, NSInteger depth) {
+    if (!model || ![model isKindOfClass:[NSObject class]]) return;
+    NSNumber *ptr = @((uintptr_t)(__bridge void *)model);
+    if ([probed containsObject:ptr]) return;
+    [probed addObject:ptr];
+    static NSArray<NSString *> *urlKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      urlKeys = @[@"hls_pull_url", @"hlsPullUrl", @"pullUrl", @"pull_url", @"streamUrl", @"stream_url", @"playUrl", @"play_url", @"flv_pull_url", @"flvPullUrl", @"rtmp_pull_url", @"rtmpPullUrl", @"hls_url", @"hlsUrl", @"liveUrl", @"url", @"playbackUrl", @"streamURL", @"pullStreamUrl", @"pullURL", @"originPullUrl"];
+    });
+    for (NSString *key in urlKeys) {
+        @try {
+            id value = [model valueForKey:key];
+            GHLCollectStreamURLHitFromValue(value, key, where, hits, hlsURLs);
+        } @catch (__unused NSException *exception) {
+        }
+    }
+    NSArray<NSString *> *propNames = GHLPropertyNamesOfObject(model);
+    for (NSString *prop in propNames) {
+        NSString *lower = prop.lowercaseString;
+        if (![lower containsString:@"url"] && ![lower containsString:@"pull"] && ![lower containsString:@"stream"] && ![lower containsString:@"play"]) continue;
+        if ([urlKeys containsObject:prop]) continue; // 第 1 步试过了
+        @try {
+            id value = [model valueForKey:prop];
+            GHLCollectStreamURLHitFromValue(value, prop, where, hits, hlsURLs);
+        } @catch (__unused NSException *exception) {
+        }
+    }
+    if (depth >= 1) return; // 只多探一层，不无限下探
+    static NSArray<NSString *> *containerKeys = nil;
+    static dispatch_once_t onceToken2;
+    dispatch_once(&onceToken2, ^{
+      containerKeys = @[@"roomModel", @"room", @"roomInfo", @"liveRoom", @"api"];
+    });
+    for (NSString *key in containerKeys) {
+        @try {
+            id nested = [model valueForKey:key];
+            if (!nested || ![nested isKindOfClass:[NSObject class]]) continue;
+            if ([nested isKindOfClass:[NSString class]] || [nested isKindOfClass:[NSArray class]] || [nested isKindOfClass:[NSDictionary class]]) continue;
+            NSString *nestedClass = NSStringFromClass([nested class]);
+            if ([nestedClass hasPrefix:@"UI"] || [nestedClass hasPrefix:@"NS"] || [nestedClass hasPrefix:@"__NS"]) continue;
+            NSNumber *nestedPtr = @((uintptr_t)(__bridge void *)nested);
+            if ([probed containsObject:nestedPtr]) continue;
+            GHLLog(@"直播画中画探针：下探一层 %@（%@，键 %@）", nestedClass, where, key);
+            GHLProbeStreamURLOnModelDeep(nested, [NSString stringWithFormat:@"%@.%@", where, key], hits, hlsURLs, probed, depth + 1);
+        } @catch (__unused NSException *exception) {
+        }
+    }
+}
+
+// 保持旧调用形式：新探一层从深度 0 开始，共用同一套去重集合。
+static void GHLProbeStreamURLOnModel(id model, NSString *where, NSMutableArray<NSDictionary *> *hits, NSMutableArray<NSString *> *hlsURLs, NSMutableSet<NSNumber *> *probed) {
+    GHLProbeStreamURLOnModelDeep(model, where, hits, hlsURLs, probed ?: [NSMutableSet set], 0);
+}
+
+// 1.0.17：直播间拉流地址探针。返回 HLS 拉流地址（NSURL），没有 HLS 时返回 nil。
+// 跑两处：画中画查找发生在直播间时、进直播间时各一次（不在 2 秒巡检里跑）。
+static NSURL *GHLProbeLiveStreamURL(void) {
+    NSMutableArray<NSDictionary *> *hits = [NSMutableArray array];
+    NSMutableArray<NSString *> *hlsURLs = [NSMutableArray array];
+    // 1) 直播间 VC（类名含 Live，全树走，不只顶层）
+    NSMutableArray<UIViewController *> *liveVCs = [NSMutableArray array];
+    for (UIWindow *window in GHLAllAppWindows()) {
+        UIViewController *root = window.rootViewController;
+        while (root.presentedViewController) root = root.presentedViewController;
+        NSMutableArray<UIViewController *> *all = [NSMutableArray array];
+        GHLCollectAllViewControllersInVC(root, all);
+        for (UIViewController *vc in all) {
+            if ([NSStringFromClass([vc class]) rangeOfString:@"Live"].location != NSNotFound) {
+                if (![liveVCs containsObject:vc] && liveVCs.count < 5) [liveVCs addObject:vc];
+            }
+        }
+    }
+    NSMutableArray<NSString *> *liveVCNames = [NSMutableArray array];
+    for (UIViewController *vc in liveVCs) [liveVCNames addObject:NSStringFromClass([vc class])];
+    GHLLog(@"直播画中画探针：直播间 VC %lu 个（前 5）：%@", (unsigned long)liveVCs.count, liveVCNames.count > 0 ? [liveVCNames componentsJoinedByString:@"、"] : @"无");
+    static NSArray<NSString *> *modelKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      modelKeys = @[@"roomModel", @"liveRoomModel", @"room", @"model", @"liveModel", @"roomInfo", @"liveRoom", @"currentRoomModel", @"roomData", @"liveRoomInfo", @"roomViewModel", @"liveRoomViewModel", @"awemeModel", @"aweme"];
+    });
+    NSMutableSet<NSNumber *> *probedModels = [NSMutableSet set];
+    for (UIViewController *vc in liveVCs) {
+        NSString *vcName = NSStringFromClass([vc class]);
+        for (NSString *key in modelKeys) {
+            @try {
+                id model = [vc valueForKey:key];
+                if (!model || ![model isKindOfClass:[NSObject class]]) continue;
+                NSNumber *ptr = @((uintptr_t)(__bridge void *)model);
+                if ([probedModels containsObject:ptr]) continue;
+                // 去重集合由 GHLProbeStreamURLOnModelDeep 统一加（下探一层也共用同一套）。
+                NSString *modelClass = NSStringFromClass([model class]);
+                if ([modelClass hasPrefix:@"UI"] || [modelClass hasPrefix:@"NS"] || [modelClass hasPrefix:@"__NS"]) continue;
+                NSArray<NSString *> *props = GHLPropertyNamesOfObject(model);
+                GHLLog(@"直播画中画探针：在 %@ 上找到模型 %@（键 %@），属性 %lu 个：%@", vcName, modelClass, key, (unsigned long)props.count, props.count > 0 ? [props componentsJoinedByString:@"、"] : @"无");
+                GHLProbeStreamURLOnModel(model, [NSString stringWithFormat:@"%@.%@", vcName, key], hits, hlsURLs, probedModels);
+            } @catch (__unused NSException *exception) {
+            }
+        }
+    }
+    // 2) 当前视频模型也探一下（直播间里 feed 的 model 可能是直播 aweme）
+    AWEAwemeModel *aweme = GHLCurrentAwemeModel();
+    if (aweme) {
+        GHLProbeStreamURLOnModel(aweme, @"当前视频模型", hits, hlsURLs, probedModels);
+    }
+    // 3) 命中汇总（按 URL 去重，只记栏位名＋长度＋前 60 字）
+    NSMutableSet<NSString *> *seenURLs = [NSMutableSet set];
+    for (NSDictionary *hit in hits) {
+        NSString *url = hit[@"url"];
+        if ([seenURLs containsObject:url]) continue;
+        [seenURLs addObject:url];
+        GHLLog(@"直播画中画探针：栏位 %@ 命中 %@（%@，长 %lu，前 60 字：%@）", hit[@"key"], hit[@"type"], hit[@"where"], (unsigned long)((NSString *)url).length, GHLTruncatedURLString(url));
+    }
+    if (hlsURLs.count > 0) {
+        NSURL *hlsURL = [NSURL URLWithString:hlsURLs.firstObject];
+        if (hlsURL) {
+            GHLLog(@"直播画中画探针：HLS 地址已确认（%lu 条），画中画用第一条", (unsigned long)hlsURLs.count);
+            return hlsURL;
+        }
+        GHLLog(@"直播画中画探针：找到疑似 HLS 地址但拼不成 NSURL（见上面栏位行）");
+    }
+    BOOL hasFLVOrRTMP = NO;
+    for (NSDictionary *hit in hits) {
+        if ([hit[@"type"] isEqualToString:@"FLV"] || [hit[@"type"] isEqualToString:@"RTMP"]) { hasFLVOrRTMP = YES; break; }
+    }
+    if (hasFLVOrRTMP) {
+        GHLLog(@"直播画中画探针：只有 FLV/RTMP，没有 HLS，系统画中画做不了（AVPlayer 播不了 FLV/RTMP，不转封装）");
+    } else {
+        GHLLog(@"直播画中画探针：没找到任何拉流地址（模型/栏位见上面）");
+    }
+    return nil;
+}
+
+// 1.0.18：探针改后台线程跑——之前是主线程同步，KVC getter 万一耗时会堵 UI
+// （皇上 22:44–22:45：画面冻住、声音继续、慢慢变卡）。
+// 探针本体只读窗口/VC 树＋KVC，全部 try/catch；日志写盘本身就是异步队列，
+// 所以后台线程记日志安全；完成回调回主线程。
+static dispatch_queue_t GHLProbeQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      queue = dispatch_queue_create("com.guhailong.douyin.liveprobe", DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
+static void GHLProbeLiveStreamURLAsync(void (^completion)(NSURL * _Nullable hlsURL)) {
+    dispatch_async(GHLProbeQueue(), ^{
+      NSURL *url = nil;
+      @try {
+          url = GHLProbeLiveStreamURL();
+      } @catch (__unused NSException *exception) {
+          GHLLog(@"直播画中画探针：后台跑探针时异常，按拿不到地址处理");
+      }
+      NSURL *foundURL = url;
+      GHLRunOnMain(^{
+        if (completion) completion(foundURL);
+      });
+    });
+}
+
+static void GHLCleanupFallbackPiPObserver(void) {
+    if (ghlPiPFallbackObserving && ghlPiPFallbackItem) {
+        @try {
+            [ghlPiPFallbackItem removeObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" context:&kGHLPiPFallbackKVOContext];
+        } @catch (__unused NSException *exception) {
+        }
+        ghlPiPFallbackObserving = NO;
+    }
+}
+
+static void GHLCleanupFallbackPiPPlayer(void) {
+    GHLCleanupFallbackPiPObserver();
+    if (ghlPiPFallbackPlayer) {
+        [ghlPiPFallbackPlayer pause];
+        GHLLog(@"兜底播放器：已停止");
+    }
+    ghlPiPFallbackPlayer = nil;
+    ghlPiPFallbackItem = nil;
+    ghlPiPFallbackStarted = NO;
+    // 控制器和合成图层也一起清掉，别留一个死的控制器给复用路
+    // （复用路只在 player/item 还在时才走，清掉后不会误用）。
+    if (ghlPiPSyntheticLayer) [ghlPiPSyntheticLayer removeFromSuperlayer];
+    ghlPiPSyntheticLayer = nil;
+    ghlPiPController = nil;
+}
+
+// 合成图层挂到窗口里：1.0.20 改成正常可见尺寸（320×180，放在 feed 底部、底栏上方，
+// 不挡操作）再启动——1.0.19 的 2×2 小宿主 11 次调用 0 回调，系统很可能要求图层真正可见
+// （每次 start 系统都建了 hosted window，就是不显示、不回调）。这只是最可能的方向，
+// 真机测了才算；宿主尺寸记进日志。
+static void GHLAttachPiPLayerToHostView(AVPlayerLayer *layer) {
+    if (!layer) return;
+    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
+    if (!window) return;
+    if (!ghlPiPLayerHostView) {
+        ghlPiPLayerHostView = [[UIView alloc] init];
+        ghlPiPLayerHostView.backgroundColor = [UIColor clearColor];
+        ghlPiPLayerHostView.userInteractionEnabled = NO;
+        GHLLog(@"画中画：宿主改成可见尺寸 320x180（放在 feed 底部、底栏上方）");
+    }
+    CGFloat hostW = 320;
+    CGFloat hostH = 180;
+    CGFloat safeBottom = 0;
+    if (@available(iOS 11.0, *)) safeBottom = window.safeAreaInsets.bottom;
+    CGFloat tabBarH = 83; // 底栏大约 83pt（含 Home Indicator 区）；宿主贴在底栏上方
+    CGFloat hostX = (window.bounds.size.width - hostW) / 2;
+    CGFloat hostY = window.bounds.size.height - safeBottom - tabBarH - hostH - 8;
+    if (hostY < 0) hostY = 0;
+    ghlPiPLayerHostView.frame = CGRectMake(hostX, hostY, hostW, hostH);
+    if (ghlPiPLayerHostView.window != window) [window addSubview:ghlPiPLayerHostView];
+    [window bringSubviewToFront:ghlPiPLayerHostView];
+    [layer removeFromSuperlayer];
+    layer.frame = ghlPiPLayerHostView.bounds;
+    [ghlPiPLayerHostView.layer addSublayer:layer];
+}
+
+// 1.0.21：画中画没出来时的兜底停播（共用）：兜底在、没回调、小窗没起来，就停掉并记原因。
+// 调用点：3 秒看门狗、后台任务结束时、后台任务过期时——三处兜底，不只靠主线程定时器。
+// （8.log 实锤：8 秒看门狗有时根本没跑——start 调得晚，看门狗排到后台任务结束后，
+//  App 已挂起，主线程定时器不跑，兜底就一直响到会话结束。去重（第 7 项）修了重复建播放器
+//  顶掉看门狗的那一半；任务结束时停修了看门狗排到任务结束后的那一半。）
+static void GHLStopFallbackPlayerIfPiPNotStarted(NSString *reason) {
+    if (!ghlPiPFallbackPlayer) return;
+    if (ghlPiPStartCallbackReceived) return;
+    if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
+    GHLLog(@"画中画没出来，已停兜底播放器（%@）", reason);
+    GHLCleanupFallbackPiPPlayer();
+}
+
+// 每次调 startPictureInPicture 后都记一下：3 秒后还没回调（didStart/失败都没来），
+// 当系统没接上，停掉兜底播放器（复用路/KVO 路/超时路都走这里）。
+// 1.0.21：8 秒改 3 秒——硬上限是「调 start 后 3 秒内没回调就必停」，别让没窗口的兜底多响 5 秒。
+static void GHLWatchPiPStartTimeout(void) {
+    __block AVPictureInPictureController *controller = ghlPiPController;
+    __block AVPlayer *player = ghlPiPFallbackPlayer;
+    __block CFAbsoluteTime startTime = ghlPiPLastStartTime;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      if (ghlPiPStartCallbackReceived) return;
+      if (controller != ghlPiPController || player != ghlPiPFallbackPlayer) return; // 已换过一轮，不管
+      if (startTime != ghlPiPLastStartTime) return;                                 // 又调了一次 start，后面的看门狗会处理
+      GHLStopFallbackPlayerIfPiPNotStarted(@"调 start 后 3 秒没系统回调");
+    });
+}
+
+// 调 startPictureInPicture 前统一记一笔（清回调标记＋记时间＋挂看门狗）。
+static void GHLNotePiPStartAttempted(void) {
+    ghlPiPStartCallbackReceived = NO;
+    ghlPiPLastStartTime = CFAbsoluteTimeGetCurrent();
+    GHLWatchPiPStartTimeout();
+}
+
+// 兜底启动：就绪后再 startPictureInPicture（KVO 监听 item.status）。
+// 返回 YES 表示兜底已接手（正在等就绪或已启动），调用方不用再报“没找到播放的视频”。
+// videoURL 由调用方取好（普通视频同步取，直播间后台探针取——见 GHLStartFallbackPiP）。
+static BOOL GHLStartFallbackPiPWithURL(NSURL *videoURL, BOOL isLive) {
+    if (!videoURL) {
+        if (isLive) {
+            GHLLog(@"画中画兜底：直播间拿不到 HLS 拉流地址，画中画开不了（原因见上面探针行）");
+        } else {
+            GHLLog(@"画中画兜底：当前视频拿不到播放地址，画中画开不了");
+        }
+        return NO;
+    }
+    // 同一个视频重复点：复用已建好的兜底播放器，直接播＋开画中画。
+    if (ghlPiPFallbackPlayer && ghlPiPFallbackItem && ghlPiPFallbackItem.asset) {
+        NSURL *existingURL = ((AVURLAsset *)ghlPiPFallbackItem.asset).URL;
+        if (existingURL && [existingURL.absoluteString isEqualToString:videoURL.absoluteString]) {
+            GHLLog(@"画中画兜底：复用已建好的自起播放器（从头播）");
+            [ghlPiPFallbackPlayer play];
+            if (ghlPiPController && !ghlPiPController.pictureInPictureActive) {
+                [ghlPiPController startPictureInPicture];
+                GHLNotePiPStartAttempted();
+                GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+            }
+            return YES;
+        }
+    }
+    // 换视频：先清掉旧兜底（KVO 一定要先摘掉再放 item，否则野指针崩）。
+    GHLCleanupFallbackPiPPlayer();
+    if (isLive) {
+        GHLLog(@"画中画兜底：直播画中画用 HLS 拉流地址自起播放器（从头播，接不上直播进度；拉流地址可能是短效签名，过期播不了；后台/锁屏/与原直播声音冲突待真机验证）");
+    } else {
+        GHLLog(@"画中画兜底：没找到系统播放器，用当前视频链接自起播放器（从头播，接不上进度；原视频声音可能同时响）");
+    }
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:videoURL];
+    AVPlayer *player = [AVPlayer playerWithPlayerItem:item];
+    ghlPiPFallbackItem = item;
+    ghlPiPFallbackPlayer = player;
+    ghlPiPFallbackStarted = NO;
+    // 1.0.21：记下建兜底时 App 是不是已在后台（WillResignActive 时 state 已是 Inactive）——
+    // 就绪时若已回前台就不启动（见上面 KVO 分支）。
+    ghlPiPFallbackCreatedWhileBackground = ([UIApplication sharedApplication].applicationState != UIApplicationStateActive);
+    GHLPreparePiPAudioSession();
+    AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
+    ghlPiPSyntheticLayer = layer;
+    GHLAttachPiPLayerToHostView(layer); // 图层必须挂进窗口，系统才肯启动画中画（1.0.18 没挂，7 次没回调）
+    @try {
+        ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+        ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
+    } @catch (NSException *exception) {
+        [DYYYUtils showToast:@"画中画启动失败"];
+        GHLLog(@"画中画兜底启动失败：%@", exception.reason);
+        GHLCleanupFallbackPiPPlayer();
+        return NO;
+    }
+    // item 就绪后再 start：没就绪就直接调大概率失败（delegate 会记失败原因）。
+    if (item.status == AVPlayerItemStatusReadyToPlay) {
+        [player play];
+        [ghlPiPController startPictureInPicture];
+        GHLNotePiPStartAttempted();
+        ghlPiPFallbackStarted = YES;
+        GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+    } else if (item.status == AVPlayerItemStatusFailed) {
+        GHLLog(@"画中画兜底：播放地址打不开：%@", item.error.localizedDescription ?: @"未知错误");
+        [DYYYUtils showToast:@"画中画启动失败"];
+        GHLCleanupFallbackPiPPlayer();
+        return NO;
+    } else {
+        [item addObserver:[GHLPiPDelegate sharedDelegate] forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:&kGHLPiPFallbackKVOContext];
+        ghlPiPFallbackObserving = YES;
+        [player play];
+        // 8 秒还没就绪也试一次（弱网时 item 可能一直卡在 Unknown；试了不行 delegate 会记失败）。
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          if (ghlPiPFallbackPlayer == player && !ghlPiPFallbackStarted && ghlPiPFallbackItem == item) {
+              if (item.status == AVPlayerItemStatusReadyToPlay) return; // KVO 那边会处理
+              // 1.0.21：同 KVO 分支——兜底是切后台建的、8 秒后已回前台就别启动，直接停掉。
+              if (ghlPiPFallbackCreatedWhileBackground &&
+                  [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+                  GHLLog(@"画中画：兜底 8 秒未就绪且已回前台，不启动画中画，停掉兜底播放器");
+                  GHLCleanupFallbackPiPPlayer();
+                  return;
+              }
+              if (!ghlPiPController) return;
+              GHLLog(@"画中画兜底：等播放器就绪超时，直接试一次 startPictureInPicture");
+              [ghlPiPController startPictureInPicture];
+              GHLNotePiPStartAttempted();
+              ghlPiPFallbackStarted = YES;
+              GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+          }
+        });
+    }
+    return YES;
+}
+
+// 兜底入口：普通视频同步取 playURL；直播间走后台探针（1.0.18，5 秒超时）。
+// 直播间返回 YES 表示已接手（正在等探针结果），调用方不用再报“没找到播放的视频”；
+// 超时或拿不到地址时，回调里记一行＋弹一次提示，不无限制等。
+static BOOL GHLStartFallbackPiP(void) {
+    BOOL isLive = GHLIsInLiveRoom();
+    if (!isLive) {
+        return GHLStartFallbackPiPWithURL(GHLCurrentVideoPlayURL(), NO);
+    }
+    // 1.0.17：直播间先走直播分支（room model 的 HLS 拉流地址），不走普通视频的 playURL——
+    // 直播间没有 video.playURL，普通路拿不到地址。
+    __block BOOL probeFinished = NO;
+    GHLProbeLiveStreamURLAsync(^(NSURL *hlsURL) {
+      if (probeFinished) return; // 已超时处理过，迟来的结果不再动
+      probeFinished = YES;
+      if (!GHLStartFallbackPiPWithURL(hlsURL, YES)) {
+          [DYYYUtils showToast:@"没找到播放的视频"];
+      }
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      if (probeFinished) return;
+      probeFinished = YES;
+      GHLLog(@"画中画兜底：直播探针超时（5 秒没回），按拿不到地址处理");
+      [DYYYUtils showToast:@"没找到播放的视频"];
+    });
+    return YES;
+}
+
+void GHLStartPiP(void) {
+    GHLStartPiPWithCaller(nil);
+}
+
+void GHLStartPiPWithCaller(NSString *caller) {
+    GHLRunOnMain(^{
+      GHLLog(@"画中画：触发（%@）", caller.length > 0 ? caller : @"未知");
+      // 1.0.21：记下触发时 App 的状态——窗口还可见时调 start 才有意义，
+      // 切后台后才调（窗口已不可见）是 0 回调的嫌疑之一；WillResignActive 时是“不活跃”。
+      UIApplicationState appState = [UIApplication sharedApplication].applicationState;
+      GHLLog(@"画中画：触发时 App 状态：%@", appState == UIApplicationStateActive ? @"前台" : (appState == UIApplicationStateInactive ? @"不活跃（正在切后台）" : @"后台"));
+      // 1.0.17：查找日志加一行是否在直播间（直播的查找现场跟普通视频不一样）。
+      GHLLog(@"画中画查找：是否在直播间：%@", GHLIsInLiveRoom() ? @"是" : @"否");
+      if (![AVPictureInPictureController isPictureInPictureSupported]) {
+          [DYYYUtils showToast:@"当前设备不支持画中画"];
+          GHLLog(@"画中画：设备不支持");
+          return;
+      }
+      if (ghlPiPController.pictureInPictureActive) {
+          GHLLog(@"画中画：已经在画中画里了");
+          return;
+      }
+      // 1.0.15：找播放器（A 路图层 → B 路控制器探针，详细日志见“画中画查找”）；
+      // 有播放器没图层时，用播放器新建一个图层再建 PiP 控制器。
+      AVPlayerLayer *realLayer = nil;
+      AVPlayer *player = GHLFindPlayingAVPlayerForPiP(&realLayer);
+      if (!player) {
+          // 1.0.16：A/B/C 全空时走 D 路兜底（自起 AVPlayer），兜底也开不了才报没找到。
+          if (GHLStartFallbackPiP()) return;
+          [DYYYUtils showToast:@"没找到播放的视频"];
+          GHLLog(@"画中画：没找到播放器（查找经过见上面“画中画查找”的日志）");
+          return;
+      }
+      AVPlayerLayer *layer = realLayer;
+      if (!layer) {
+          layer = [AVPlayerLayer playerLayerWithPlayer:player];
+          ghlPiPSyntheticLayer = layer;
+          GHLAttachPiPLayerToHostView(layer); // 新建的图层也要挂进窗口，不然 start 调了也没回调
+          GHLLog(@"画中画：没找到现成图层，用播放器新建了一个图层再建 PiP 控制器");
+      }
+      @try {
+          GHLPreparePiPAudioSession();
+          ghlPiPController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+          ghlPiPController.delegate = [GHLPiPDelegate sharedDelegate];
+          [ghlPiPController startPictureInPicture];
+          // 1.0.20：A／C 路以前调完 start 没记时间戳——切后台 3 秒重查拿旧时间一算，
+          // 新 start 才 1 秒就被误杀（6.log 17:18:30 实锤）。三路统一记一笔。
+          GHLNotePiPStartAttempted();
+          // 只表示已调用，不是小窗真的出来了——真出来/失败看 delegate 回调。
+          GHLLog(@"画中画：已调用 startPictureInPicture（等系统回调）");
+      } @catch (NSException *exception) {
+          [DYYYUtils showToast:@"画中画启动失败"];
+          GHLLog(@"画中画启动失败：%@", exception.reason);
+      }
+    });
+}
+
+// 播放器控制器查找（画中画 B 路探针用）。
+static void GHLFindPlayerViewControllersInVC(UIViewController *vc, NSMutableArray *out) {
+    if (!vc) return;
+    if ([vc isKindOfClass:NSClassFromString(@"AWEAwemePlayVideoViewController")] ||
+        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerFeedPlayerViewController")] ||
+        [vc isKindOfClass:NSClassFromString(@"AWEDPlayerViewController_Merge")]) {
+        [out addObject:vc];
+    }
+    for (UIViewController *child in vc.childViewControllers) {
+        GHLFindPlayerViewControllersInVC(child, out);
+    }
+    if (vc.presentedViewController) GHLFindPlayerViewControllersInVC(vc.presentedViewController, out);
 }
 
 #pragma mark - 解析接口（复用 DYYY 的接口格式：apiKey + 分享链接）
@@ -615,28 +1435,6 @@ static NSString *GHLBestVideoURLFromParseData(NSDictionary *dataDict) {
 }
 
 #pragma mark - (18) 去水印分享直链
-
-void GHLCopyNoWatermarkLinkForAwemeModel(AWEAwemeModel *model) {
-    if (!model) return;
-    NSString *shareLink = model.shareURL;
-    if (shareLink.length == 0) {
-        [DYYYUtils showToast:@"无法获取分享链接"];
-        return;
-    }
-    [DYYYUtils showToast:@"正在解析无水印链接…"];
-    GHLFetchParseJSONForShareLink(shareLink, ^(NSDictionary *dataDict) {
-      GHLRunOnMain(^{
-        NSString *bestURL = GHLBestVideoURLFromParseData(dataDict);
-        if (!bestURL) {
-            [DYYYUtils showToast:@"解析失败，换个接口 Key 试试"];
-            return;
-        }
-        [[UIPasteboard generalPasteboard] setString:bestURL];
-        [DYYYUtils showToast:@"无水印链接已复制"];
-        GHLLog(@"去水印直链：已复制 %@", bestURL);
-      });
-    });
-}
 
 #pragma mark - (25) 视频截图去水印
 
@@ -703,383 +1501,41 @@ static NSString *GHLNumberStringFromProbe(id object, NSString *key) {
 }
 
 // 获取作品数据：弹窗显示作者/文案/各数，并复制一份到剪贴板。
-void GHLShowAwemeDataForAwemeModel(AWEAwemeModel *model) {
-    if (!model) {
-        [DYYYUtils showToast:@"拿不到作品信息"];
-        return;
-    }
-    NSString *desc = model.descriptionString ?: @"";
-    if (desc.length > 100) desc = [[desc substringToIndex:100] stringByAppendingString:@"…"];
-    NSString *createTimeText = @"—";
-    if (model.createTime) {
-        NSDate *date = [NSDate dateWithTimeIntervalSince1970:[model.createTime doubleValue]];
-        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-        [formatter setDateFormat:@"yyyy-MM-dd HH:mm"];
-        createTimeText = [formatter stringFromDate:date];
-    }
-    id stats = model.statistics;
-    NSString *text = [NSString stringWithFormat:
-        @"作者：%@（%@）\n视频 ID：%@\n发布时间：%@\n时长：%.1f 秒\n点赞：%@　评论：%@\n分享：%@　播放：%@\n收藏：%@　是否广告：%@\n图集：%@ 张\n文案：%@",
-        model.author.nickname ?: @"—", model.author.shortID ?: @"—",
-        model.itemID ?: @"—", createTimeText, model.videoDuration,
-        GHLNumberStringFromProbe(stats, @"diggCount"),
-        GHLNumberStringFromProbe(stats, @"commentCount"),
-        GHLNumberStringFromProbe(stats, @"shareCount"),
-        GHLNumberStringFromProbe(stats, @"playCount"),
-        GHLNumberStringFromProbe(stats, @"collectCount"),
-        model.isAds ? @"是" : @"否",
-        @(model.albumImages.count),
-        desc.length > 0 ? desc : @"（无文案）"];
-    [[UIPasteboard generalPasteboard] setString:text];
-    [DYYYUtils showToast:@"作品数据已复制"];
-    [DYYYBottomAlertView showAlertWithTitle:@"作品数据"
-                                    message:text
-                                  avatarURL:nil
-                           cancelButtonText:@"关闭"
-                          confirmButtonText:@"知道了"
-                               cancelAction:nil
-                                closeAction:nil
-                              confirmAction:nil];
-    GHLLog(@"获取作品数据：已显示（%@）", model.itemID ?: @"?");
-}
 
 // 图片预览：图集才有；把每张图的原图地址翻出来，全屏左右翻页看，点一下关闭。
-void GHLPreviewAwemeImagesForAwemeModel(AWEAwemeModel *model) {
-    if (!model || model.albumImages.count == 0) {
-        [DYYYUtils showToast:@"这条不是图集，没有图片可预览"];
-        GHLLog(@"图片预览：不是图集（albumImages 为空）");
-        return;
-    }
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (AWEImageAlbumImageModel *imageModel in model.albumImages) {
-        NSArray *urlList = imageModel.urlList;
-        if ([urlList isKindOfClass:[NSArray class]] && urlList.count > 0 &&
-            [urlList.firstObject isKindOfClass:[NSString class]]) {
-            NSURL *url = [NSURL URLWithString:urlList.firstObject];
-            if (url) [urls addObject:url];
-        }
-    }
-    if (urls.count == 0) {
-        [DYYYUtils showToast:@"拿不到图片地址"];
-        GHLLog(@"图片预览：图集有 %lu 项但一张地址都拿不到", (unsigned long)model.albumImages.count);
-        return;
-    }
-    GHLImagePreviewViewController *previewVC = [[GHLImagePreviewViewController alloc] initWithImageURLs:urls];
-    previewVC.modalPresentationStyle = UIModalPresentationFullScreen;
-    [GHLTopViewController() presentViewController:previewVC animated:YES completion:nil];
-    GHLLog(@"图片预览：已打开（%lu 张）", (unsigned long)urls.count);
-}
 
 #pragma mark - (30) 视频原声提取
-
-void GHLExtractOriginalAudioForAwemeModel(AWEAwemeModel *model) {
-    if (!model || !model.video) return;
-    NSURL *videoURL = nil;
-    if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
-        videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
-    } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
-        videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
-    }
-    if (!videoURL) {
-        [DYYYUtils showToast:@"拿不到视频地址，提不出来"];
-        return;
-    }
-    [DYYYUtils showToast:@"正在下载视频并提取原声…"];
-    [DYYYManager downloadMediaWithProgress:videoURL
-                                 mediaType:MediaTypeVideo
-                                     audio:nil
-                                  progress:nil
-                                completion:^(BOOL success, NSURL *fileURL) {
-                                  if (!success || !fileURL) {
-                                      GHLRunOnMain(^{
-                                        [DYYYUtils showToast:@"视频下载失败，原声没提出来"];
-                                      });
-                                      GHLLog(@"原声提取：视频下载失败");
-                                      return;
-                                  }
-                                  AVURLAsset *asset = [AVURLAsset URLAssetWithURL:fileURL options:nil];
-                                  if (![[asset tracksWithMediaType:AVMediaTypeAudio] count]) {
-                                      GHLRunOnMain(^{
-                                        [DYYYUtils showToast:@"这个视频没有音轨"];
-                                      });
-                                      GHLLog(@"原声提取：视频没有音轨");
-                                      return;
-                                  }
-                                  AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
-                                  if (!exportSession) {
-                                      GHLLog(@"原声提取：建导出会话失败");
-                                      return;
-                                  }
-                                  NSString *outputName = [NSString stringWithFormat:@"ghl_audio_%@.m4a", [[NSUUID UUID] UUIDString]];
-                                  NSURL *outputURL = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:outputName];
-                                  exportSession.outputURL = outputURL;
-                                  exportSession.outputFileType = AVFileTypeAppleM4A;
-                                  [exportSession exportAsynchronouslyWithCompletionHandler:^{
-                                    if (exportSession.status != AVAssetExportSessionStatusCompleted) {
-                                        GHLLog(@"原声提取：导出失败 %@", exportSession.error.localizedDescription);
-                                        GHLRunOnMain(^{
-                                          [DYYYUtils showToast:@"原声导出失败"];
-                                        });
-                                        return;
-                                    }
-                                    GHLRunOnMain(^{
-                                      UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ outputURL ] applicationActivities:nil];
-                                      UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-                                      [rootVC presentViewController:activityVC animated:YES completion:nil];
-                                      [DYYYUtils showToast:@"原声已提出来，选个地方存"];
-                                      GHLLog(@"原声提取：完成 %@", outputURL.lastPathComponent);
-                                    });
-                                  }];
-                                }];
-}
 
 #pragma mark - 手势：双击快进 / 三指双击清屏 / 边缘滑动切视频
 
 // 1.0.8 双击爱心探针：双击后 0.35 秒扫一遍互动层，记下可能是爱心动画的视图。
 // 背景：双击爱心是抖音 %orig 里弹出来的，AwemeHeaders 里没有爱心动画类，
 // 代码无法断定它是 Lottie 还是 UIImageView——先靠真机日志认类，再决定能不能换。
-static void GHLCollectHeartProbeCandidatesInView(UIView *view, NSMutableArray<NSString *> *out, NSInteger depth) {
-    if (!view || depth > 5 || out.count >= 10) return;
-    NSString *className = NSStringFromClass(view.class);
-    BOOL isLottie = [className isEqualToString:@"LOTAnimationView"];
-    BOOL isBigImage = [view isKindOfClass:[UIImageView class]] && CGRectGetWidth(view.bounds) >= 60 && CGRectGetHeight(view.bounds) >= 60;
-    if (isLottie || isBigImage) {
-        NSString *extra = @"";
-        if (isLottie) {
-            @try {
-                id animation = [view valueForKey:@"animation"];
-                if (animation) {
-                    NSString *name = nil;
-                    @try { name = [animation valueForKey:@"name"]; } @catch (__unused NSException *e) { }
-                    if (!name) { @try { name = [animation valueForKey:@"animationName"]; } @catch (__unused NSException *e2) { } }
-                    if (name.length > 0) extra = [NSString stringWithFormat:@" 动画=%@", name];
-                }
-            } @catch (__unused NSException *e) { }
-        }
-        [out addObject:[NSString stringWithFormat:@"%@ %.0fx%.0f 中心(%.0f,%.0f)%@", className, CGRectGetWidth(view.bounds), CGRectGetHeight(view.bounds), view.center.x, view.center.y, extra]];
-    }
-    for (UIView *subview in view.subviews) GHLCollectHeartProbeCandidatesInView(subview, out, depth + 1);
-}
-
-void GHLProbeDoubleTapHeartInView(UIView *view) {
-    if (!view || !GHLGetBool(GHL_KEY_DOUBLE_TAP_HEART_PROBE)) return;
-    __weak UIView *weakView = view;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      UIView *strongView = weakView;
-      if (!strongView || !strongView.window) return;
-      NSMutableArray<NSString *> *found = [NSMutableArray array];
-      GHLCollectHeartProbeCandidatesInView(strongView, found, 0);
-      if (found.count > 0) {
-          GHLLog(@"双击爱心探针：双击后 0.35 秒看到 %lu 个候选：%@", (unsigned long)found.count, [found componentsJoinedByString:@" | "]);
-      } else {
-          GHLLog(@"双击爱心探针：双击后 0.35 秒没看到 LOTAnimationView 或大图——爱心可能是更小的图或已播完消失");
-      }
-    });
-}
 
 static char kGHLGesturesInstalledKey;
 static char kGHLSidebarOrderAppliedKey;
 
 static void GHLHandleDoubleTapSeek(UITapGestureRecognizer *gesture) {
     if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    // (37) 双击下载开了就优先下载，不快进
+    // (37/98) 双击下载开了就下载；双击快进（75）1.0.35 已删。
     if (GHLGetBool(GHL_KEY_DOUBLE_TAP_DOWNLOAD)) {
         GHLDownloadCurrentVideoWithProgress();
         return;
     }
-    if (!GHLGetBool(GHL_KEY_SEEK_GESTURES)) return;
-    // 双击点赞没关时不抢手势，避免一点赞就快进
-    if (!GHLGetBool(@"DYYYDisableDoubleTapLike")) return;
-    CGPoint point = [gesture locationInView:gesture.view];
-    CGFloat width = gesture.view.bounds.size.width;
-    if (point.x < width / 3.0) {
-        GHLSeekCurrentPlayerBySeconds(-10);
-    } else if (point.x > width * 2.0 / 3.0) {
-        GHLSeekCurrentPlayerBySeconds(10);
-    }
 }
 
-static void GHLHandleTripleTapClear(UITapGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    if (!GHLGetBool(GHL_KEY_TRIPLE_TAP_CLEAR)) return;
-    __block HideUIButton *clearButton = nil;
-    GHLRunOnMain(^{
-      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-      NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
-      while (stack.count > 0 && !clearButton) {
-          UIView *view = stack.lastObject;
-          [stack removeLastObject];
-          if ([view isKindOfClass:NSClassFromString(@"HideUIButton")]) {
-              clearButton = (HideUIButton *)view;
-              break;
-          }
-          [stack addObjectsFromArray:view.subviews];
-      }
-    });
-    if (clearButton) {
-        [clearButton handleTap];
-        GHLLog(@"三指双击清屏：已触发");
-    } else {
-        [DYYYUtils showToast:@"请先开启一键清屏悬浮按钮"];
-    }
-}
-
-// 1.0.5 手势自定义：三击 / 双指双击 / 左滑 / 右滑，处理时读 live 设置（没配动作就是“默认”，直接返回）。
-static void GHLHandleCustomTripleTap(UITapGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_TRIPLE_TAP));
-}
-
-static void GHLHandleTwoFingerDoubleTap(UITapGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_TWO_FINGER_DOUBLE_TAP));
-}
-
-static void GHLHandleSwipeLeft(UISwipeGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_SWIPE_LEFT));
-}
-
-static void GHLHandleSwipeRight(UISwipeGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    GHLPerformGestureAction(GHLGetString(GHL_KEY_GESTURE_SWIPE_RIGHT));
-}
-
-// 切到下一个视频（找 Feed 列表，滚到下一行；边缘滑动和手势自定义共用）。
-static void GHLScrollFeedToNextVideo(void) {
-    GHLRunOnMain(^{
-      @try {
-          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-          if (!window) return;
-          NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
-          UITableView *feedTable = nil;
-          while (stack.count > 0 && !feedTable) {
-              UIView *view = stack.lastObject;
-              [stack removeLastObject];
-              if ([view isKindOfClass:[UITableView class]] && [NSStringFromClass([view class]) containsString:@"Feed"]) {
-                  feedTable = (UITableView *)view;
-                  break;
-              }
-              [stack addObjectsFromArray:view.subviews];
-          }
-          if (!feedTable) {
-              for (UIView *subview in window.subviews) {
-                  if ([subview isKindOfClass:[UITableView class]]) {
-                      feedTable = (UITableView *)subview;
-                      break;
-                  }
-              }
-          }
-          if (!feedTable) {
-              GHLLog(@"切下一个视频：没找到 Feed 列表");
-              return;
-          }
-          NSArray<NSIndexPath *> *visible = [feedTable indexPathsForVisibleRows];
-          if (!visible || visible.count == 0) return;
-          NSIndexPath *last = visible.lastObject;
-          NSInteger rows = [feedTable numberOfRowsInSection:last.section];
-          if (last.row + 1 < rows) {
-              NSIndexPath *next = [NSIndexPath indexPathForRow:last.row + 1 inSection:last.section];
-              [feedTable scrollToRowAtIndexPath:next atScrollPosition:UITableViewScrollPositionTop animated:YES];
-              GHLLog(@"切下一个视频：已切到下一个");
-          }
-      } @catch (__unused NSException *exception) {
-      }
-    });
-}
-
-static void GHLHandleEdgeSwipeNext(UIScreenEdgePanGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateEnded) return;
-    if (!GHLGetBool(GHL_KEY_EDGE_SWIPE_NEXT)) return;
-    GHLScrollFeedToNextVideo();
-}
 
 static void GHLInstallFeedGesturesOnView(UIView *view) {
     if (!view) return;
     if (objc_getAssociatedObject(view, &kGHLGesturesInstalledKey)) return;
     objc_setAssociatedObject(view, &kGHLGesturesInstalledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
+    // 1.0.35：只剩双击下载（98）一个手势；三击清屏/边缘滑动/左滑返回/手势自定义已删。
     UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleDoubleTapSeek:)];
     doubleTap.numberOfTapsRequired = 2;
     doubleTap.numberOfTouchesRequired = 1;
     doubleTap.cancelsTouchesInView = NO;
     [view addGestureRecognizer:doubleTap];
-
-    UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleTripleTapClear:)];
-    tripleTap.numberOfTapsRequired = 2;
-    tripleTap.numberOfTouchesRequired = 3;
-    tripleTap.cancelsTouchesInView = NO;
-    [view addGestureRecognizer:tripleTap];
-
-    UIScreenEdgePanGestureRecognizer *edgeSwipe = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleEdgeSwipeNext:)];
-    edgeSwipe.edges = UIRectEdgeRight;
-    [view addGestureRecognizer:edgeSwipe];
-
-    UIScreenEdgePanGestureRecognizer *leftSwipe = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleLeftSwipeBack:)];
-    leftSwipe.edges = UIRectEdgeLeft;
-    [view addGestureRecognizer:leftSwipe];
-
-    // 1.0.5 手势自定义：三击、双指双击、左滑、右滑。
-    // 三击：只在配了动作时装（不配就不装，双击点赞一点都不拖慢）；装了以后，让这个视频页里
-    // 已有的双击识别器（自己的 + 抖音原生的）等三击失败再认，否则三击会先触发点赞/快进。
-    // 三击改完切个视频生效（每个视频的视图装一次）；另外三个处理时读 live 设置，改完立即生效。
-    NSString *tripleTapAction = GHLGetString(GHL_KEY_GESTURE_TRIPLE_TAP);
-    if (tripleTapAction.length > 0 && ![tripleTapAction isEqualToString:GHL_FLOAT_ACTION_DEFAULT]) {
-        UITapGestureRecognizer *customTripleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleCustomTripleTap:)];
-        customTripleTap.numberOfTapsRequired = 3;
-        customTripleTap.numberOfTouchesRequired = 1;
-        customTripleTap.cancelsTouchesInView = NO;
-        [view addGestureRecognizer:customTripleTap];
-        // 这个视频页（view + 父视图，即当前视频 cell）里的双击识别器等三击失败。
-        NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-        if (view.superview) [stack addObject:view.superview];
-        while (stack.count > 0) {
-            UIView *v = stack.lastObject;
-            [stack removeLastObject];
-            for (UIGestureRecognizer *gr in v.gestureRecognizers ?: @[]) {
-                if (gr == customTripleTap) continue;
-                if ([gr isKindOfClass:[UITapGestureRecognizer class]]) {
-                    UITapGestureRecognizer *tap = (UITapGestureRecognizer *)gr;
-                    if (tap.numberOfTapsRequired == 2 && tap.numberOfTouchesRequired == 1) {
-                        [tap requireGestureRecognizerToFail:customTripleTap];
-                    }
-                }
-            }
-            [stack addObjectsFromArray:v.subviews];
-        }
-    }
-
-    // 双指双击：抖音没有双指点按，不跟任何手势打架；常驻，处理时读 live 设置。
-    UITapGestureRecognizer *twoFingerDoubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleTwoFingerDoubleTap:)];
-    twoFingerDoubleTap.numberOfTapsRequired = 2;
-    twoFingerDoubleTap.numberOfTouchesRequired = 2;
-    twoFingerDoubleTap.cancelsTouchesInView = NO;
-    [view addGestureRecognizer:twoFingerDoubleTap];
-
-    // 左滑 / 右滑：Feed 是竖滑列表，视频区没有横滑手势；cancelsTouchesInView=NO，竖滑照常。
-    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleSwipeLeft:)];
-    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
-    swipeLeft.cancelsTouchesInView = NO;
-    [view addGestureRecognizer:swipeLeft];
-    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleSwipeRight:)];
-    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
-    swipeRight.cancelsTouchesInView = NO;
-    [view addGestureRecognizer:swipeRight];
-}
-
-static void GHLHandleLeftSwipeBack(UIScreenEdgePanGestureRecognizer *gesture) {
-    if (gesture.state != UIGestureRecognizerStateEnded) return;
-    if (!GHLGetBool(GHL_KEY_LEFT_SWIPE_BACK)) return;
-    GHLRunOnMain(^{
-      UIViewController *topVC = GHLTopViewController();
-      if (topVC.navigationController && topVC.navigationController.viewControllers.count > 1) {
-          [topVC.navigationController popViewControllerAnimated:YES];
-          GHLLog(@"左滑返回：已返回上一页");
-      } else if (topVC.presentedViewController) {
-          [topVC dismissViewControllerAnimated:YES completion:nil];
-          GHLLog(@"左滑返回：已关闭当前页");
-      }
-    });
 }
 
 #pragma mark - (22) 侧边栏自定义排序
@@ -1153,13 +1609,13 @@ void GHLApplyThemePreset(NSString *preset) {
     if (!preset || [preset isEqualToString:@"无"]) return;
     NSDictionary<NSString *, NSString *> *values = nil;
     if ([preset isEqualToString:@"金龙"]) {
-        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"FFD700", @"DYYYProgressLabelColor" : @"D4AF37", @"DYYYLabelColor" : @"D4AF37", GHL_KEY_PROGRESS_BAR_COLOR : @"D4AF37"};
+        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"FFD700", @"DYYYProgressLabelColor" : @"D4AF37", @"DYYYLabelColor" : @"D4AF37"};
     } else if ([preset isEqualToString:@"冰蓝"]) {
-        values = @{@"DYYYVideoBGColor" : @"0A1628", @"DYYYDanmuColor" : @"7DD3FC", @"DYYYProgressLabelColor" : @"7DD3FC", @"DYYYLabelColor" : @"BAE6FD", GHL_KEY_PROGRESS_BAR_COLOR : @"38BDF8"};
+        values = @{@"DYYYVideoBGColor" : @"0A1628", @"DYYYDanmuColor" : @"7DD3FC", @"DYYYProgressLabelColor" : @"7DD3FC", @"DYYYLabelColor" : @"BAE6FD"};
     } else if ([preset isEqualToString:@"樱粉"]) {
-        values = @{@"DYYYVideoBGColor" : @"1F0A14", @"DYYYDanmuColor" : @"FDA4AF", @"DYYYProgressLabelColor" : @"FDA4AF", @"DYYYLabelColor" : @"FBCFE8", GHL_KEY_PROGRESS_BAR_COLOR : @"F472B6"};
+        values = @{@"DYYYVideoBGColor" : @"1F0A14", @"DYYYDanmuColor" : @"FDA4AF", @"DYYYProgressLabelColor" : @"FDA4AF", @"DYYYLabelColor" : @"FBCFE8"};
     } else if ([preset isEqualToString:@"暗夜"]) {
-        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"E5E7EB", @"DYYYProgressLabelColor" : @"9CA3AF", @"DYYYLabelColor" : @"9CA3AF", GHL_KEY_PROGRESS_BAR_COLOR : @"6B7280"};
+        values = @{@"DYYYVideoBGColor" : @"000000", @"DYYYDanmuColor" : @"E5E7EB", @"DYYYProgressLabelColor" : @"9CA3AF", @"DYYYLabelColor" : @"9CA3AF"};
     }
     if (!values) return;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -1175,247 +1631,6 @@ static char kGHLSidebarBaselinePitchKey;
 static char kGHLSidebarBaselineCountKey;
 
 // 在 interaction 层里找装着 AWEFeedVideoButton 的容器（跟排序函数同一套找法）。
-static UIView *GHLFindSidebarButtonContainer(UIView *view, NSMutableArray<AWEFeedVideoButton *> *outButtons) {
-    if (!view) return nil;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        NSMutableArray *buttons = [NSMutableArray array];
-        for (UIView *subview in candidate.subviews) {
-            if ([subview isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")]) [buttons addObject:subview];
-        }
-        if (buttons.count >= 2) {
-            if (outButtons) [outButtons addObjectsFromArray:buttons];
-            return candidate;
-        }
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-    return nil;
-}
-
-void GHLApplySidebarBeautifyInView(UIView *view) {
-    if (!view || !GHLGetBool(GHL_KEY_SIDEBAR_BEAUTIFY)) return;
-    if (![NSThread isMainThread]) return;
-    NSMutableArray<AWEFeedVideoButton *> *buttons = [NSMutableArray array];
-    UIView *container = GHLFindSidebarButtonContainer(view, buttons);
-    if (!container || buttons.count < 2) return;
-
-    // 图标缩放：只动 imageView 的 transform，不动按钮 frame，点按区域不变。
-    NSString *scaleString = GHLGetString(GHL_KEY_SIDEBAR_ICON_SCALE);
-    CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
-    if (scale < 0.5) scale = 0.5;
-    if (scale > 1.5) scale = 1.5;
-    BOOL pillOn = GHLGetBool(GHL_KEY_SIDEBAR_PILL_BG);
-    for (AWEFeedVideoButton *button in buttons) {
-        UIImageView *iconView = button.imageView;
-        if (iconView) {
-            iconView.transform = (fabs(scale - 1.0) > 0.01) ? CGAffineTransformMakeScale(scale, scale) : CGAffineTransformIdentity;
-        }
-        // 圆角底：每颗图标下面垫一块半透明圆角底，只包图标不包数字标签，不拦截触摸。
-        UIView *pill = objc_getAssociatedObject(button, &kGHLSidebarPillViewKey);
-        if (pillOn && iconView) {
-            if (!pill) {
-                pill = [[UIView alloc] init];
-                pill.userInteractionEnabled = NO;
-                pill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.28];
-                objc_setAssociatedObject(button, &kGHLSidebarPillViewKey, pill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                [button insertSubview:pill atIndex:0];
-            }
-            CGRect iconFrame = iconView.frame;
-            CGFloat pad = 8.0;
-            CGFloat pillHeight = CGRectGetHeight(iconFrame) + pad * 2;
-            pill.frame = CGRectMake(CGRectGetMidX(iconFrame) - pillHeight / 2, CGRectGetMidY(iconFrame) - pillHeight / 2, pillHeight, pillHeight);
-            pill.layer.cornerRadius = pillHeight / 2;
-            pill.hidden = NO;
-        } else if (pill) {
-            pill.hidden = YES;
-        }
-    }
-
-    // 间距：用首次看到的自然 pitch 作基准（只在美化第一次跑时记录，之后一直沿用），
-    // 每次按 基准 + 设定间距 重排，不会在多次 layout 里越加越大。
-    NSString *spacingString = GHLGetString(GHL_KEY_SIDEBAR_SPACING);
-    CGFloat spacing = spacingString.length > 0 ? [spacingString floatValue] : 0.0;
-    if (spacing < -30) spacing = -30;
-    if (spacing > 60) spacing = 60;
-    if (fabs(spacing) < 0.01) return;
-    NSArray *sorted = [buttons sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-      if (a.center.y < b.center.y) return NSOrderedAscending;
-      if (a.center.y > b.center.y) return NSOrderedDescending;
-      return NSOrderedSame;
-    }];
-    NSNumber *baselinePitch = objc_getAssociatedObject(container, &kGHLSidebarBaselinePitchKey);
-    NSNumber *baselineCount = objc_getAssociatedObject(container, &kGHLSidebarBaselineCountKey);
-    if (!baselinePitch || !baselineCount || [baselineCount integerValue] != (NSInteger)buttons.count) {
-        // 只在当前这组按钮还没基准时记录；此时位置是抖音原生排布（美化之前没动过它们）。
-        CGFloat totalGap = 0;
-        for (NSUInteger i = 1; i < sorted.count; i++) totalGap += ([sorted[i] center].y - [sorted[i - 1] center].y);
-        CGFloat pitch = (sorted.count > 1) ? totalGap / (sorted.count - 1) : 0;
-        if (pitch <= 0) return;
-        objc_setAssociatedObject(container, &kGHLSidebarBaselinePitchKey, @(pitch), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(container, &kGHLSidebarBaselineCountKey, @(buttons.count), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        baselinePitch = @(pitch);
-    }
-    CGFloat pitch = [baselinePitch floatValue] + spacing;
-    if (pitch < 20) pitch = 20;
-    CGFloat y = [sorted[0] center].y;
-    for (NSUInteger i = 0; i < sorted.count; i++) {
-        UIView *button = sorted[i];
-        CGPoint center = button.center;
-        center.y = y;
-        button.center = center;
-        y += pitch;
-    }
-}
-
-#pragma mark - (7)(29) 评论区：关键词屏蔽 + 自动展开
-
-static BOOL GHLCommentFilterActive(void) {
-    if (!GHLGetBool(GHL_KEY_COMMENT_AUTO_EXPAND) && ![GHLGetString(GHL_KEY_COMMENT_BLOCK_KEYWORDS) length]) return NO;
-    return YES;
-}
-
-static NSArray<NSString *> *GHLCommentBlockKeywords(void) {
-    NSString *raw = GHLGetString(GHL_KEY_COMMENT_BLOCK_KEYWORDS);
-    if (raw.length == 0) return @[];
-    NSMutableArray<NSString *> *out = [NSMutableArray array];
-    for (NSString *item in [raw componentsSeparatedByString:@","]) {
-        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (trimmed.length > 0) [out addObject:trimmed];
-    }
-    return out;
-}
-
-static void GHLCollectLabelsInView(UIView *view, NSMutableArray<UILabel *> *out) {
-    if ([view isKindOfClass:[UILabel class]]) [out addObject:(UILabel *)view];
-    for (UIView *subview in view.subviews) GHLCollectLabelsInView(subview, out);
-}
-
-static void GHLCollectButtonsInView(UIView *view, NSMutableArray<UIButton *> *out) {
-    if ([view isKindOfClass:[UIButton class]]) [out addObject:(UIButton *)view];
-    for (UIView *subview in view.subviews) GHLCollectButtonsInView(subview, out);
-}
-
-static char kGHLExpandTappedKey;
-
-// 在评论面板里：屏蔽含关键词的评论格、点一遍展开按钮
-static void GHLProcessVisibleCommentCells(UITableView *tableView) {
-    if (!tableView) return;
-    NSArray<NSString *> *blockKeywords = GHLCommentBlockKeywords();
-    BOOL autoExpand = GHLGetBool(GHL_KEY_COMMENT_AUTO_EXPAND);
-    BOOL expandReplies = GHLGetBool(GHL_KEY_EXPAND_REPLIES);
-    for (UITableViewCell *cell in tableView.visibleCells) {
-        @try {
-            if (blockKeywords.count > 0) {
-                NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-                GHLCollectLabelsInView(cell.contentView, labels);
-                BOOL blocked = NO;
-                for (UILabel *label in labels) {
-                    for (NSString *keyword in blockKeywords) {
-                        if (label.text.length > 0 && [label.text containsString:keyword]) {
-                            blocked = YES;
-                            break;
-                        }
-                    }
-                    if (blocked) break;
-                }
-                cell.hidden = blocked;
-                if (blocked) GHLLog(@"评论屏蔽：已藏一条含关键词的评论");
-            }
-            if (autoExpand || expandReplies) {
-                NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
-                GHLCollectButtonsInView(cell.contentView, buttons);
-                for (UIButton *button in buttons) {
-                    if (objc_getAssociatedObject(button, &kGHLExpandTappedKey)) continue;
-                    NSString *title = button.titleLabel.text ?: @"";
-                    BOOL isFullText = autoExpand && ([title containsString:@"全文"] || [title containsString:@"展开"]);
-                    BOOL isReplyExpand = expandReplies && ([title containsString:@"条回复"] || [title containsString:@"展开"]);
-                    if (isFullText || isReplyExpand) {
-                        objc_setAssociatedObject(button, &kGHLExpandTappedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                        [button sendActionsForControlEvents:UIControlEventTouchUpInside];
-                        GHLLog(@"评论展开：已点“%@”", title);
-                    }
-                }
-            }
-        } @catch (__unused NSException *exception) {
-        }
-    }
-}
-
-static NSTimer *ghlCommentTimer = nil;
-
-static void GHLStartCommentProcessing(UIViewController *containerVC) {
-    [ghlCommentTimer invalidate];
-    ghlCommentTimer = nil;
-    if (!GHLCommentFilterActive() && !GHLGetBool(GHL_KEY_EXPAND_REPLIES)) return;
-    __weak UIViewController *weakVC = containerVC;
-    ghlCommentTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
-                                                      repeats:YES
-                                                        block:^(NSTimer *timer) {
-                                                          UIViewController *vc = weakVC;
-                                                          if (!vc || !vc.view.window) {
-                                                              [timer invalidate];
-                                                              ghlCommentTimer = nil;
-                                                              return;
-                                                          }
-                                                          NSMutableArray *stack = [NSMutableArray arrayWithObject:vc.view];
-                                                          while (stack.count > 0) {
-                                                              UIView *view = stack.lastObject;
-                                                              [stack removeLastObject];
-                                                              if ([view isKindOfClass:[UITableView class]]) {
-                                                                  GHLProcessVisibleCommentCells((UITableView *)view);
-                                                                  return;
-                                                              }
-                                                              [stack addObjectsFromArray:view.subviews];
-                                                          }
-                                                        }];
-}
-
-static void GHLStopCommentProcessing(void) {
-    [ghlCommentTimer invalidate];
-    ghlCommentTimer = nil;
-}
-
-#pragma mark - (10) 音量键调进度
-
-static double ghlLastVolume = -1;
-static BOOL ghlRestoringVolume = NO;
-static NSTimeInterval ghlLastVolumeEventTime = 0;
-
-static void GHLHandleVolumeChange(NSNotification *note) {
-    if (!GHLGetBool(GHL_KEY_VOLUME_SEEK)) return;
-    if (ghlRestoringVolume) return;
-    NSDictionary *info = note.userInfo;
-    NSString *reason = info[@"AVSystemController_AudioVolumeChangeReasonNotificationParameter"];
-    if (![reason isEqualToString:@"ExplicitVolumeChange"]) return; // 只响应实体按键
-    NSNumber *volumeNumber = info[@"AVSystemController_AudioVolumeNotificationParameter"];
-    if (!volumeNumber) return;
-    double volume = [volumeNumber doubleValue];
-    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-    if (now - ghlLastVolumeEventTime < 0.25) return; // 防抖
-    ghlLastVolumeEventTime = now;
-    if (ghlLastVolume < 0) {
-        ghlLastVolume = volume;
-        return;
-    }
-    double direction = 0;
-    if (volume > ghlLastVolume + 0.01) direction = 10;
-    else if (volume < ghlLastVolume - 0.01) direction = -10;
-    double previousVolume = ghlLastVolume;
-    ghlLastVolume = volume;
-    if (direction == 0) return;
-    GHLSeekCurrentPlayerBySeconds(direction);
-    // 把系统音量拨回去，避免按一下音量变一下
-    ghlRestoringVolume = YES;
-    @try {
-        [[objc_getClass("AVSystemController") sharedAVSystemController] setVolumeTo:(float)previousVolume forCategory:@"Audio/Video"];
-    } @catch (__unused NSException *exception) {
-    }
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      ghlRestoringVolume = NO;
-    });
-}
 
 #pragma mark - (25) 截图监听
 
@@ -1439,58 +1654,6 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     GHLHandleDoubleTapSeek(gesture);
 }
 
-+ (void)ghl_handleTripleTapClear:(UITapGestureRecognizer *)gesture {
-    GHLHandleTripleTapClear(gesture);
-}
-
-+ (void)ghl_handleEdgeSwipeNext:(UIScreenEdgePanGestureRecognizer *)gesture {
-    GHLHandleEdgeSwipeNext(gesture);
-}
-
-+ (void)ghl_handleLeftSwipeBack:(UIScreenEdgePanGestureRecognizer *)gesture {
-    GHLHandleLeftSwipeBack(gesture);
-}
-
-// 1.0.23 第二批：70 双击消息快捷回复、73 长按头像续火花、75 AI 解析页签／开始解析。
-// 实现在下面“1.0.23 第二批”一节，这里只做转发。
-+ (void)ghl_handleIMDoubleTap:(UITapGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateRecognized) return;
-    GHLHandleIMDoubleTapReply();
-}
-
-+ (void)ghl_handleIMAvatarLongPress:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
-    UITableView *table = (UITableView *)gesture.view;
-    if (![table isKindOfClass:[UITableView class]]) return;
-    CGPoint point = [gesture locationInView:table];
-    GHLHandleIMAvatarLongPress(table, point);
-}
-
-+ (void)ghl_handleAISegmentChanged:(UISegmentedControl *)segment {
-    GHLHandleAISegmentChanged(segment);
-}
-
-+ (void)ghl_handleAIParseStart:(UIButton *)button {
-    GHLHandleAIParseStart(button);
-}
-
-// 1.0.5 手势自定义
-+ (void)ghl_handleCustomTripleTap:(UITapGestureRecognizer *)gesture {
-    GHLHandleCustomTripleTap(gesture);
-}
-
-+ (void)ghl_handleTwoFingerDoubleTap:(UITapGestureRecognizer *)gesture {
-    GHLHandleTwoFingerDoubleTap(gesture);
-}
-
-+ (void)ghl_handleSwipeLeft:(UISwipeGestureRecognizer *)gesture {
-    GHLHandleSwipeLeft(gesture);
-}
-
-+ (void)ghl_handleSwipeRight:(UISwipeGestureRecognizer *)gesture {
-    GHLHandleSwipeRight(gesture);
-}
-
 // 1.0.19 浮动按钮＋卡片面板（target-action 只能挂对象方法，挂 GHLFeatures 的类方法）
 + (void)ghl_floatPanelButtonTapped {
     GHLLog(@"快捷面板：已点浮动钮");
@@ -1510,67 +1673,9 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 #pragma mark - Hooks
 
-%hook AWEFeedContainerViewController
-- (void)aweme:(id)arg1 currentIndexDidChange:(NSInteger)arg2 {
-    %orig;
-    GHLMaybeAutoLike();
-}
-%end
-
-// (8) 点赞自动保存 + (10) 手势安装 + (22) 侧边栏排序
+// (10) 手势安装 + (22) 侧边栏排序（1.0.35：(8) 点赞自动保存已拿掉）
 %hook AWEPlayInteractionViewController
-- (void)performLikeAction {
-    %orig;
-    if (!GHLGetBool(GHL_KEY_AUTO_SAVE_LIKED)) return;
-    __weak AWEPlayInteractionViewController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      @try {
-          AWEPlayInteractionViewController *strongSelf = weakSelf;
-          if (!strongSelf) return;
-          AWEAwemeModel *model = strongSelf.model;
-          if (!model || !model.video) return;
-          // 确认现在是已点赞状态（避免点取消时也下载）
-          __block BOOL liked = NO;
-          NSMutableArray *stack = [NSMutableArray arrayWithObject:strongSelf.view];
-          while (stack.count > 0 && !liked) {
-              UIView *view = stack.lastObject;
-              [stack removeLastObject];
-              if ([view isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
-                  [((AWEFeedVideoButton *)view).accessibilityLabel isEqualToString:@"点赞"]) {
-                  liked = ((UIButton *)view).selected;
-                  break;
-              }
-              [stack addObjectsFromArray:view.subviews];
-          }
-          if (!liked) return;
-          NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-          NSMutableArray *saved = [[defaults objectForKey:@"GHLAutoSavedLikedIDs"] mutableCopy] ?: [NSMutableArray array];
-          if ([saved containsObject:model.itemID]) return;
-          [saved addObject:model.itemID];
-          [defaults setObject:saved forKey:@"GHLAutoSavedLikedIDs"];
-          NSURL *videoURL = nil;
-          NSURL *audioURL = nil;
-          if (model.video.h264URL && model.video.h264URL.originURLList.count > 0) {
-              videoURL = [NSURL URLWithString:model.video.h264URL.originURLList.firstObject];
-          } else if (model.video.playURL && model.video.playURL.originURLList.count > 0) {
-              videoURL = [NSURL URLWithString:model.video.playURL.originURLList.firstObject];
-          }
-          if (model.music && model.music.playURL && model.music.playURL.originURLList.count > 0) {
-              audioURL = [NSURL URLWithString:model.music.playURL.originURLList.firstObject];
-          }
-          if (!videoURL) return;
-          [DYYYManager downloadMedia:videoURL
-                           mediaType:MediaTypeVideo
-                               audio:audioURL
-                          completion:^(BOOL success) {
-                            GHLLog(@"点赞自动保存：%@ %@", model.itemID, success ? @"成功" : @"失败");
-                          }];
-          [DYYYUtils showToast:@"已点赞，视频自动保存中…"];
-      } @catch (__unused NSException *exception) {
-      }
-    });
-}
-
+// 1.0.35：(8) 点赞自动保存已拿掉（不在留着的清单里），performLikeAction 不再 hook。
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     GHLInstallFeedGesturesOnView(self.view);
@@ -1578,8 +1683,8 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 
 - (void)viewDidLayoutSubviews {
     // 1.0.18 计时日志（只加日志，不改行为）：统计本钩子每秒调用次数＋耗时——
-    // 本钩子每跳跑四组全树遍历（侧边栏排序/美化、界面缩放、数字改写），若每秒几十次、
-    // 单次几十毫秒，就是主线程渐进饱和的另一半证据；单次 >50ms 另记一行。
+    // 本钩子每跳跑一组全树遍历（侧边栏排序），若每秒几十次、单次几十毫秒，
+    // 就是主线程渐进饱和的另一半证据；单次 >50ms 另记一行。
     static CFAbsoluteTime ghlLayoutWindowStart = 0;
     static NSInteger ghlLayoutCallCount = 0;
     static double ghlLayoutTotalMs = 0;
@@ -1587,10 +1692,6 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
     CFAbsoluteTime layoutStart = CFAbsoluteTimeGetCurrent();
     %orig;
     GHLApplySidebarOrderInView(self.view);
-    // 1.0.8：右侧边栏美化在排序之后跑（缩放/间距/圆角底）。
-    GHLApplySidebarBeautifyInView(self.view);
-    GHLApplyInterfaceScaleInView(self.view);
-    GHLApplyFakeStatsInView(self.view);
     double layoutMs = (CFAbsoluteTimeGetCurrent() - layoutStart) * 1000.0;
     if (ghlLayoutWindowStart == 0) ghlLayoutWindowStart = layoutStart;
     ghlLayoutCallCount++;
@@ -1610,87 +1711,88 @@ static void GHLHandleScreenshotTaken(NSNotification *note) {
 }
 %end
 
-// (38) 深色键盘：评论输入框出现时把键盘改成深色
-%hook AWECommentInputViewController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    GHLApplyDarkKeyboardInView(self.view);
-}
-%end
-
-// (7)(29) 评论面板：关键词屏蔽 + 自动展开
-%hook AWECommentContainerViewController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    GHLStartCommentProcessing(self);
-}
-
-- (void)viewDidDisappear:(BOOL)animated {
-    %orig;
-    GHLStopCommentProcessing();
-}
-%end
-
-// (7) 评论关键词屏蔽：在 cell 布局时藏掉含关键词的格子（只在评论面板内生效）
-%hook UITableViewCell
-- (void)layoutSubviews {
-    %orig;
-    @try {
-        NSArray<NSString *> *blockKeywords = GHLCommentBlockKeywords();
-        if (blockKeywords.count == 0) return;
-        UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
-        if (!vc) return;
-        NSString *vcName = NSStringFromClass([vc class]);
-        if ([vcName rangeOfString:@"Comment"].location == NSNotFound) return;
-        NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-        GHLCollectLabelsInView(self.contentView, labels);
-        BOOL blocked = NO;
-        for (UILabel *label in labels) {
-            for (NSString *keyword in blockKeywords) {
-                if (label.text.length > 0 && [label.text containsString:keyword]) {
-                    blocked = YES;
-                    break;
-                }
-            }
-            if (blocked) break;
-        }
-        self.hidden = blocked;
-    } @catch (__unused NSException *exception) {
-    }
-}
-%end
 
 #pragma mark - 启动
 
 %ctor {
     @autoreleasepool {
-        GHLLog(@"SeaDragon Douyin 1.0.34 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
+        GHLLog(@"SeaDragon Douyin 1.0.35 已加载（基于 DYYY MIT，免费使用，仅限学习交流）");
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-        // 1.0.15：三个监听的 token 必须存下来（以前返回值丢了，监听立刻失效，
-        // 画中画/截屏/音量监听全是死的）。
+        // 1.0.15：监听的 token 必须存下来（以前返回值丢了，监听立刻失效，截屏监听是死的）。
         ghlScreenshotObserverToken = [center addObserverForName:UIApplicationUserDidTakeScreenshotNotification
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
                           GHLHandleScreenshotTaken(note);
                         }];
-        ghlVolumeObserverToken = [center addObserverForName:@"AVSystemController_SystemVolumeDidChangeNotification"
+        // 画中画：主触发改到 WillResignActive（还在前台时启动；DidEnterBackground
+        // 再调 startPictureInPicture 就太晚了）；DidEnterBackground 留作兜底，
+        // 一次后台只触发一次（GHLTriggerPiPForBackground 里的 guard）；回到前台重置。
+        ghlPiPWillResignActiveToken = [center addObserverForName:UIApplicationWillResignActiveNotification
                             object:nil
                              queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) {
-                          GHLHandleVolumeChange(note);
+                          // 1.0.20：先开后台任务再触发（D 路等 item 就绪要几秒，App 已在后台）。
+                          GHLBeginPiPBackgroundTaskIfNeeded();
+                          GHLTriggerPiPForBackground();
+                        }];
+        ghlPiPDidEnterBackgroundToken = [center addObserverForName:UIApplicationDidEnterBackgroundNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          // 1.0.21：第 7 项——进后台时先记一行音频状态（和切后台触发那行对照）。
+                          GHLLogAudioState(@"应用已进后台");
+                          // 兜底：开关开着、还没触发过时，先开个后台任务撑到系统回调
+                          // （或 10 秒超时），再触发。
+                          GHLBeginPiPBackgroundTaskIfNeeded();
+                          GHLTriggerPiPForBackground();
+                          // 1.0.19：切后台时画中画没接上，兜底播放器不能留着继续放
+                          // （皇上 1.0.18 反馈「退出抖音还有声音在讲」）。
+                          // 3 秒后再查一次（给系统回调留时间；只清已经调过 start、回调又没来的那次，
+                          // item 还没就绪的别动——KVO 就绪后还会调 start，看门狗会接手）。
+                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            if (!ghlPiPFallbackPlayer || !ghlPiPFallbackStarted) return;
+                            if (ghlPiPStartCallbackReceived) return;
+                            if (ghlPiPController && ghlPiPController.pictureInPictureActive) return;
+                            if (CFAbsoluteTimeGetCurrent() - ghlPiPLastStartTime < 3) return;
+                            GHLLog(@"画中画：切后台时没接上（3 秒没回调），停掉兜底播放器");
+                            GHLCleanupFallbackPiPPlayer();
+                          });
+                        }];
+        ghlPiPDidBecomeActiveToken = [center addObserverForName:UIApplicationDidBecomeActiveNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note) {
+                          ghlPiPTriggeredForCurrentBackground = NO;
                         }];
         GHLStartHousekeepingTimer();
         GHLStartMainThreadWatchdog(); // 1.0.21：第 6 项——冻住看门狗（诊断用，只抓证据）
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-          if (GHLGetBool(GHL_KEY_NIGHT_MODE)) GHLApplyNightMode(YES);
-          if (GHLGetBool(GHL_KEY_COMMENT_VOICE)) GHLProbeCommentVoice();
           if (GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) GHLProbeVoiceFeatures();
-          if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD) || GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT)) GHLProbeLiveRoom();
-          GHLRestartSleepTimer();
         });
     }
 }
+
+// 1.0.15：进程退出时移除 %ctor 里注册的监听（照 DYYY.xm 的 DYYYRemoveAppLifecycleObservers 写法）。
+%hook AppDelegate
+- (void)applicationWillTerminate:(UIApplication *)application {
+    // 1.0.21：第 7 项——进程要没了，尽力停兜底＋停画中画。先记一行音频状态（和切后台触发／
+    // 已进后台那两行对照），再停。诚实边界：彻底划掉是 SIGKILL，WillTerminate 未必跑得到；
+    // 跑到了就停，跑不到时声音若还在响，就是系统画中画会话在终止后存活，那是 iOS 行为，
+    // 不是咱们能停的——日志里要分得清（所以先记状态再停）。
+    GHLLogAudioState(@"应用将终止");
+    if (ghlPiPController && ghlPiPController.pictureInPictureActive) {
+        [ghlPiPController stopPictureInPicture];
+        GHLLog(@"应用将终止：画中画已停");
+    }
+    if (ghlPiPFallbackPlayer) {
+        GHLCleanupFallbackPiPPlayer(); // 里面会记「兜底播放器：已停止」
+        GHLLog(@"应用将终止：兜底播放器已停");
+    }
+    GHLRemovePiPObservers();
+    %orig;
+}
+%end
 
 #pragma mark - (31) 语音包（xuu 式管理器，代码全部自己写）
 // 行为参考（只学流程，不碰对方代码）：语音包列表（按文件夹/分类、按名字搜）→ 选一个
@@ -1922,7 +2024,7 @@ void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSStrin
 
 
 // 1.0.28：长按导入至语音包——下载当前视频、抽音轨成 .m4a 存进语音包，名字是皇上输的那个。
-// 链路复用 GHLExtractOriginalAudioForAwemeModel 那条（h264URL 优先、playURL 兜底 →
+// 链路：h264URL 优先、playURL 兜底 →
 // [DYYYManager downloadMediaWithProgress:] → AVAssetExportSession AppleM4A），
 // 落盘复用 1.0.24 导入那套（Documents/DYYY/VoicePackages/，同名加序号）。
 void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name) {
@@ -2642,14 +2744,9 @@ void GHLProbeLiveVoiceSender(void) {
 
 #pragma mark - (32)-(43) xuu 行为参考功能（代码全部自己写）
 
-static NSInteger ghlAutoLikeCount = 0;
 static NSTimer *ghlHousekeepingTimer = nil;
-static NSTimeInterval ghlLiveEnteredTime = 0;
-static UILabel *ghlLiveDurationLabel = nil;
-static BOOL ghlLiveRecording = NO;
 static NSTimeInterval ghlRedPacketLastTap = 0;
 static NSTimeInterval ghlLotteryLastTap = 0;
-static BOOL ghlLiveAudioMutedByUs = NO;
 static BOOL ghlFakeStatsLogged = NO;
 
 static UIViewController *GHLTopViewController(void) {
@@ -2673,48 +2770,6 @@ BOOL GHLIsInLiveRoom(void) {
 }
 
 #pragma mark (32) 自动点赞
-
-static BOOL GHLIsCurrentVideoLiked(void) {
-    __block BOOL liked = NO;
-    GHLRunOnMain(^{
-      UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
-      if (!controller) return;
-      NSMutableArray *stack = [NSMutableArray arrayWithObject:controller.view];
-      while (stack.count > 0 && !liked) {
-          UIView *view = stack.lastObject;
-          [stack removeLastObject];
-          if ([view isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
-              [((AWEFeedVideoButton *)view).accessibilityLabel isEqualToString:@"点赞"]) {
-              liked = ((UIButton *)view).selected;
-              break;
-          }
-          [stack addObjectsFromArray:view.subviews];
-      }
-    });
-    return liked;
-}
-
-void GHLMaybeAutoLike(void) {
-    if (!GHLGetBool(GHL_KEY_AUTO_LIKE)) return;
-    NSInteger maxCount = [GHLGetString(GHL_KEY_AUTO_LIKE_MAX) integerValue];
-    if (maxCount <= 0) maxCount = 100;
-    if (ghlAutoLikeCount >= maxCount) {
-        GHLLog(@"自动点赞：已到本会话上限 %ld，不再自动点", (long)maxCount);
-        return;
-    }
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1500 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      @try {
-          if (GHLIsCurrentVideoLiked()) return; // 已点赞的不重复点（避免点一下变取消）
-          UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
-          if ([controller respondsToSelector:@selector(performLikeAction)]) {
-              [(AWEPlayInteractionViewController *)controller performLikeAction];
-              ghlAutoLikeCount++;
-              GHLLog(@"自动点赞：已点第 %ld 个", (long)ghlAutoLikeCount);
-          }
-      } @catch (__unused NSException *exception) {
-      }
-    });
-}
 
 #pragma mark (33)(39) 直播间输入框发消息（尽力找输入框+发送按钮）
 
@@ -2806,182 +2861,9 @@ static void GHLScanAndTapButtonContaining(NSString *keyword, NSTimeInterval *las
 
 #pragma mark (38) 自定义底栏
 
-static void GHLApplyCustomTabBar(void) {
-    NSString *hiddenText = GHLGetString(GHL_KEY_HIDDEN_TABS);
-    if (hiddenText.length == 0) return;
-    NSMutableArray<NSString *> *hiddenTabs = [NSMutableArray array];
-    for (NSString *item in [hiddenText componentsSeparatedByString:@","]) {
-        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (trimmed.length > 0) [hiddenTabs addObject:trimmed];
-    }
-    if (hiddenTabs.count == 0) return;
-    GHLRunOnMain(^{
-      UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-      NSMutableArray *stack = [NSMutableArray arrayWithObject:window];
-      while (stack.count > 0) {
-          UIView *view = stack.lastObject;
-          [stack removeLastObject];
-          if ([view isKindOfClass:[UITabBar class]]) {
-              for (UIView *tabButton in view.subviews) {
-                  NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-                  GHLCollectLabelsInView(tabButton, labels);
-                  for (UILabel *label in labels) {
-                      if (label.text.length > 0 && [hiddenTabs containsObject:label.text]) {
-                          tabButton.hidden = YES;
-                          GHLLog(@"自定义底栏：已隐藏“%@”", label.text);
-                          break;
-                      }
-                  }
-              }
-              return;
-          }
-          [stack addObjectsFromArray:view.subviews];
-      }
-    });
-}
-
 #pragma mark (39) 直播时长 / 直播录制
 
-void GHLUpdateLiveDurationLabel(void) {
-    BOOL inLive = GHLIsInLiveRoom();
-    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-    if (inLive && ghlLiveEnteredTime == 0) {
-        ghlLiveEnteredTime = now;
-        GHLLog(@"直播时长：进入直播间，开始计时");
-        // (39) 进直播间发消息：开关开了就发一次设置好的内容
-        if (GHLGetBool(GHL_KEY_LIVE_SEND_MESSAGE)) {
-            NSString *message = GHLGetString(GHL_KEY_LIVE_SEND_MESSAGE_TEXT);
-            if (message.length > 0) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                  if (GHLIsInLiveRoom()) GHLTrySendLiveMessage(message);
-                });
-            }
-        }
-    } else if (!inLive && ghlLiveEnteredTime != 0) {
-        ghlLiveEnteredTime = 0;
-        [ghlLiveDurationLabel removeFromSuperview];
-        ghlLiveDurationLabel = nil;
-        GHLLog(@"直播时长：离开直播间，计时清零");
-    }
-    if (inLive && GHLGetBool(GHL_KEY_LIVE_DURATION)) {
-        GHLRunOnMain(^{
-          UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-          if (!ghlLiveDurationLabel) {
-              ghlLiveDurationLabel = [[UILabel alloc] initWithFrame:CGRectMake(12, 64, 130, 26)];
-              ghlLiveDurationLabel.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
-              ghlLiveDurationLabel.textColor = [UIColor colorWithRed:245 / 255.0 green:215 / 255.0 blue:110 / 255.0 alpha:1.0];
-              ghlLiveDurationLabel.font = [UIFont boldSystemFontOfSize:13];
-              ghlLiveDurationLabel.textAlignment = NSTextAlignmentCenter;
-              ghlLiveDurationLabel.layer.cornerRadius = 13;
-              ghlLiveDurationLabel.layer.masksToBounds = YES;
-              [window addSubview:ghlLiveDurationLabel];
-          }
-          NSInteger elapsed = (NSInteger)([[NSDate date] timeIntervalSince1970] - ghlLiveEnteredTime);
-          ghlLiveDurationLabel.text = [NSString stringWithFormat:@"直播 %02ld:%02ld", (long)(elapsed / 60), (long)(elapsed % 60)];
-        });
-    }
-    // 直播录制：进直播间开录，离开停录并弹保存预览
-    if (inLive && GHLGetBool(GHL_KEY_LIVE_RECORD) && !ghlLiveRecording) {
-        ghlLiveRecording = YES;
-        [[RPScreenRecorder sharedRecorder] startRecordingWithHandler:^(NSError *error) {
-          if (error) {
-              GHLLog(@"直播录制：开始失败 %@", error.localizedDescription);
-              ghlLiveRecording = NO;
-          } else {
-              GHLLog(@"直播录制：已开始");
-          }
-        }];
-    } else if (!inLive && ghlLiveRecording) {
-        ghlLiveRecording = NO;
-        [[RPScreenRecorder sharedRecorder] stopRecordingWithHandler:^(RPPreviewViewController *previewVC, NSError *error) {
-          if (error || !previewVC) {
-              GHLLog(@"直播录制：停止失败 %@", error.localizedDescription);
-              return;
-          }
-          previewVC.modalPresentationStyle = UIModalPresentationFullScreen;
-          [GHLTopViewController() presentViewController:previewVC animated:YES completion:nil];
-          GHLLog(@"直播录制：已停止，弹出保存预览");
-        }];
-    }
-}
-
 #pragma mark (42) 改数字显示
-
-static NSString *GHLFormatFakeCount(NSString *raw) {
-    if (raw.length == 0) return nil;
-    // 用户填纯数字就直接显示；填了带单位的也原样显示
-    return raw;
-}
-
-void GHLApplyFakeStatsInView(UIView *view) {
-    if (!GHLGetBool(GHL_KEY_FAKE_STATS)) return;
-    // 节流：最多 2 秒跑一次（viewDidLayoutSubviews 调用很频繁）
-    static NSTimeInterval lastRun = 0;
-    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-    if (now - lastRun < 2.0) return;
-    lastRun = now;
-    NSString *fakeLike = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_LIKE_COUNT));
-    NSString *fakePlay = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_PLAY_COUNT));
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        // 点赞按钮里的数字标签 → 改成用户填的点赞数
-        if (fakeLike && [candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] &&
-            [((AWEFeedVideoButton *)candidate).accessibilityLabel isEqualToString:@"点赞"]) {
-            NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-            GHLCollectLabelsInView(candidate, labels);
-            for (UILabel *label in labels) {
-                if (label.text.length > 0) {
-                    label.text = fakeLike;
-                    if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：点赞数已改成 %@", fakeLike);
-                }
-            }
-        }
-        // 含“播放”的标签 → 把前面的数字换成用户填的播放数
-        if (fakePlay) {
-            for (UIView *subview in candidate.subviews) {
-                if ([subview isKindOfClass:[UILabel class]]) {
-                    UILabel *label = (UILabel *)subview;
-                    if (label.text.length > 0 && [label.text containsString:@"播放"]) {
-                        NSCharacterSet *digits = [NSCharacterSet characterSetWithCharactersInString:@"0123456789.,万千"];
-                        NSRange range = [label.text rangeOfCharacterFromSet:digits];
-                        if (range.location != NSNotFound) {
-                            label.text = [label.text stringByReplacingCharactersInRange:NSMakeRange(0, range.location + range.length) withString:fakePlay];
-                            if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：播放数已改成 %@", fakePlay);
-                        }
-                    }
-                }
-            }
-        }
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-    // 直播间人数：只在直播间里找含“人”的标签改
-    if (GHLGetBool(GHL_KEY_FAKE_LIVE_USER_COUNT) && GHLIsInLiveRoom()) {
-        NSString *fakeCount = GHLFormatFakeCount(GHLGetString(GHL_KEY_FAKE_LIVE_USER_COUNT_VALUE));
-        if (fakeCount) {
-            UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-            NSMutableArray *liveStack = [NSMutableArray arrayWithObject:window];
-            while (liveStack.count > 0) {
-                UIView *candidate = liveStack.lastObject;
-                [liveStack removeLastObject];
-                if ([candidate isKindOfClass:[UILabel class]]) {
-                    UILabel *label = (UILabel *)candidate;
-                    if (label.text.length > 0 && [label.text containsString:@"人"] && label.text.length < 20) {
-                        NSCharacterSet *digits = [NSCharacterSet characterSetWithCharactersInString:@"0123456789.,万千"];
-                        NSRange range = [label.text rangeOfCharacterFromSet:digits];
-                        if (range.location != NSNotFound) {
-                            label.text = [label.text stringByReplacingCharactersInRange:NSMakeRange(0, range.location + range.length) withString:fakeCount];
-                            if (!ghlFakeStatsLogged) GHLLog(@"改数字显示：直播间人数已改成 %@", fakeCount);
-                        }
-                    }
-                }
-                [liveStack addObjectsFromArray:candidate.subviews];
-            }
-        }
-    }
-    ghlFakeStatsLogged = YES;
-}
 
 #pragma mark (37) 双击下载（带进度）
 
@@ -3028,85 +2910,7 @@ void GHLDownloadCurrentVideoWithProgress(void) {
 
 #pragma mark (38) 界面缩放 / 深色键盘
 
-void GHLApplyInterfaceScaleInView(UIView *view) {
-    if (!GHLGetBool(GHL_KEY_INTERFACE_SCALE)) {
-        // 开关关了就恢复原大小（只处理已经缩放过的）
-        NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-        while (stack.count > 0) {
-            UIView *candidate = stack.lastObject;
-            [stack removeLastObject];
-            if ([candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")] && !CGAffineTransformIsIdentity(candidate.transform)) {
-                candidate.transform = CGAffineTransformIdentity;
-            }
-            [stack addObjectsFromArray:candidate.subviews];
-        }
-        return;
-    }
-    CGFloat scale = [GHLGetString(GHL_KEY_INTERFACE_SCALE_VALUE) floatValue];
-    if (scale < 0.5f) scale = 0.5f;
-    if (scale > 2.0f) scale = 2.0f;
-    if (scale == 0) scale = 1.0f;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        if ([candidate isKindOfClass:NSClassFromString(@"AWEFeedVideoButton")]) {
-            candidate.transform = CGAffineTransformMakeScale(scale, scale);
-        }
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-}
-
-void GHLApplyDarkKeyboardInView(UIView *view) {
-    if (!GHLGetBool(GHL_KEY_DARK_KEYBOARD)) return;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        if ([candidate isKindOfClass:[UITextField class]]) {
-            ((UITextField *)candidate).keyboardAppearance = UIKeyboardAppearanceDark;
-        } else if ([candidate isKindOfClass:[UITextView class]]) {
-            ((UITextView *)candidate).keyboardAppearance = UIKeyboardAppearanceDark;
-        }
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-    GHLLog(@"深色键盘：已把输入框键盘改成深色");
-}
-
 #pragma mark (35)(36)(41) 探针（只记日志，不 hook、不猜实现）
-
-void GHLProbeCommentVoice(void) {
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    NSMutableArray<NSString *> *hits = [NSMutableArray array];
-    for (unsigned int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if (([name containsString:@"Comment"] || [name containsString:@"Voice"]) && ([name containsString:@"Audio"] || [name containsString:@"Voice"])) {
-            if (hits.count < 30) [hits addObject:name];
-        }
-    }
-    free(classes);
-    GHLLog(@"评论语音探针：疑似评论语音相关类 %lu 个：%@", (unsigned long)hits.count, hits);
-    if (hits.count == 0) {
-        GHLLog(@"评论语音探针：没找到评论语音的类，播放/保存做不了，开关先留着等日志");
-    } else {
-        GHLLog(@"评论语音探针：只记录类存在，播放/保存流程待真机日志进一步验证");
-    }
-}
-
-void GHLProbeLiveRoom(void) {
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    NSMutableArray<NSString *> *hits = [NSMutableArray array];
-    for (unsigned int i = 0; i < count; i++) {
-        NSString *name = NSStringFromClass(classes[i]);
-        if ([name hasPrefix:@"AWELive"] || [name hasPrefix:@"IESLive"]) {
-            if (hits.count < 30) [hits addObject:name];
-        }
-    }
-    free(classes);
-    GHLLog(@"直播间探针：AWELive/IESLive 类 %lu 个（前 30）：%@", (unsigned long)hits.count, hits);
-}
 
 // 1.0.2 语音四项探针：语音消息转发 / 设置语音秒数 / 替换语音评论 / 保存语音评论。
 // 只做运行期类/方法/属性 introspection 并记日志，不注入、不改行为、不发包。
@@ -3268,18 +3072,6 @@ static void GHLLayoutFloatPanel(void) {
 
 // 1.0.24：换背景图后重铺卡片底图（设置页「更换背景图」/「恢复默认背景」后调；
 // 卡片没建好或没打开时什么都不做；没自选图就把旧底图撤掉回实心浅灰）。
-void GHLRefreshFloatPanelCardBackground(void) {
-    if (!ghlFloatPanelCard) return;
-    UIView *oldBG = [ghlFloatPanelCard viewWithTag:9871];
-    [oldBG removeFromSuperview];
-    UIImage *cardBGImage = GHLCustomBackgroundImage();
-    if (!cardBGImage) return;
-    UIView *cardBG = [DYYYUtils dYYYSettingsBackgroundViewForImage:cardBGImage darkMode:NO];
-    cardBG.frame = ghlFloatPanelCard.bounds;
-    cardBG.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    cardBG.tag = 9871;
-    [ghlFloatPanelCard insertSubview:cardBG atIndex:0];
-}
 
 static void GHLBuildFloatPanelIfNeeded(void) {
     if (ghlFloatPanelWindow) return;
@@ -3334,7 +3126,7 @@ static void GHLBuildFloatPanelIfNeeded(void) {
         UIView *cardBG = [DYYYUtils dYYYSettingsBackgroundViewForImage:cardBGImage darkMode:NO];
         cardBG.frame = card.bounds;
         cardBG.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        cardBG.tag = 9871; // 换背景图时按 tag 找到重铺（GHLRefreshFloatPanelCardBackground）
+        cardBG.tag = 9871; // 卡片底图（存过的自定义背景图，1.0.35 起不再可换）
         [card addSubview:cardBG];
     }
     [container addSubview:card];
@@ -3460,7 +3252,6 @@ static void GHLRestoreFloatPanelLastPage(void) {
             GHLLog(@"卡片记页：恢复到分区 %ld", (long)sectionIndex);
         } else if ([page isEqualToString:@"about"]) {
             GHLAboutViewController *aboutVC = [[GHLAboutViewController alloc] init];
-            aboutVC.settingsViewController = GHLFloatPanelSharedSettingsViewController();
             [ghlFloatPanelNav pushViewController:aboutVC animated:NO];
             GHLLog(@"卡片记页：恢复到关于页");
         } else if ([page isEqualToString:@"log"]) {
@@ -3613,391 +3404,20 @@ static void GHLStartMainThreadWatchdog(void) {
 
 #pragma mark - 1.0.23 第二批：影片功能（48/59/70/71/73/75）
 
-// 48 自动连播：没有播放结束回调（BDSimMediaPlayer 不暴露进度），
-// 用 2 秒巡检累计当前视频已播时长（videoDuration 是毫秒），播满就切下一个。
-// 直播间不跑（直播没有固定时长）；切视频/换作者就重置累计。
-static NSString *ghlAutoPlayItemID = nil;
-static double ghlAutoPlayElapsed = 0;
-void GHLCheckAutoPlayNext(void) {
-    if (!GHLGetBool(GHL_KEY_AUTO_PLAY_NEXT)) {
-        ghlAutoPlayItemID = nil;
-        ghlAutoPlayElapsed = 0;
-        return;
-    }
-    if (GHLIsInLiveRoom()) {
-        ghlAutoPlayItemID = nil;
-        ghlAutoPlayElapsed = 0;
-        return;
-    }
-    AWEAwemeModel *model = GHLCurrentAwemeModel();
-    if (!model || !model.itemID) {
-        ghlAutoPlayItemID = nil;
-        ghlAutoPlayElapsed = 0;
-        return;
-    }
-    double duration = model.videoDuration / 1000.0;
-    if (duration <= 0) {
-        ghlAutoPlayItemID = nil;
-        ghlAutoPlayElapsed = 0;
-        return;
-    }
-    if (![model.itemID isEqualToString:ghlAutoPlayItemID]) {
-        ghlAutoPlayItemID = [model.itemID copy];
-        ghlAutoPlayElapsed = 0;
-        return;
-    }
-    ghlAutoPlayElapsed += 2.0;
-    if (ghlAutoPlayElapsed >= duration) {
-        ghlAutoPlayElapsed = 0;
-        ghlAutoPlayItemID = nil;
-        GHLLog(@"自动连播：当前视频播满 %.0f 秒，切下一个", duration);
-        GHLScrollFeedToNextVideo();
-    }
-}
-
-// 70/71/73 消息页手势：IM 控制器类名没写进 AwemeHeaders（只有少量 AWEIM* 声明），
-// 所以按类名含 "IM" 找顶层消息控制器，再在它的 view 里找消息列表（UITableView）。
-// 找到才装手势，只装一次；不在消息页时什么都不做。
-static void GHLCollectIMViewControllers(UIViewController *vc, NSMutableArray<UIViewController *> *out) {
-    if (!vc) return;
-    if ([NSStringFromClass([vc class]) containsString:@"IM"]) [out addObject:vc];
-    for (UIViewController *child in vc.childViewControllers) GHLCollectIMViewControllers(child, out);
-    GHLCollectIMViewControllers(vc.presentedViewController, out);
-}
-
-static UIViewController *GHLTopIMViewController(void) {
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    if (!window) return nil;
-    NSMutableArray<UIViewController *> *found = [NSMutableArray array];
-    GHLCollectIMViewControllers(window.rootViewController, found);
-    return found.lastObject;
-}
-
 // 最顶层控制器（沿 presented 链走到头）：续火花点开会话后，输入框在新推上来的聊天页里。
-static UIViewController *GHLTopmostViewController(void) {
-    UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-    UIViewController *vc = window.rootViewController;
-    while (vc.presentedViewController) vc = vc.presentedViewController;
-    return vc;
-}
-
-static UITableView *GHLFindTableViewInView(UIView *view) {
-    if (!view) return nil;
-    if ([view isKindOfClass:[UITableView class]]) return (UITableView *)view;
-    for (UIView *sub in view.subviews) {
-        UITableView *found = GHLFindTableViewInView(sub);
-        if (found) return found;
-    }
-    return nil;
-}
 
 // 消息输入框：抖音消息页一般是 UITextView，兜底也认 UITextField；
 // 是启发式找的（第一个文本输入框），万一找到的是搜索框，真机日志会露出来。
-static UIView *GHLFindTextInputInView(UIView *view) {
-    if (!view) return nil;
-    if ([view isKindOfClass:[UITextView class]] || [view isKindOfClass:[UITextField class]]) return view;
-    for (UIView *sub in view.subviews) {
-        UIView *found = GHLFindTextInputInView(sub);
-        if (found) return found;
-    }
-    return nil;
-}
-
-static UIButton *GHLFindSendButtonInView(UIView *view) {
-    if (!view) return nil;
-    if ([view isKindOfClass:[UIButton class]]) {
-        UIButton *button = (UIButton *)view;
-        NSString *title = [button titleForState:UIControlStateNormal] ?: @"";
-        NSString *axLabel = button.accessibilityLabel ?: @"";
-        if ([title containsString:@"发送"] || [axLabel containsString:@"发送"]) return button;
-    }
-    for (UIView *sub in view.subviews) {
-        UIButton *found = GHLFindSendButtonInView(sub);
-        if (found) return found;
-    }
-    return nil;
-}
 
 // 71 探针：dump 消息页输入栏一带的按钮类名（只跑一次），等真机日志定加号按钮的 hook 点。
 static char kGHLIMGesturesInstalledKey;
 
-void GHLInstallIMGesturesIfNeeded(void) {
-    if (!GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) && !GHLGetBool(GHL_KEY_STREAK_AUTO_SEND)) return;
-    UIViewController *imVC = GHLTopIMViewController();
-    if (!imVC) return;
-    UITableView *table = GHLFindTableViewInView(imVC.view);
-    if (!table) return;
-    if (objc_getAssociatedObject(table, &kGHLIMGesturesInstalledKey)) return;
-    objc_setAssociatedObject(table, &kGHLIMGesturesInstalledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY)) {
-        UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleIMDoubleTap:)];
-        doubleTap.numberOfTapsRequired = 2;
-        doubleTap.numberOfTouchesRequired = 1;
-        doubleTap.cancelsTouchesInView = NO;
-        [table addGestureRecognizer:doubleTap];
-    }
-    if (GHLGetBool(GHL_KEY_STREAK_AUTO_SEND)) {
-        UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:[GHLFeatures class] action:@selector(ghl_handleIMAvatarLongPress:)];
-        longPress.minimumPressDuration = 0.5;
-        longPress.cancelsTouchesInView = NO;
-        [table addGestureRecognizer:longPress];
-    }
-    GHLLog(@"消息手势：已装到 %@（双击回复 %@，长按头像续火花 %@）", NSStringFromClass([imVC class]),
-           GHLGetBool(GHL_KEY_IM_DOUBLE_TAP_REPLY) ? @"开" : @"关",
-           GHLGetBool(GHL_KEY_STREAK_AUTO_SEND) ? @"开" : @"关");
-}
-
 // 70 双击消息快捷回复：双击消息列表，聚焦输入框（只聚焦，不替用户发）。
-static void GHLHandleIMDoubleTapReply(void) {
-    UIViewController *imVC = GHLTopIMViewController();
-    if (!imVC) return;
-    UIView *input = GHLFindTextInputInView(imVC.view);
-    if (!input) {
-        GHLLog(@"双击消息快捷回复：没找到输入框");
-        return;
-    }
-    [input becomeFirstResponder];
-    GHLLog(@"双击消息快捷回复：已聚焦输入框");
-}
 
 // 73 续火花：长按联系人头像才触发（不要自动发）——点开该会话、填模板、点发送按钮。
 // 模板在设置里填，用 | 分隔多条；多条时目前只发第 1 条（多选 UI 还没做，
 // 提示里会列出全部模板，想发别的条先在设置里把它放第一行）。
 // 发送按钮找不到时只填文字不自动发（留给用户自己点发送），绝不静默重试。
-static void GHLHandleIMAvatarLongPress(UITableView *table, CGPoint point) {
-    if (!table) return;
-    NSIndexPath *indexPath = [table indexPathForRowAtPoint:point];
-    if (!indexPath) return;
-    UITableViewCell *cell = [table cellForRowAtIndexPath:indexPath];
-    if (!cell) return;
-    // 头像判断：cell 里靠左（x < 70）的方形图片（28–64pt）；点在别处不触发。
-    BOOL hitAvatar = NO;
-    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:cell.contentView];
-    while (stack.count > 0 && !hitAvatar) {
-        UIView *view = stack.lastObject;
-        [stack removeLastObject];
-        if ([view isKindOfClass:[UIImageView class]] && view.superview) {
-            CGRect frame = [cell.contentView convertRect:view.frame fromView:view.superview];
-            CGFloat w = CGRectGetWidth(frame), h = CGRectGetHeight(frame);
-            if (CGRectGetMinX(frame) < 70 && w >= 28 && w <= 64 && fabs(w - h) < 6) hitAvatar = YES;
-        }
-        [stack addObjectsFromArray:view.subviews];
-    }
-    if (!hitAvatar) return;
-    NSString *templatesRaw = GHLGetString(GHL_KEY_STREAK_TEMPLATES) ?: @"";
-    NSMutableArray<NSString *> *templates = [NSMutableArray array];
-    for (NSString *part in [templatesRaw componentsSeparatedByString:@"|"]) {
-        NSString *trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (trimmed.length > 0) [templates addObject:trimmed];
-    }
-    if (templates.count == 0) {
-        [DYYYUtils showToast:@"续火花：先在设置里填自动发送的文本模板"];
-        GHLLog(@"续火花：没填模板，长按头像没发");
-        return;
-    }
-    NSString *text = templates.firstObject;
-    void (^sendNow)(void) = ^{
-      // 点开该会话（长按本身不会触发选中，手动调 delegate 打开聊天页）。
-      id<UITableViewDelegate> delegate = table.delegate;
-      if ([delegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) {
-          [delegate tableView:table didSelectRowAtIndexPath:indexPath];
-      }
-      // 等会话页打开，再填文本、点发送。
-      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIViewController *chatVC = GHLTopmostViewController();
-        UIView *input = chatVC ? GHLFindTextInputInView(chatVC.view) : nil;
-        if (!input) {
-            GHLLog(@"续火花：会话打开了，但没找到输入框，没发");
-            [DYYYUtils showToast:@"续火花：没找到输入框，没发出去"];
-            return;
-        }
-        if ([input respondsToSelector:@selector(setText:)]) {
-            [input performSelector:@selector(setText:) withObject:text];
-        }
-        UIButton *sendButton = chatVC ? GHLFindSendButtonInView(chatVC.view) : nil;
-        if (!sendButton) {
-            GHLLog(@"续火花：已填好文本，但没找到发送按钮，只填文字不自动发");
-            [DYYYUtils showToast:@"续火花：已填好文本，请手动点发送"];
-            return;
-        }
-        [sendButton sendActionsForControlEvents:UIControlEventTouchUpInside];
-        GHLLog(@"续火花：已发「%@」", text);
-      });
-    };
-    if (templates.count > 1) {
-        NSMutableString *list = [NSMutableString string];
-        [templates enumerateObjectsUsingBlock:^(NSString *templateText, NSUInteger idx, BOOL *stop) {
-          (void)stop;
-          [list appendFormat:@"%lu. %@\n", (unsigned long)(idx + 1), templateText];
-        }];
-        [DYYYBottomAlertView showAlertWithTitle:@"续火花自动发消息"
-                                         message:[NSString stringWithFormat:@"共 %lu 条模板，点确定发第 1 条：\n%@（想发别的条，先在设置里把它放第一行）", (unsigned long)templates.count, list]
-                                       avatarURL:nil
-                                cancelButtonText:@"取消"
-                               confirmButtonText:@"发送第 1 条"
-                                    cancelAction:nil
-                                     closeAction:nil
-                                   confirmAction:sendNow];
-        return;
-    }
-    sendNow();
-}
-
-// 75 玻璃评论面板 + AI 解析：页签只在玻璃开关开时装（hook 里已判断）；
-// AI 解析要用户自己填 OpenAI 兼容接口的 Key＋地址＋模型，没填 Key 时只显示配置提示，
-// 不编造解析结果、不调任何默认接口。
-static char kGHLAISegmentKey;
-static char kGHLAIOverlayKey;
-static char kGHLAIResultViewKey;
-static char kGHLAIStatusLabelKey;
-
-void GHLInstallCommentAIParseSegment(UIViewController *commentVC) {
-    if (!commentVC || !commentVC.view) return;
-    if (objc_getAssociatedObject(commentVC, &kGHLAISegmentKey)) return;
-    GHLRunOnMain(^{
-      UIView *view = commentVC.view;
-      UISegmentedControl *segment = [[UISegmentedControl alloc] initWithItems:@[@"评论", @"AI 解析"]];
-      segment.selectedSegmentIndex = 0;
-      segment.frame = CGRectMake(16, 8, view.bounds.size.width - 32, 30);
-      segment.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-      [segment addTarget:[GHLFeatures class] action:@selector(ghl_handleAISegmentChanged:) forControlEvents:UIControlEventValueChanged];
-      [view addSubview:segment];
-      objc_setAssociatedObject(commentVC, &kGHLAISegmentKey, segment, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-      UIView *panel = [[UIView alloc] initWithFrame:CGRectMake(0, 46, view.bounds.size.width, view.bounds.size.height - 46)];
-      panel.backgroundColor = [UIColor whiteColor];
-      panel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-      panel.hidden = YES;
-      UILabel *statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 12, panel.bounds.size.width - 32, 20)];
-      statusLabel.font = [UIFont systemFontOfSize:13];
-      statusLabel.textColor = [UIColor grayColor];
-      statusLabel.text = @"点「开始解析」总结当前评论区";
-      statusLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-      [panel addSubview:statusLabel];
-      UIButton *parseButton = [UIButton buttonWithType:UIButtonTypeSystem];
-      [parseButton setTitle:@"开始解析" forState:UIControlStateNormal];
-      parseButton.frame = CGRectMake(16, 40, 100, 36);
-      [parseButton addTarget:[GHLFeatures class] action:@selector(ghl_handleAIParseStart:) forControlEvents:UIControlEventTouchUpInside];
-      [panel addSubview:parseButton];
-      UITextView *resultView = [[UITextView alloc] initWithFrame:CGRectMake(12, 84, panel.bounds.size.width - 24, panel.bounds.size.height - 96)];
-      resultView.font = [UIFont systemFontOfSize:15];
-      resultView.editable = NO;
-      resultView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-      [panel addSubview:resultView];
-      [view addSubview:panel];
-      objc_setAssociatedObject(commentVC, &kGHLAIOverlayKey, panel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-      objc_setAssociatedObject(commentVC, &kGHLAIResultViewKey, resultView, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-      objc_setAssociatedObject(commentVC, &kGHLAIStatusLabelKey, statusLabel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-      GHLLog(@"AI 解析页签：已装到评论面板");
-    });
-}
-
-static void GHLHandleAISegmentChanged(UISegmentedControl *segment) {
-    if (!segment) return;
-    UIResponder *responder = segment.nextResponder;
-    while (responder && ![responder isKindOfClass:[UIViewController class]]) responder = responder.nextResponder;
-    UIViewController *vc = (UIViewController *)responder;
-    if (!vc) return;
-    UIView *panel = objc_getAssociatedObject(vc, &kGHLAIOverlayKey);
-    if (panel) panel.hidden = (segment.selectedSegmentIndex == 0);
-    GHLLog(@"AI 解析页签：切到 %@", segment.selectedSegmentIndex == 0 ? @"评论" : @"AI 解析");
-}
-
-static void GHLHandleAIParseStart(UIButton *button) {
-    if (!button) return;
-    UIResponder *responder = button.nextResponder;
-    while (responder && ![responder isKindOfClass:[UIViewController class]]) responder = responder.nextResponder;
-    UIViewController *vc = (UIViewController *)responder;
-    if (!vc) return;
-    UITextView *resultView = objc_getAssociatedObject(vc, &kGHLAIResultViewKey);
-    UILabel *statusLabel = objc_getAssociatedObject(vc, &kGHLAIStatusLabelKey);
-    GHLAIParseCommentsFromView(vc.view, resultView, statusLabel);
-}
-
-void GHLAIParseCommentsFromView(UIView *panelView, UITextView *resultView, UILabel *statusLabel) {
-    NSString *apiKey = GHLGetString(GHL_KEY_AI_PARSE_KEY) ?: @"";
-    NSString *baseURL = GHLGetString(GHL_KEY_AI_PARSE_BASE_URL) ?: @"";
-    NSString *model = GHLGetString(GHL_KEY_AI_PARSE_MODEL) ?: @"";
-    if (apiKey.length == 0) {
-        if (statusLabel) statusLabel.text = @"先在设置里填 AI 接口 Key（OpenAI 兼容接口）";
-        GHLLog(@"AI 解析：没填 Key，只显示配置提示");
-        return;
-    }
-    if (baseURL.length == 0) baseURL = @"https://api.openai.com/v1";
-    if (model.length == 0) model = @"gpt-3.5-turbo";
-    // 收集评论文字：遍历面板里的 UILabel，取长度 >= 4 的正文，最多 20 条；
-    // 跳过 AI 面板自己里面的字（不然会把上次的解析结果也当评论喂进去）。
-    UIView *aiPanel = resultView ? resultView.superview : nil;
-    NSMutableArray<NSString *> *comments = [NSMutableArray array];
-    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:panelView];
-    while (stack.count > 0 && comments.count < 20) {
-        UIView *view = stack.lastObject;
-        [stack removeLastObject];
-        if (aiPanel && (view == aiPanel || [view isDescendantOfView:aiPanel])) continue;
-        if ([view isKindOfClass:[UILabel class]]) {
-            NSString *text = [(UILabel *)view text];
-            if (text.length >= 4 && ![comments containsObject:text]) [comments addObject:text];
-        }
-        [stack addObjectsFromArray:view.subviews];
-    }
-    if (comments.count == 0) {
-        if (statusLabel) statusLabel.text = @"没找到评论文字，先滑一滑评论区再试";
-        GHLLog(@"AI 解析：没找到评论文字");
-        return;
-    }
-    if (statusLabel) statusLabel.text = [NSString stringWithFormat:@"正在解析 %lu 条评论…", (unsigned long)comments.count];
-    NSString *prompt = [NSString stringWithFormat:@"请用简体中文总结以下抖音评论的主要观点和情绪（不超过 200 字）：\n%@", [comments componentsJoinedByString:@"\n"]];
-    NSDictionary *body = @{@"model" : model,
-                           @"messages" : @[ @{@"role" : @"user", @"content" : prompt} ]};
-    NSError *jsonError = nil;
-    NSData *bodyData = [NSJSONSerialization dataWithJSONObject:body options:0 error:&jsonError];
-    if (!bodyData) {
-        if (statusLabel) statusLabel.text = @"请求组装失败";
-        GHLLog(@"AI 解析：请求组装失败 %@", jsonError);
-        return;
-    }
-    NSString *trimmedBaseURL = [baseURL stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    while ([trimmedBaseURL hasSuffix:@"/"]) trimmedBaseURL = [trimmedBaseURL substringToIndex:trimmedBaseURL.length - 1];
-    NSURL *url = [NSURL URLWithString:[trimmedBaseURL stringByAppendingString:@"/chat/completions"]];
-    if (!url) {
-        if (statusLabel) statusLabel.text = @"接口地址填错了，检查一下";
-        GHLLog(@"AI 解析：接口地址无效 %@", baseURL);
-        return;
-    }
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    request.HTTPMethod = @"POST";
-    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-    [request setValue:[@"Bearer " stringByAppendingString:apiKey] forHTTPHeaderField:@"Authorization"];
-    request.HTTPBody = bodyData;
-    request.timeoutInterval = 30;
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request
-                                                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-      (void)response;
-      NSString *summary = nil;
-      NSString *statusText = nil;
-      if (error) {
-          statusText = [NSString stringWithFormat:@"请求失败：%@", error.localizedDescription];
-          GHLLog(@"AI 解析：请求失败 %@", error);
-      } else {
-          NSError *parseError = nil;
-          NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&parseError];
-          id content = json[@"choices"][0][@"message"][@"content"];
-          if ([content isKindOfClass:[NSString class]] && [(NSString *)content length] > 0) {
-              summary = (NSString *)content;
-              statusText = @"解析完成";
-          } else {
-              statusText = @"接口没返回解析结果（检查 Key/地址/模型）";
-              GHLLog(@"AI 解析：接口返回异常 %@", json);
-          }
-      }
-      dispatch_async(dispatch_get_main_queue(), ^{
-        if (summary && resultView) resultView.text = summary;
-        if (statusLabel) statusLabel.text = statusText;
-      });
-    }];
-    [task resume];
-    GHLLog(@"AI 解析：已发请求（%lu 条评论，模型 %@）", (unsigned long)comments.count, model);
-}
 
 void GHLHousekeepingTick(void) {
     // 1.0.18 计时日志（只加日志，不改行为）：每跳记耗时＋上跳间隔——
@@ -4013,38 +3433,11 @@ void GHLHousekeepingTick(void) {
     @try {
         // 1.0.18：浮动钮显隐每 2 秒刷一次（只在视频 feed 页出现；开关关了就藏）。
         GHLRefreshFloatPanelButton();
-        // 1.0.23 第二批：48 自动连播、70/71/73 消息手势（只在相关开关开时跑）。
-        GHLCheckAutoPlayNext();
-        GHLInstallIMGesturesIfNeeded();
-        if (GHLGetBool(GHL_KEY_LIVE_DURATION) || GHLGetBool(GHL_KEY_LIVE_RECORD)) {
-            GHLUpdateLiveDurationLabel();
-        }
         if (GHLGetBool(GHL_KEY_AUTO_RED_PACKET)) {
             GHLScanAndTapButtonContaining(@"红包", &ghlRedPacketLastTap, 5.0, @"自动抢红包");
         }
         if (GHLGetBool(GHL_KEY_AUTO_LIVE_LOTTERY)) {
             GHLScanAndTapButtonContaining(@"抽奖", &ghlLotteryLastTap, 10.0, @"自动开直播抽奖");
-        }
-        if (GHLGetBool(GHL_KEY_CUSTOM_TAB_BAR)) {
-            GHLApplyCustomTabBar();
-        }
-        if (GHLGetBool(GHL_KEY_FAKE_STATS)) {
-            UIWindow *window = [DYYYUtils getActiveWindow] ?: [UIApplication sharedApplication].keyWindow;
-            UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
-            if (controller) GHLApplyFakeStatsInView(controller.view);
-            (void)window;
-        }
-        if (GHLGetBool(GHL_KEY_LIVE_AUDIO_MUTE)) {
-            AVPlayer *player = GHLFindPlayingAVPlayer();
-            if (GHLIsInLiveRoom() && player && player.volume > 0) {
-                player.volume = 0;
-                ghlLiveAudioMutedByUs = YES;
-                GHLLog(@"直播音频：已单独静音");
-            } else if (!GHLIsInLiveRoom() && ghlLiveAudioMutedByUs && player) {
-                player.volume = 1.0;
-                ghlLiveAudioMutedByUs = NO;
-                GHLLog(@"直播音频：离开直播间，已恢复音量");
-            }
         }
     } @catch (__unused NSException *exception) {
     }

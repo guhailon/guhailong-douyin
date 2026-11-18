@@ -13,7 +13,7 @@
 // 顶上雷鸣绿龙横幅（base64 内嵌，裁自公司 logo 海报，
 // 标题金字＋灰字版本叠在横幅下半部）＋两张浅色玻璃卡＋页底小灰字声明摘要。
 // 第一张卡：关于/联系（基于 DYYY、原作者、源码、越狱源、QQ交流、QQ群）＋金色加群大按钮；
-// 第二张卡：配置管理（导出/导入/恢复默认/重启抖音）＋更新日志＋声明（声明在最下面）。
+// 第二张卡：重启抖音＋更换横幅背景＋更新日志＋声明（声明在最下面）。
 // 越狱源、重启抖音、点版本行复制信息是 1.0.13 新增；
 // 首次打开弹声明不要做（皇上没批）；Fish Audio、reference-xuu/ 一律不动。
 #import "GHLAboutViewController.h"
@@ -40,15 +40,11 @@ typedef NS_ENUM(NSInteger, GHLAboutRowAction) {
     GHLAboutRowRepo = 103,         // 顾海龙集团越狱源
     GHLAboutRowQQContact = 104,    // QQ交流
     GHLAboutRowQQGroup = 105,      // QQ群
-    GHLAboutRowExport = 200,       // 导出配置
-    GHLAboutRowImport = 201,       // 导入配置
-    GHLAboutRowReset = 202,        // 恢复默认配置
     GHLAboutRowRestart = 203,      // 重启抖音
     GHLAboutRowChangelog = 204,    // 更新日志
     GHLAboutRowDisclaimer = 206,   // 声明（放在最后）
     GHLAboutRowChangeBanner = 207, // 更换横幅背景（1.0.15）
     GHLAboutRowLogViewer = 209,    // 抖音日志（1.0.16，从设置页常用功能移过来）
-    GHLAboutRowClearCache = 210,   // 清除缓存（1.0.23 第二批 76 插件配置页）
     GHLAboutRowTelegram = 211,     // Telegram 交流群（1.0.30：点开进群；不链到别人的频道）
 };
 
@@ -154,18 +150,13 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
     [scrollView addSubview:card1];
     y = CGRectGetMaxY(card1.frame) + kGHLAboutCardSpacing;
 
-    // 第二张卡：配置管理＋更新日志＋声明（声明在最下面）。
+    // 第二张卡：重启抖音＋更换横幅背景＋更新日志＋声明（声明在最下面）。
     UIView *card2 = [self ghlBuildCardWithRows:@[
-        [self ghlRowSpecWithTitle:@"导出配置" icon:@"square.and.arrow.down" tag:GHLAboutRowExport chevron:YES],
-        [self ghlRowSpecWithTitle:@"导入配置" icon:@"square.and.arrow.up" tag:GHLAboutRowImport chevron:YES],
-        [self ghlRowSpecWithTitle:@"恢复默认配置" icon:@"arrow.counterclockwise" tag:GHLAboutRowReset chevron:YES],
         [self ghlRowSpecWithTitle:@"重启抖音" icon:@"power" tag:GHLAboutRowRestart chevron:YES],
         // 1.0.15：横幅背景可自己换（相册选图）。
         [self ghlRowSpecWithTitle:@"更换横幅背景" icon:@"photo" tag:GHLAboutRowChangeBanner chevron:YES],
         [self ghlRowSpecWithTitle:@"更新日志" icon:@"list.clipboard" tag:GHLAboutRowChangelog chevron:YES],
-        // 1.0.23 第二批 76：清除缓存（更新日志之后、声明之前；声明必须在最下面）。
-        [self ghlRowSpecWithTitle:@"清除缓存" icon:@"trash" tag:GHLAboutRowClearCache chevron:YES],
-        // 1.0.16：抖音日志从设置页常用功能移过来（清除缓存之后、声明之前；声明必须在最下面）。
+        // 1.0.16：抖音日志从设置页常用功能移过来（更新日志之后、声明之前；声明必须在最下面）。
         // 图标不用 list.clipboard（更新日志占了）和 doc.text（声明占了），用 doc.text.magnifyingglass。
         [self ghlRowSpecWithTitle:@"抖音日志" icon:@"doc.text.magnifyingglass" tag:GHLAboutRowLogViewer chevron:YES],
         [self ghlRowSpecWithTitle:@"声明" icon:@"doc.text" tag:GHLAboutRowDisclaimer chevron:YES],
@@ -390,18 +381,6 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             [UIPasteboard generalPasteboard].string = GHL_QQ_GROUP_NUMBER;
             [DYYYUtils showToast:@"已复制"];
             break;
-        case GHLAboutRowExport:
-            // 导出配置：复用设置主页的逻辑（key 与逻辑不动）。
-            if ([self ghlSettingsAvailable]) [self.settingsViewController ghlExportAndShareFromIndexPath:nil];
-            break;
-        case GHLAboutRowImport:
-            // 导入配置：复用设置主页的逻辑。
-            if ([self ghlSettingsAvailable]) [self.settingsViewController ghlPresentImportPicker];
-            break;
-        case GHLAboutRowReset:
-            // 恢复默认配置：复用设置主页的逻辑（自带二次确认）。
-            if ([self ghlSettingsAvailable]) [self.settingsViewController ghlConfirmResetSettings];
-            break;
         case GHLAboutRowRestart:
             [self ghlConfirmRestartDouyin];
             break;
@@ -410,12 +389,6 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
             break;
         case GHLAboutRowChangelog:
             [DYYYSettingsHelper showAboutDialog:@"更新日志" message:GHLChangelogText() onConfirm:nil];
-            break;
-        case GHLAboutRowClearCache:
-            // 1.0.23 第二批 76：清除缓存（DYYYUtils 现成的清缓存目录）。
-            [DYYYUtils clearCacheDirectory];
-            [DYYYUtils showToast:@"缓存已清除"];
-            GHLLog(@"关于：已清除缓存");
             break;
         case GHLAboutRowTelegram:
             // 1.0.30：Telegram 交流群已开通，点开邀请链接进群。
@@ -438,12 +411,6 @@ static const CGFloat kGHLBannerDragonHeadCenterXFraction = 358.0 / 640.0;
         default:
             break;
     }
-}
-
-- (BOOL)ghlSettingsAvailable {
-    if (self.settingsViewController) return YES;
-    [DYYYUtils showToast:@"打不开，请重试"];
-    return NO;
 }
 
 #pragma mark - 点版本行复制信息

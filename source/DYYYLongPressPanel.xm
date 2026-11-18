@@ -141,9 +141,7 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
     // 检查是否有任何功能启用
     hasAnyFeatureEnabled = enableSaveVideo || enableSaveCover || enableSaveAudio || enableSaveCurrentImage || enableSaveAllImages || enableCopyText || enableCopyLink || enableApiDownload ||
                            enableFilterUser || enableFilterKeyword || enableTimerClose || enableCreateVideo ||
-                           GHLGetBool(GHL_KEY_EXTRACT_AUDIO) || GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK) ||
-                           GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
-                           GHLGetBool(GHL_KEY_SAVE_AVATAR) || GHLGetBool(GHL_KEY_COPY_PROFILE) || GHLGetBool(GHL_KEY_AUDIO_SHARE);
+                           GHLGetBool(GHL_KEY_VOICE_PACKAGE);
 
     // 如果没有任何功能启用，仅使用官方按钮
     if (!hasAnyFeatureEnabled) {
@@ -722,35 +720,25 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
         [viewModels addObject:timerCloseViewModel];
     }
 
-    // ===== 顾海龙抖音长按项（686-695）=====
-    if (GHLGetBool(GHL_KEY_EXTRACT_AUDIO)) {
-        AWELongPressPanelBaseViewModel *extractAudioViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        extractAudioViewModel.awemeModel = self.awemeModel;
-        extractAudioViewModel.actionType = 686;
-        extractAudioViewModel.duxIconName = @"ic_music_outlined";
-        extractAudioViewModel.describeString = @"提取原声";
-        extractAudioViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLExtractOriginalAudioForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:extractAudioViewModel];
-    }
+    // ===== 顾海龙抖音长按项（688 画中画／689／690 语音包／696 导入至语音包）=====
 
-    if (GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK)) {
-        AWELongPressPanelBaseViewModel *noWatermarkViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        noWatermarkViewModel.awemeModel = self.awemeModel;
-        noWatermarkViewModel.actionType = 687;
-        noWatermarkViewModel.duxIconName = @"ic_link_outlined";
-        noWatermarkViewModel.describeString = @"复制无水印链接";
-        noWatermarkViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLCopyNoWatermarkLinkForAwemeModel(awemeModel);
+    if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
+        AWELongPressPanelBaseViewModel *pipViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        pipViewModel.awemeModel = self.awemeModel;
+        pipViewModel.actionType = 688;
+        pipViewModel.duxIconName = @"ic_pip_outlined";
+        pipViewModel.describeString = @"画中画播放";
+        pipViewModel.action = ^{
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
+          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
+          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
+          // 等 0.4 秒让收起动画跑完再触发。
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GHLStartPiPWithCaller(@"网格点按");
+          });
         };
-        [viewModels addObject:noWatermarkViewModel];
+        [viewModels addObject:pipViewModel];
     }
 
     if (GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
@@ -790,130 +778,6 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
           [panelManager dismissWithAnimation:YES completion:nil];
         };
         [viewModels addObject:voiceShareViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_SAVE_AVATAR)) {
-        AWELongPressPanelBaseViewModel *avatarViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        avatarViewModel.awemeModel = self.awemeModel;
-        avatarViewModel.actionType = 691;
-        avatarViewModel.duxIconName = @"ic_avatar_outlined";
-        avatarViewModel.describeString = @"保存头像";
-        avatarViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          NSURL *avatarURL = nil;
-          if (awemeModel.author && awemeModel.author.avatarMedium && awemeModel.author.avatarMedium.originURLList.count > 0) {
-              avatarURL = [NSURL URLWithString:awemeModel.author.avatarMedium.originURLList.firstObject];
-          }
-          if (!avatarURL) {
-              [DYYYUtils showToast:@"拿不到头像地址"];
-          } else {
-              [DYYYManager downloadMedia:avatarURL
-                               mediaType:MediaTypeImage
-                                   audio:nil
-                              completion:^(BOOL success) {
-                                GHLLog(@"保存头像：%@", success ? @"成功" : @"失败");
-                              }];
-              [DYYYUtils showToast:@"头像保存中…"];
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:avatarViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_COPY_PROFILE)) {
-        AWELongPressPanelBaseViewModel *profileViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        profileViewModel.awemeModel = self.awemeModel;
-        profileViewModel.actionType = 692;
-        profileViewModel.duxIconName = @"ic_user_outlined";
-        profileViewModel.describeString = @"复制个人资料";
-        profileViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          AWEUserModel *author = awemeModel.author;
-          if (!author) {
-              [DYYYUtils showToast:@"拿不到作者资料"];
-          } else {
-              NSString *profile = [NSString stringWithFormat:@"昵称：%@\n抖音号：%@\n简介：%@", author.nickname ?: @"", author.shortID ?: @"", author.signature ?: @""];
-              [[UIPasteboard generalPasteboard] setString:profile];
-              [DYYYUtils showToast:@"个人资料已复制"];
-              GHLLog(@"复制个人资料：%@", author.nickname);
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:profileViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_AUDIO_SHARE)) {
-        AWELongPressPanelBaseViewModel *audioShareViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        audioShareViewModel.awemeModel = self.awemeModel;
-        audioShareViewModel.actionType = 693;
-        audioShareViewModel.duxIconName = @"ic_share_outlined";
-        audioShareViewModel.describeString = @"分享音频";
-        audioShareViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          NSURL *audioURL = nil;
-          if (awemeModel.music && awemeModel.music.playURL && awemeModel.music.playURL.originURLList.count > 0) {
-              audioURL = [NSURL URLWithString:awemeModel.music.playURL.originURLList.firstObject];
-          }
-          if (!audioURL) {
-              [DYYYUtils showToast:@"这个视频没有背景音乐"];
-          } else {
-              [DYYYManager downloadMediaWithProgress:audioURL
-                                           mediaType:MediaTypeAudio
-                                               audio:nil
-                                            progress:nil
-                                          completion:^(BOOL success, NSURL *fileURL) {
-                                            if (!success || !fileURL) {
-                                                [DYYYUtils showToast:@"音频下载失败"];
-                                                return;
-                                            }
-                                            GHLRunOnMain(^{
-                                              UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ fileURL ] applicationActivities:nil];
-                                              UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-                                              [rootVC presentViewController:activityVC animated:YES completion:nil];
-                                            });
-                                          }];
-              [DYYYUtils showToast:@"音频下载中，好了就弹分享…"];
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:audioShareViewModel];
-    }
-
-    // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）。
-    // 「复制下载链接」和「解析保存（影片/音频）」他那套里有，咱们已经有了——
-    // 复制下载链接＝687 复制无水印链接（解析后的直链），解析保存＝673 接口保存＋
-    // 666 保存视频／668 保存音频；不重复加，只补没有的两项。
-    if (GHLGetBool(GHL_KEY_AWEME_DATA)) {
-        AWELongPressPanelBaseViewModel *awemeDataViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        awemeDataViewModel.awemeModel = self.awemeModel;
-        awemeDataViewModel.actionType = 694;
-        awemeDataViewModel.duxIconName = @"ic_data_outlined";
-        awemeDataViewModel.describeString = @"获取作品数据";
-        awemeDataViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLShowAwemeDataForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:awemeDataViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_IMAGE_PREVIEW)) {
-        AWELongPressPanelBaseViewModel *imagePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        imagePreviewViewModel.awemeModel = self.awemeModel;
-        imagePreviewViewModel.actionType = 695;
-        imagePreviewViewModel.duxIconName = @"ic_image_outlined";
-        imagePreviewViewModel.describeString = @"图片预览";
-        imagePreviewViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLPreviewAwemeImagesForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:imagePreviewViewModel];
     }
 
 // 1.0.28：长按导入至语音包（开关默认开；点它输名字，把当前视频的音频存进语音包）。
@@ -1001,7 +865,7 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
 
 // ===== 1.0.9：网格长按面板（深色毛玻璃 + 三列金色图标 + 顶部金色龙头）=====
 // 自定义项：Modern 钩子标了 isDYYYCustomGroup；旧钩子没标，用 actionType 认
-//（666-679 是 DYYY 长按项，686-695 是顾海龙长按项）。
+//（666-679 是 DYYY 长按项，686-695 是顾海龙长按项；1.0.35 只留 688/689/690/696）。
 static BOOL DYYYLongPressItemIsCustom(AWELongPressPanelBaseViewModel *item, AWELongPressPanelViewGroupModel *group) {
     if (!item) return NO;
     if (group && group.isDYYYCustomGroup) return YES;
@@ -1485,9 +1349,7 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
     // 检查是否有任何功能启用
     hasAnyFeatureEnabled = enableSaveVideo || enableSaveCover || enableSaveAudio || enableSaveCurrentImage || enableSaveAllImages || enableCopyText || enableCopyLink || enableApiDownload ||
                            enableFilterUser || enableFilterKeyword || enableTimerClose || enableCreateVideo ||
-                           GHLGetBool(GHL_KEY_EXTRACT_AUDIO) || GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK) ||
-                           GHLGetBool(GHL_KEY_VOICE_PACKAGE) ||
-                           GHLGetBool(GHL_KEY_SAVE_AVATAR) || GHLGetBool(GHL_KEY_COPY_PROFILE) || GHLGetBool(GHL_KEY_AUDIO_SHARE);
+                           GHLGetBool(GHL_KEY_VOICE_PACKAGE);
 
     if (!hasAnyFeatureEnabled) {
         return originalArray;
@@ -2069,35 +1931,25 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         [viewModels addObject:timerCloseViewModel];
     }
 
-    // ===== 顾海龙抖音长按项（686-695）=====
-    if (GHLGetBool(GHL_KEY_EXTRACT_AUDIO)) {
-        AWELongPressPanelBaseViewModel *extractAudioViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        extractAudioViewModel.awemeModel = self.awemeModel;
-        extractAudioViewModel.actionType = 686;
-        extractAudioViewModel.duxIconName = @"ic_music_outlined";
-        extractAudioViewModel.describeString = @"提取原声";
-        extractAudioViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLExtractOriginalAudioForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:extractAudioViewModel];
-    }
+    // ===== 顾海龙抖音长按项（688 画中画／689／690 语音包／696 导入至语音包）=====
 
-    if (GHLGetBool(GHL_KEY_NO_WATERMARK_SHARE_LINK)) {
-        AWELongPressPanelBaseViewModel *noWatermarkViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        noWatermarkViewModel.awemeModel = self.awemeModel;
-        noWatermarkViewModel.actionType = 687;
-        noWatermarkViewModel.duxIconName = @"ic_link_outlined";
-        noWatermarkViewModel.describeString = @"复制无水印链接";
-        noWatermarkViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLCopyNoWatermarkLinkForAwemeModel(awemeModel);
+    if (GHLGetBool(GHL_KEY_BACKGROUND_AUDIO)) {
+        AWELongPressPanelBaseViewModel *pipViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        pipViewModel.awemeModel = self.awemeModel;
+        pipViewModel.actionType = 688;
+        pipViewModel.duxIconName = @"ic_pip_outlined";
+        pipViewModel.describeString = @"画中画播放";
+        pipViewModel.action = ^{
           AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
           [panelManager dismissWithAnimation:YES completion:nil];
+          // 1.0.19：先把 sheet 收掉再找播放器——sheet 盖着时查找只能看到面板自己的控制器，
+          // feed 的播放器被挡住，B 路 0 个控制器（1.0.18 日志 15:50:38 那次）。
+          // 等 0.4 秒让收起动画跑完再触发。
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GHLStartPiPWithCaller(@"网格点按");
+          });
         };
-        [viewModels addObject:noWatermarkViewModel];
+        [viewModels addObject:pipViewModel];
     }
 
     if (GHLGetBool(GHL_KEY_VOICE_PACKAGE)) {
@@ -2137,130 +1989,6 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
           [panelManager dismissWithAnimation:YES completion:nil];
         };
         [viewModels addObject:voiceShareViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_SAVE_AVATAR)) {
-        AWELongPressPanelBaseViewModel *avatarViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        avatarViewModel.awemeModel = self.awemeModel;
-        avatarViewModel.actionType = 691;
-        avatarViewModel.duxIconName = @"ic_avatar_outlined";
-        avatarViewModel.describeString = @"保存头像";
-        avatarViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          NSURL *avatarURL = nil;
-          if (awemeModel.author && awemeModel.author.avatarMedium && awemeModel.author.avatarMedium.originURLList.count > 0) {
-              avatarURL = [NSURL URLWithString:awemeModel.author.avatarMedium.originURLList.firstObject];
-          }
-          if (!avatarURL) {
-              [DYYYUtils showToast:@"拿不到头像地址"];
-          } else {
-              [DYYYManager downloadMedia:avatarURL
-                               mediaType:MediaTypeImage
-                                   audio:nil
-                              completion:^(BOOL success) {
-                                GHLLog(@"保存头像：%@", success ? @"成功" : @"失败");
-                              }];
-              [DYYYUtils showToast:@"头像保存中…"];
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:avatarViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_COPY_PROFILE)) {
-        AWELongPressPanelBaseViewModel *profileViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        profileViewModel.awemeModel = self.awemeModel;
-        profileViewModel.actionType = 692;
-        profileViewModel.duxIconName = @"ic_user_outlined";
-        profileViewModel.describeString = @"复制个人资料";
-        profileViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          AWEUserModel *author = awemeModel.author;
-          if (!author) {
-              [DYYYUtils showToast:@"拿不到作者资料"];
-          } else {
-              NSString *profile = [NSString stringWithFormat:@"昵称：%@\n抖音号：%@\n简介：%@", author.nickname ?: @"", author.shortID ?: @"", author.signature ?: @""];
-              [[UIPasteboard generalPasteboard] setString:profile];
-              [DYYYUtils showToast:@"个人资料已复制"];
-              GHLLog(@"复制个人资料：%@", author.nickname);
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:profileViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_AUDIO_SHARE)) {
-        AWELongPressPanelBaseViewModel *audioShareViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        audioShareViewModel.awemeModel = self.awemeModel;
-        audioShareViewModel.actionType = 693;
-        audioShareViewModel.duxIconName = @"ic_share_outlined";
-        audioShareViewModel.describeString = @"分享音频";
-        audioShareViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          NSURL *audioURL = nil;
-          if (awemeModel.music && awemeModel.music.playURL && awemeModel.music.playURL.originURLList.count > 0) {
-              audioURL = [NSURL URLWithString:awemeModel.music.playURL.originURLList.firstObject];
-          }
-          if (!audioURL) {
-              [DYYYUtils showToast:@"这个视频没有背景音乐"];
-          } else {
-              [DYYYManager downloadMediaWithProgress:audioURL
-                                           mediaType:MediaTypeAudio
-                                               audio:nil
-                                            progress:nil
-                                          completion:^(BOOL success, NSURL *fileURL) {
-                                            if (!success || !fileURL) {
-                                                [DYYYUtils showToast:@"音频下载失败"];
-                                                return;
-                                            }
-                                            GHLRunOnMain(^{
-                                              UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[ fileURL ] applicationActivities:nil];
-                                              UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-                                              [rootVC presentViewController:activityVC animated:YES completion:nil];
-                                            });
-                                          }];
-              [DYYYUtils showToast:@"音频下载中，好了就弹分享…"];
-          }
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:audioShareViewModel];
-    }
-
-    // 1.0.23：长按面板新增两项（清单 9 号，按抖音图层的做法）。
-    // 「复制下载链接」和「解析保存（影片/音频）」他那套里有，咱们已经有了——
-    // 复制下载链接＝687 复制无水印链接（解析后的直链），解析保存＝673 接口保存＋
-    // 666 保存视频／668 保存音频；不重复加，只补没有的两项。
-    if (GHLGetBool(GHL_KEY_AWEME_DATA)) {
-        AWELongPressPanelBaseViewModel *awemeDataViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        awemeDataViewModel.awemeModel = self.awemeModel;
-        awemeDataViewModel.actionType = 694;
-        awemeDataViewModel.duxIconName = @"ic_data_outlined";
-        awemeDataViewModel.describeString = @"获取作品数据";
-        awemeDataViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLShowAwemeDataForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:awemeDataViewModel];
-    }
-
-    if (GHLGetBool(GHL_KEY_IMAGE_PREVIEW)) {
-        AWELongPressPanelBaseViewModel *imagePreviewViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        imagePreviewViewModel.awemeModel = self.awemeModel;
-        imagePreviewViewModel.actionType = 695;
-        imagePreviewViewModel.duxIconName = @"ic_image_outlined";
-        imagePreviewViewModel.describeString = @"图片预览";
-        imagePreviewViewModel.action = ^{
-          AWEAwemeModel *awemeModel = self.awemeModel;
-          GHLPreviewAwemeImagesForAwemeModel(awemeModel);
-          AWELongPressPanelManager *panelManager = [%c(AWELongPressPanelManager) shareInstance];
-          [panelManager dismissWithAnimation:YES completion:nil];
-        };
-        [viewModels addObject:imagePreviewViewModel];
     }
 
 // 1.0.28：长按导入至语音包（开关默认开；点它输名字，把当前视频的音频存进语音包）。

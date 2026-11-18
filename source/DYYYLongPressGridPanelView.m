@@ -1,7 +1,7 @@
 // 顾海龙抖音长按下载面板：网格风格（1.0.9）
-// 浅色毛玻璃底板 + 可调列数金色图标网格 + 顶部金色龙头（复用 GHLLogoImage()，圆形金边，和设置页头卡同一套）。
-// 1.0.23 第二批：面板外观可调（背景图 51、材质三选一 53、排列 54、模糊度 56、微透明 64），
-// 只改这个面板表面，不动设置卡片。
+// 浅色毛玻璃底板 + 3 列金色图标网格 + 顶部金色龙头（复用 GHLLogoImage()，圆形金边，和设置页头卡同一套）。
+// 1.0.35：面板外观固定回 1.0.22 默认（3 列、满强度磨砂、格子 92pt 白底 0.55、边距 16）；
+// 只留背景图 51、材质三选一 53 可调（只改这个面板表面，不动设置卡片）。
 // 1.0.21：深色改浅色（和卡片首页／关于页同款 iOS 文件夹式浅色玻璃）。
 // 效果图：workspace/imagine_media/media-generation-download-menu-grid-dragon-0-168c78e9-fb05-4e57-8b23-f8476d304c10.webp
 // 与效果图的一处差别：龙头没有探出面板顶边（贴边 10pt 放在毛玻璃里），避免 sheet 容器裁切导致龙头被切一半。
@@ -15,28 +15,10 @@ static const CGFloat kDYYYGridDragonSize = 76.0;
 static const CGFloat kDYYYGridDragonTop = 10.0;
 static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
 
-// 1.0.24：格子高度（72-120，默认 92，和 1.0.11 定的一样）/ 左右边距（0-48，默认 16）
-// 改设置可调；格子底色（默认白色，金色是淡金底，深灰是深灰底；透明度另由格子透明度/微透明开关管）。
-static CGFloat GHLQuickPanelCellHeight(void) {
-    NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_HEIGHT];
-    CGFloat f = v.length > 0 ? [v floatValue] : 92;
-    if (f < 72) f = 72;
-    if (f > 120) f = 120;
-    return f;
-}
-static CGFloat GHLQuickPanelSideMargin(void) {
-    NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_SIDE_MARGIN];
-    CGFloat f = v.length > 0 ? [v floatValue] : 16;
-    if (f < 0) f = 0;
-    if (f > 48) f = 48;
-    return f;
-}
-static UIColor *GHLQuickPanelCellBaseColor(void) {
-    NSString *c = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR] ?: @"白色";
-    if ([c isEqualToString:@"金色"]) return [DYYYUtils dYYYGoldAccentColor];
-    if ([c isEqualToString:@"深灰"]) return [UIColor colorWithWhite:0.2 alpha:1.0];
-    return [UIColor whiteColor];
-}
+// 1.0.35：格子几何固定回 1.0.22 默认（高 92、边距 16、白底），不再读设置。
+static CGFloat GHLQuickPanelCellHeight(void) { return 92; }
+static CGFloat GHLQuickPanelSideMargin(void) { return 16; }
+static UIColor *GHLQuickPanelCellBaseColor(void) { return [UIColor whiteColor]; }
 
 // 1.0.23 第二批：快捷面板外观（只用在长按网格面板表面，不动设置卡片）。
 // 53 材质：磨砂 / 液态玻璃 / 清透玻璃（真液态玻璃是 iOS 26 的 UIGlassEffect，
@@ -45,31 +27,8 @@ static NSString *GHLQuickPanelMaterial(void) {
     NSString *m = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_MATERIAL];
     return m.length > 0 ? m : @"磨砂";
 }
-// 54 排列：返回列数；横向等列返回 -1（横向单行，见 horizontalLayout）。
-static NSInteger GHLQuickPanelColumns(void) {
-    NSString *layout = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_COLUMNS] ?: @"每排3个";
-    if ([layout isEqualToString:@"每排2个"]) return 2;
-    if ([layout isEqualToString:@"每排4个"]) return 4;
-    if ([layout isEqualToString:@"横向等列"]) return -1;
-    if ([layout isEqualToString:@"自定义"]) {
-        NSInteger custom = [[[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_COLUMNS_CUSTOM] integerValue];
-        if (custom < 1) custom = 3;
-        if (custom > 6) custom = 6;
-        return custom;
-    }
-    return 3;
-}
-// 56 背景模糊度 0-100（实现成毛玻璃视图的 alpha）。
-// 1.0.28：默认改回 100（1.0.22 满强度；1.0.23 默认 58 是重影的来源之一）。
-// 1.0.26：钳下限 20（防调到 0 全透，面板糊黑空）。
-static CGFloat GHLQuickPanelBlurAmount(void) {
-    NSString *v = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_BLUR];
-    if (!v || v.length == 0) return 100;
-    CGFloat f = [v floatValue];
-    if (f < 20) f = 20;
-    if (f > 100) f = 100;
-    return f;
-}
+// 1.0.35：列数固定 3（1.0.22 默认；54 排列已拿掉，横向等列也随之拿掉）。
+// 1.0.35：模糊度固定 100（1.0.22 满强度；56 已拿掉）。
 static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     NSString *m = GHLQuickPanelMaterial();
     if (outLiquidTint) *outLiquidTint = NO;
@@ -104,9 +63,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 @property(nonatomic, assign) BOOL lastSettingsHasBG;
 @property(nonatomic, strong, nullable) NSDate *bgCachedModDate; // 1.0.27：背景图文件上次读到的 mtime＋大小（没变就跳过重读）
 @property(nonatomic, assign) unsigned long long bgCachedFileSize;
-@property(nonatomic, assign) NSInteger gridColumns;     // 54 排列的列数（横向等列时为 4，仅作单行格宽参考）
-@property(nonatomic, assign) BOOL horizontalLayout;     // 54 横向等列：单行横滑
-@property(nonatomic, assign) CGFloat cellBackgroundAlpha; // 64 微透明：格子底透明度（默认 0.55，开了 0.40）
+@property(nonatomic, assign) NSInteger gridColumns;     // 固定 3 列（1.0.22 默认）
+@property(nonatomic, assign) CGFloat cellBackgroundAlpha; // 固定 0.55（1.0.22 默认）
 
 @end
 
@@ -198,21 +156,9 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     self.backgroundColor = [UIColor clearColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-    // 1.0.23 第二批：54 排列（列数在 init 时读一次；横向等列 = 单行横滑）。
-    NSInteger columns = GHLQuickPanelColumns();
-    _horizontalLayout = (columns == -1);
-    _gridColumns = _horizontalLayout ? 4 : columns;
-    // 64 长按菜单微透明：格子底从 0.55 降到 0.40。
-    // 1.0.24：格子透明度填了就按填的（0.1-1.0），没填才跟微透明开关。
-    NSString *cellAlphaValue = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_ALPHA];
-    if (cellAlphaValue.length > 0) {
-        CGFloat a = [cellAlphaValue floatValue];
-        if (a < 0.1) a = 0.1;
-        if (a > 1.0) a = 1.0;
-        _cellBackgroundAlpha = a;
-    } else {
-        _cellBackgroundAlpha = GHLGetBool(GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT) ? 0.40 : 0.55;
-    }
+    // 1.0.35：列数固定 3，格子底透明度固定 0.55（1.0.22 默认）。
+    _gridColumns = 3;
+    _cellBackgroundAlpha = 0.55;
 
     // 51 自选背景图（在毛玻璃下面，糊出来；没选就只有毛玻璃）。
     UIImage *panelBG = GHLCustomQuickPanelBackgroundImage();
@@ -228,11 +174,11 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 
     // 浅色毛玻璃底板（1.0.22：SystemMaterialLight 太实、渲染出来像平灰块，换更透的 ExtraLight，
     // 和卡片壳同款；格子底还是半透明白，字要看得清）。
-    // 1.0.23 第二批：53 材质三选一（磨砂/液态玻璃/清透玻璃）＋56 背景模糊度（毛玻璃 alpha）。
+    // 1.0.23 第二批：53 材质三选一（磨砂/液态玻璃/清透玻璃）；1.0.35：模糊度固定满强度。
     BOOL liquidTint = NO;
     UIBlurEffectStyle panelStyle = GHLQuickPanelBlurStyle(&liquidTint);
     _blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:panelStyle]];
-    _blurView.alpha = GHLQuickPanelBlurAmount() / 100.0;
+    _blurView.alpha = 1.0;
     _blurView.userInteractionEnabled = NO;
     _blurView.layer.cornerRadius = 24;
     _blurView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
@@ -321,15 +267,10 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 
 // 1.0.16：首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算，不留空）。
 // 数字和 layoutSubviews 里的同一套：龙头区 10+76+14，行高 92、间距 12，底部留 16。
-// 1.0.23 第二批：54 横向等列只 1 行（横滑），列数按当前设置算。
+// 1.0.35：固定 3 列（1.0.22 默认）。
 + (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom {
-    NSInteger columns = GHLQuickPanelColumns();
-    NSInteger rows;
-    if (columns == -1) {
-        rows = 1; // 横向等列：单行横滑
-    } else {
-        rows = (NSInteger)ceil((double)MAX(count, 0) / (double)columns);
-    }
+    NSInteger columns = 3;
+    NSInteger rows = (NSInteger)ceil((double)MAX(count, 0) / (double)columns);
     NSInteger visibleRows = MIN(rows, 5);
     CGFloat height = kDYYYGridDragonTop + kDYYYGridDragonSize + kDYYYGridTopGap
         + visibleRows * GHLQuickPanelCellHeight()
@@ -364,26 +305,8 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     if (gridHeight < 0) gridHeight = 0;
     self.gridScrollView.frame = CGRectMake(0, gridTop, bounds.size.width, gridHeight);
 
-    // 1.0.23 第二批：54 排列——列数按设置来；横向等列是单行横滑（格子按格子高度宽，横向滚）。
+    // 1.0.35：固定 3 列网格（1.0.22 默认）。
     NSInteger columns = self.gridColumns;
-    if (self.horizontalLayout) {
-        CGFloat cellWidth = GHLQuickPanelCellHeight();
-        CGFloat contentWidth = self.cells.count * cellWidth + (self.cells.count > 0 ? (self.cells.count - 1) * kDYYYGridSpacing : 0) + GHLQuickPanelSideMargin() * 2;
-        self.gridScrollView.contentSize = CGSizeMake(MAX(contentWidth, bounds.size.width), GHLQuickPanelCellHeight());
-        // 1.0.24：格子改高了图标/标题才居中（92 时保持原来 16/50，一点不动）。
-        CGFloat iconY = (GHLQuickPanelCellHeight() <= 92.0) ? 16 : (GHLQuickPanelCellHeight() - 52) / 2;
-        for (NSInteger i = 0; i < (NSInteger)self.cells.count; i++) {
-            UIButton *cell = self.cells[i];
-            CGFloat x = GHLQuickPanelSideMargin() + i * (cellWidth + kDYYYGridSpacing);
-            cell.frame = CGRectMake(x, 0, cellWidth, GHLQuickPanelCellHeight());
-            UIImageView *iconView = [cell viewWithTag:1001];
-            UILabel *label = [cell viewWithTag:1002];
-            iconView.frame = CGRectMake((cellWidth - 28) / 2, iconY, 28, 28);
-            label.frame = CGRectMake(4, iconY + 34, cellWidth - 8, 18);
-        }
-        [self ghl_logLayoutOnce];
-        return;
-    }
     CGFloat cellWidth = (bounds.size.width - GHLQuickPanelSideMargin() * 2 - kDYYYGridSpacing * (columns - 1)) / columns;
     NSInteger rows = (NSInteger)ceil((double)self.cells.count / (double)columns);
     CGFloat contentHeight = rows * GHLQuickPanelCellHeight() + (rows > 0 ? (rows - 1) * kDYYYGridSpacing : 0);
@@ -413,9 +336,9 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 // 1.0.27：每面板实例只记一次；设置没变就不重记（Show 在 sheet 动画期间每帧都调，
 // -15.log 里一行设置日志刷了约 83 次）。
 - (void)ghl_logResolvedSettings {
-    NSString *cellColor = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR] ?: @"白色";
+    NSString *cellColor = @"白色"; // 1.0.35：格子颜色固定白
     NSString *material = GHLQuickPanelMaterial();
-    CGFloat blur = GHLQuickPanelBlurAmount();
+    CGFloat blur = 100; // 1.0.35：模糊度固定 100
     BOOL hasBG = self.backgroundImageView != nil;
     if (self.didLogSettings
         && [material isEqualToString:self.lastSettingsMaterial]
@@ -520,16 +443,9 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 #pragma mark - UIScrollViewDelegate / UIGestureRecognizerDelegate（1.0.16）
 
 // 滚动吸附：停下时对齐到行高，不留半行（28 项 10 行时第四行被切一半就是这么来的）。
-// 1.0.23 第二批：54 横向等列是横滑，改对齐横向偏移。
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
     if (scrollView != self.gridScrollView) return;
     CGFloat pitch = GHLQuickPanelCellHeight() + kDYYYGridSpacing;
-    if (self.horizontalLayout) {
-        CGFloat maxOffset = MAX(0, scrollView.contentSize.width - scrollView.bounds.size.width);
-        CGFloat snapped = round(targetContentOffset->x / pitch) * pitch;
-        targetContentOffset->x = MIN(MAX(snapped, 0), maxOffset);
-        return;
-    }
     CGFloat maxOffset = MAX(0, scrollView.contentSize.height - scrollView.bounds.size.height);
     CGFloat snapped = round(targetContentOffset->y / pitch) * pitch;
     targetContentOffset->y = MIN(MAX(snapped, 0), maxOffset);

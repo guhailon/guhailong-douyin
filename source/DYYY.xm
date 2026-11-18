@@ -3150,8 +3150,6 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 
 %end
 
-// 1.0.8 弹幕字号缩放：以第一次看到的原生字号为基准（不叠加）。
-static char kDYYYDanmakuOrigFontSizeKey;
 
 %hook AWEDanmakuContentLabel
 - (void)setTextColor:(UIColor *)textColor {
@@ -3166,48 +3164,7 @@ static char kDYYYDanmakuOrigFontSizeKey;
     }
 }
 
-// 1.0.8 弹幕样式：字号按设定缩放（以第一次看到的原生字号为基准，不叠加）。
-- (void)setFont:(UIFont *)font {
-    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
-        NSString *scaleString = GHLGetString(GHL_KEY_DANMAKU_FONT_SCALE);
-        CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
-        if (scale < 0.5) scale = 0.5;
-        if (scale > 2.0) scale = 2.0;
-        if (fabs(scale - 1.0) > 0.01 && font) {
-            NSNumber *origSize = objc_getAssociatedObject(self, &kDYYYDanmakuOrigFontSizeKey);
-            if (!origSize) {
-                origSize = @(font.pointSize);
-                objc_setAssociatedObject(self, &kDYYYDanmakuOrigFontSizeKey, origSize, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-            %orig([font fontWithSize:[origSize floatValue] * scale]);
-            return;
-        }
-    }
-    %orig;
-}
-
-// 1.0.8 弹幕样式：透明度按设定封顶（乘在抖音自己的透明度上，淡入淡出动画不受影响）。
-- (void)setAlpha:(CGFloat)alpha {
-    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
-        NSString *alphaString = GHLGetString(GHL_KEY_DANMAKU_ALPHA);
-        CGFloat cap = alphaString.length > 0 ? [alphaString floatValue] : 1.0;
-        if (cap > 0 && cap < 1.0) {
-            %orig(alpha * cap);
-            return;
-        }
-    }
-    %orig;
-}
-
 - (void)setStrokeWidth:(double)strokeWidth {
-    // 1.0.8 弹幕样式：描边宽度按设定走（没填就走原来的逻辑）。
-    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE)) {
-        NSString *strokeString = GHLGetString(GHL_KEY_DANMAKU_STROKE);
-        if (strokeString.length > 0) {
-            %orig([strokeString doubleValue]);
-            return;
-        }
-    }
     if (DYYYGetBool(@"DYYYEnableDanmuColor")) {
         %orig(FLT_MIN);
     } else {
@@ -3216,11 +3173,6 @@ static char kDYYYDanmakuOrigFontSizeKey;
 }
 
 - (void)setStrokeColor:(UIColor *)strokeColor {
-    // 1.0.8 弹幕样式：描边配了宽度就用深色描边，否则走原来的逻辑。
-    if (GHLGetBool(GHL_KEY_DANMAKU_STYLE) && GHLGetString(GHL_KEY_DANMAKU_STROKE).length > 0) {
-        %orig([UIColor colorWithWhite:0 alpha:0.85]);
-        return;
-    }
     if (DYYYGetBool(@"DYYYEnableDanmuColor")) {
         %orig(nil);
     } else {
@@ -3230,45 +3182,6 @@ static char kDYYYDanmakuOrigFontSizeKey;
 
 %end
 
-// 1.0.8 弹幕太多自动变淡：弹幕容器每 2 秒数一次在屏弹幕，超过 20 条就整体降到 0.55，
-// 降下来恢复 1.0；抖音自己把容器藏起来（alpha=0）时不动它。有界、有节流。
-static char kDYYYDanmakuFadeLastCheckKey;
-static char kDYYYDanmakuFadedByUsKey;
-
-static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
-    if (!view || cap == 0) return 0;
-    NSUInteger count = 0;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    while (stack.count > 0 && count < cap) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        if ([candidate isKindOfClass:NSClassFromString(@"AWEDanmakuContentLabel")]) count++;
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-    return count;
-}
-
-%hook AWEDanmakuContainerView
-- (void)layoutSubviews {
-    %orig;
-    if (!GHLGetBool(GHL_KEY_DANMAKU_AUTO_FADE)) return;
-    NSDate *lastCheck = objc_getAssociatedObject(self, &kDYYYDanmakuFadeLastCheckKey);
-    if (lastCheck && [[NSDate date] timeIntervalSinceDate:lastCheck] < 2.0) return;
-    objc_setAssociatedObject(self, &kDYYYDanmakuFadeLastCheckKey, [NSDate date], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (self.alpha <= 0) return;
-    NSUInteger labelCount = DYYYCountDanmakuLabelsInView(self, 30);
-    BOOL fadedByUs = [objc_getAssociatedObject(self, &kDYYYDanmakuFadedByUsKey) boolValue];
-    if (labelCount > 20) {
-        if (self.alpha > 0.55) {
-            self.alpha = 0.55;
-            objc_setAssociatedObject(self, &kDYYYDanmakuFadedByUsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    } else if (fadedByUs) {
-        self.alpha = 1.0;
-        objc_setAssociatedObject(self, &kDYYYDanmakuFadedByUsKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-}
-%end
 
 %hook XIGDanmakuPlayerView
 
@@ -3450,73 +3363,12 @@ static NSUInteger DYYYCountDanmakuLabelsInView(UIView *view, NSUInteger cap) {
 
 %end
 
-// 1.0.8 进度条美化：加粗、圆角、默认金色 #D4AF37（跟品牌色一致）。
-// 只认像横条的子视图（高 ≤6pt、宽 ≥ 滑条一半、不是 UILabel）：最宽那条是轨道，
-// 其余是填充；只改高度/圆角/背景色，不动滑条本身的位置和手势。
-static void DYYYApplyProgressBarBeautifyToSlider(UIView *slider) {
-    if (!slider || !GHLGetBool(GHL_KEY_PROGRESS_BAR_BEAUTIFY)) return;
-    if (![NSThread isMainThread]) return;
-    CGFloat thickness = 5.0;
-    NSString *thicknessValue = GHLGetString(GHL_KEY_PROGRESS_BAR_THICKNESS);
-    if ([thicknessValue isEqualToString:@"细"]) thickness = 3.0;
-    else if ([thicknessValue isEqualToString:@"粗"]) thickness = 7.0;
-    NSString *colorHex = GHLGetString(GHL_KEY_PROGRESS_BAR_COLOR);
-    if (colorHex.length == 0) colorHex = @"D4AF37";
-    UIColor *fillColor = [DYYYUtils colorFromSchemeHexString:colorHex targetWidth:MAX(1.0, CGRectGetWidth(slider.bounds))];
-    if (!fillColor) fillColor = [DYYYUtils dYYYGoldAccentColor];
-
-    NSMutableArray<UIView *> *bars = [NSMutableArray array];
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:slider];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        if (candidate != slider && [candidate isKindOfClass:[UIView class]] && ![candidate isKindOfClass:[UILabel class]]) {
-            CGFloat h = CGRectGetHeight(candidate.bounds);
-            CGFloat w = CGRectGetWidth(candidate.bounds);
-            NSString *className = NSStringFromClass(candidate.class);
-            BOOL barLike = (h > 0 && h <= 6 && w >= CGRectGetWidth(slider.bounds) * 0.5) ||
-                           ([className containsString:@"Track"] && h > 0 && h <= 6);
-            if (barLike) [bars addObject:candidate];
-        }
-        // 只往下找两层（滑条本身一层、轨道一层），别翻整个互动层。
-        if (candidate == slider || [candidate.superview isEqual:slider]) [stack addObjectsFromArray:candidate.subviews];
-    }
-    if (bars.count == 0) return;
-    UIView *track = nil;
-    CGFloat maxWidth = 0;
-    for (UIView *bar in bars) {
-        if (CGRectGetWidth(bar.bounds) > maxWidth) {
-            maxWidth = CGRectGetWidth(bar.bounds);
-            track = bar;
-        }
-    }
-    CGFloat midY = CGRectGetMidY(slider.bounds);
-    for (UIView *bar in bars) {
-        // 把条子在滑条内垂直居中：先算目标 y（滑条坐标），再换算回条子父视图的坐标。
-        CGRect barInSlider = [bar.superview convertRect:bar.frame toView:slider];
-        CGFloat targetYInSlider = midY - thickness / 2.0;
-        CGPoint targetOriginInSuperview = [slider convertPoint:CGPointMake(CGRectGetMinX(barInSlider), targetYInSlider) toView:bar.superview];
-        CGRect frame = bar.frame;
-        frame.origin.y = targetOriginInSuperview.y;
-        frame.size.height = thickness;
-        bar.frame = frame;
-        bar.layer.cornerRadius = thickness / 2.0;
-        bar.layer.masksToBounds = YES;
-        if (bar == track && bars.count > 1) {
-            bar.backgroundColor = [UIColor colorWithWhite:1 alpha:0.25];
-        } else {
-            bar.backgroundColor = fillColor;
-        }
-    }
-}
 
 %hook AWEFeedProgressSlider
 
 - (void)layoutSubviews {
     %orig;
     DYYYApplyFloatClearProgressStateToView(self);
-    // 1.0.8 进度条美化（开关在设置里，默认关）。
-    DYYYApplyProgressBarBeautifyToSlider(self);
 }
 
 - (void)setAlpha:(CGFloat)alpha {
@@ -8641,7 +8493,6 @@ static NSHashTable *processedParentViews = nil;
     NSInteger daysThreshold = DYYYGetInteger(@"DYYYFilterTimeLimit");
     BOOL skipFriendsVideo = DYYYGetBool(@"DYYYSkipFriendsVideo");
     BOOL skipLive = DYYYGetBool(@"DYYYSkipLive"); // 读取直播过滤开关
-    BOOL skipShopping = GHLGetBool(GHL_KEY_SKIP_SHOPPING); // 1.0.23 第二批：61 推荐页跳过购物视频
     NSInteger minLikesThreshold = DYYYGetInteger(@"DYYYFilterLowLikes"); // 读取低赞过滤阈值 (例如: 1000)
     BOOL skipPhotoText = DYYYGetBool(@"DYYYSkipPhotoText"); // 图文过滤
     BOOL skipPhoto = DYYYGetBool(@"DYYYSkipPhoto"); // 图集过滤
@@ -8654,7 +8505,6 @@ static NSHashTable *processedParentViews = nil;
 
     // 第一阶段：先做稳定字段过滤（直播/时间/类型）
     NSMutableArray *baseFiltered = [NSMutableArray arrayWithCapacity:orig.count];
-    NSInteger shoppingSkipped = 0; // 1.0.23 第二批：61 本次跳过的购物视频数
 
     for (id obj in orig) {
         if (![obj isKindOfClass:%c(AWEAwemeModel)]) {
@@ -8677,15 +8527,6 @@ static NSHashTable *processedParentViews = nil;
             continue; // 命中直播过滤，跳过
         }
 
-        // 2.4 购物视频过滤（推荐页，1.0.23 第二批 61 号）：带电商标签的视频跳过。
-        if (skipShopping &&
-            [m respondsToSelector:@selector(referString)] &&
-            [m.referString isEqualToString:@"homepage_hot"] &&
-            [m respondsToSelector:@selector(ecommerceBelowLabel)] &&
-            m.ecommerceBelowLabel != nil) {
-            shoppingSkipped++;
-            continue;
-        }
 
         // 2.1 图文模式过滤逻辑（推荐页）
         if (skipPhotoText &&
@@ -8740,9 +8581,6 @@ static NSHashTable *processedParentViews = nil;
         [baseFiltered addObject:obj];
     }
 
-    if (shoppingSkipped > 0) {
-        GHLLog(@"推荐页跳过购物视频：本次跳过 %ld 个", (long)shoppingSkipped);
-    }
 
     if (minLikesThreshold <= 0 || baseFiltered.count == 0) {
         return [baseFiltered copy];
@@ -8953,8 +8791,8 @@ static NSHashTable *processedParentViews = nil;
     NSString *filterUsers = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYFilterUsers"];
     BOOL disableHDR = DYYYShouldDisableAllHDR();
 
-    // 检查是否需要过滤特定用户（顾海龙抖音关键词过滤总开关控制）
-    if (GHLKeywordFilterEnabled() && isRecommendFeed && filterUsers.length > 0 && self.author) {
+    // 检查是否需要过滤特定用户
+    if (isRecommendFeed && filterUsers.length > 0 && self.author) {
         NSArray *usersList = [filterUsers componentsSeparatedByString:@","];
         NSString *currentShortID = self.author.shortID;
         NSString *currentNickname = self.author.nickname;
@@ -8978,8 +8816,8 @@ static NSHashTable *processedParentViews = nil;
 
     // 仅在推荐页过滤关键词和道具
     if (isRecommendFeed) {
-        // 过滤包含特定关键词的视频（顾海龙抖音关键词过滤总开关控制）
-        if (GHLKeywordFilterEnabled() && keywordsList.count > 0) {
+        // 过滤包含特定关键词的视频
+        if (keywordsList.count > 0) {
             // 检查视频标题
             if (self.descriptionString.length > 0) {
                 for (NSString *keyword in keywordsList) {
@@ -9732,12 +9570,21 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
+// 1.0.21：最近一次 setListenVideoStatus 记下的改写后值（-1 表示还没见过），
+// 画中画的音频状态日志用（GHLLogAudioState 在 GHLFeatures.xm 里调；声明在 GHLFeatures.h）。
+static NSInteger ghlCurrentListenVideoStatus = -1;
+NSInteger GHLCurrentListenVideoStatus(void) {
+    return ghlCurrentListenVideoStatus;
+}
+
 %hook AWEAwemeStatusModel
 - (void)setListenVideoStatus:(NSInteger)status {
     NSInteger newStatus = status;
     if (status == 1 && DYYYGetBool(@"DYYYEnableBackgroundListen")) {
         newStatus = 2;
     }
+    // 1.0.21：每次都记下改写后值（不只记日志那次），画中画的音频状态日志要读最新值。
+    ghlCurrentListenVideoStatus = newStatus;
     // 1.0.15 探针：这钩子在皇上的抖音版本里到底进没进、原值和改写后的值是多少，
     // 写进抖音日志（只在后台播放开关开着时记，避免刷屏）。
     // 1.0.18 降噪：只在 status 真变了时记一行——之前一秒十几行重複行，關鍵行會被淹沒。
@@ -9770,96 +9617,6 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-// 1.0.8 头像金边：视频页头像加一圈金边（跟龙头金边同色 #D4AF37）。
-// 关注状态从旁边的 StaticFollowAnimationView 读：✓ 可见 = 已关注（实心粗边），
-// + 可见 = 未关注（细边）；读不到关注状态就统一实心金边，并记一条日志。
-// 开关关了就把我们加过的边框清掉（只清我们标记过的，不动抖音自己的）。
-static char kDYYYAvatarGoldRingAppliedKey;
-static NSTimeInterval DYYYAvatarGoldRingLastLogTime = 0;
-
-static UIImageView *DYYYFindAvatarImageViewInView(UIView *view, NSInteger depth) {
-    if (!view || depth > 4) return nil;
-    UIImageView *best = nil;
-    CGFloat bestWidth = 0;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:view];
-    NSMutableArray *depths = [NSMutableArray arrayWithObject:@0];
-    while (stack.count > 0) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        NSInteger d = [[depths lastObject] integerValue];
-        [depths removeLastObject];
-        if (d > 0 && [candidate isKindOfClass:[UIImageView class]]) {
-            NSString *className = NSStringFromClass(candidate.class);
-            BOOL isBadge = [className containsString:@"Follow"] || [className containsString:@"follow"] || [className containsString:@"Plus"] ||
-                           [className containsString:@"plus"] || [className containsString:@"Animation"] || [className containsString:@"LOT"];
-            CGFloat w = CGRectGetWidth(candidate.bounds);
-            CGFloat h = CGRectGetHeight(candidate.bounds);
-            if (!isBadge && w >= 28 && fabs(w - h) <= 4 && w > bestWidth) {
-                best = (UIImageView *)candidate;
-                bestWidth = w;
-            }
-        }
-        if (d < 4) {
-            for (UIView *subview in candidate.subviews) {
-                [stack addObject:subview];
-                [depths addObject:@(d + 1)];
-            }
-        }
-    }
-    return best;
-}
-
-static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
-    if (!avatarView) return;
-    UIImageView *avatarImageView = DYYYFindAvatarImageViewInView(avatarView, 0);
-    if (!avatarImageView) return;
-    if (!GHLGetBool(GHL_KEY_AVATAR_GOLD_RING)) {
-        if (objc_getAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey)) {
-            avatarImageView.layer.borderWidth = 0;
-            objc_setAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        return;
-    }
-    // 关注状态：找 StaticFollowAnimationView，看 ✓ 还是 + 哪边可见。
-    BOOL followed = NO;
-    BOOL notFollowed = NO;
-    BOOL foundFollowView = NO;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:avatarView];
-    while (stack.count > 0 && !foundFollowView) {
-        UIView *candidate = stack.lastObject;
-        [stack removeLastObject];
-        if ([NSStringFromClass(candidate.class) isEqualToString:@"AWEPlayInteractionStaticFollowAnimationView"]) {
-            foundFollowView = YES;
-            AWEPlayInteractionStaticFollowAnimationView *followView = (AWEPlayInteractionStaticFollowAnimationView *)candidate;
-            UIImageView *tick = followView.tickImageView;
-            UIImageView *plus = followView.plusImageView;
-            if (tick && !tick.hidden && tick.alpha > 0.1) followed = YES;
-            if (plus && !plus.hidden && plus.alpha > 0.1) notFollowed = YES;
-            break;
-        }
-        [stack addObjectsFromArray:candidate.subviews];
-    }
-    UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
-    CGFloat width = CGRectGetWidth(avatarImageView.bounds);
-    if (followed) {
-        avatarImageView.layer.borderColor = gold.CGColor;
-        avatarImageView.layer.borderWidth = 2.5;
-    } else if (notFollowed) {
-        avatarImageView.layer.borderColor = [gold colorWithAlphaComponent:0.6].CGColor;
-        avatarImageView.layer.borderWidth = 1.0;
-    } else {
-        avatarImageView.layer.borderColor = gold.CGColor;
-        avatarImageView.layer.borderWidth = 2.0;
-        NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-        if (now - DYYYAvatarGoldRingLastLogTime > 10.0) {
-            DYYYAvatarGoldRingLastLogTime = now;
-            GHLLog(@"头像金边：没读到关注状态，用统一实心金边");
-        }
-    }
-    avatarImageView.layer.cornerRadius = width / 2.0;
-    avatarImageView.layer.masksToBounds = YES;
-    objc_setAssociatedObject(avatarImageView, &kDYYYAvatarGoldRingAppliedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
 
 %hook AWEPlayInteractionUserAvatarView
 - (void)layoutSubviews {
@@ -9870,8 +9627,6 @@ static void DYYYApplyAvatarGoldRingInView(UIView *avatarView) {
         DYYYApplyAvatarSurroundingSettingsForOwner(self);
     }
 
-    // 1.0.8 头像金边（开关在设置里，默认关）。
-    DYYYApplyAvatarGoldRingInView(self);
 
     DYYYApplyAvatarFollowPromptSettingsWithRetry(self);
 }
@@ -11192,55 +10947,6 @@ static void DYYYTabBarScheduleDelayedHideRecheck(AWENormalModeTabBar *tabBar) {
     });
 }
 
-// 1.0.8 底栏毛玻璃：底栏最底层垫一块跟随深浅色的毛玻璃（UIVisualEffectView，
-// 跟 1.0.5 头卡同一套做法），不拦截触摸；选中态按钮的文字/图标变金色。
-// 不碰 1.0.7 的隐藏逻辑：毛玻璃只是最底层的一个普通视图，不会被收进候选按钮，
-// 隐藏的按钮仍藏住，剩下的均匀重排照常。
-static char kDYYYTabBarGlassViewKey;
-static char kDYYYTabBarOrigLabelColorKey;
-static char kDYYYTabBarOrigTintColorKey;
-
-static void DYYYApplyTabBarSelectedGold(AWENormalModeTabBar *tabBar, BOOL enabled) {
-    NSMutableArray<UIView *> *candidates = [NSMutableArray array];
-    DYYYTabBarCollectButtonsInView(tabBar, 3, candidates);
-    UIColor *gold = [DYYYUtils dYYYGoldAccentColor];
-    for (UIView *candidate in candidates) {
-        if (![candidate isKindOfClass:[UIButton class]]) continue;
-        UIButton *button = (UIButton *)candidate;
-        UILabel *label = nil;
-        NSMutableArray *stack = [NSMutableArray arrayWithObject:button];
-        while (stack.count > 0 && !label) {
-            UIView *v = stack.lastObject;
-            [stack removeLastObject];
-            if ([v isKindOfClass:[UILabel class]]) {
-                label = (UILabel *)v;
-                break;
-            }
-            [stack addObjectsFromArray:v.subviews];
-        }
-        // status == 2 表示选中（沿用“禁用首页刷新”里已有的判断）。
-        BOOL selected = NO;
-        if ([button respondsToSelector:@selector(status)]) {
-            selected = ([[button valueForKey:@"status"] integerValue] == 2);
-        }
-        if (enabled && selected) {
-            if (!objc_getAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey)) {
-                objc_setAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey, label.textColor ?: [UIColor whiteColor], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                id origTint = button.imageView.tintColor ?: (id)[NSNull null];
-                objc_setAssociatedObject(button, &kDYYYTabBarOrigTintColorKey, origTint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-            if (label) label.textColor = gold;
-            button.imageView.tintColor = gold;
-        } else {
-            UIColor *origLabel = objc_getAssociatedObject(button, &kDYYYTabBarOrigLabelColorKey);
-            if (origLabel && label) label.textColor = origLabel;
-            id origTint = objc_getAssociatedObject(button, &kDYYYTabBarOrigTintColorKey);
-            if (origTint) {
-                button.imageView.tintColor = (origTint == (id)[NSNull null]) ? nil : (UIColor *)origTint;
-            }
-        }
-    }
-}
 
 // 1.0.24：底栏高度参数化——「修改底栏高度」填了值就按填的算（ABTest 配置只改抖音
 // 自己的底栏高，这里的布局变量也要同步，不然全屏/内容高度按旧高度算）。
@@ -11258,66 +10964,6 @@ static CGFloat DYYYResolveCustomTabBarHeight(void) {
     if (![scanner scanFloat:&parsed] || !scanner.isAtEnd || parsed <= 0) return -1;
     if (parsed < kDYYYTabBarHeightMin || parsed > kDYYYTabBarHeightMax) return -1;
     return parsed;
-}
-
-// 1.0.24：底部字体大小——按设定缩放（以第一次看到的原生字号为基准，不叠加；
-// 做法复用 1.0.8 弹幕 setFont 缩放先例）。
-static char kDYYYTabBarOrigFontSizeKey;
-static void DYYYApplyTabBarFontScale(AWENormalModeTabBar *tabBar) {
-    if (!tabBar) return;
-    NSString *scaleString = GHLGetString(GHL_KEY_TAB_BAR_FONT_SCALE);
-    CGFloat scale = scaleString.length > 0 ? [scaleString floatValue] : 1.0;
-    if (scale < 0.8) scale = 0.8;
-    if (scale > 1.3) scale = 1.3;
-    NSMutableArray *stack = [NSMutableArray arrayWithObject:tabBar];
-    while (stack.count > 0) {
-        UIView *view = stack.lastObject;
-        [stack removeLastObject];
-        if ([view isKindOfClass:[UILabel class]]) {
-            UILabel *label = (UILabel *)view;
-            NSNumber *origSize = objc_getAssociatedObject(label, &kDYYYTabBarOrigFontSizeKey);
-            if (!origSize) {
-                origSize = @(label.font.pointSize);
-                objc_setAssociatedObject(label, &kDYYYTabBarOrigFontSizeKey, origSize, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-            CGFloat target = [origSize floatValue] * scale;
-            if (fabs(label.font.pointSize - target) > 0.01) label.font = [label.font fontWithSize:target];
-        }
-        [stack addObjectsFromArray:view.subviews];
-    }
-}
-
-static void DYYYApplyTabBarGlassEffect(AWENormalModeTabBar *tabBar) {
-    if (!tabBar) return;
-    UIVisualEffectView *glass = objc_getAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey);
-    // 1.0.23 第二批：78 底部悬浮毛玻璃胶囊栏——开胶囊就自带毛玻璃（不用再开底栏毛玻璃）。
-    BOOL capsuleOn = GHLGetBool(GHL_KEY_TABBAR_CAPSULE);
-    if (!GHLGetBool(GHL_KEY_TABBAR_GLASS) && !capsuleOn) {
-        if (glass) {
-            [glass removeFromSuperview];
-            objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        DYYYApplyTabBarSelectedGold(tabBar, NO);
-        return;
-    }
-    if (!glass) {
-        glass = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]];
-        glass.userInteractionEnabled = NO;
-        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        objc_setAssociatedObject(tabBar, &kDYYYTabBarGlassViewKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (capsuleOn) {
-        // 胶囊：左右各留 12pt、上下各留 4pt，圆角取半高，底栏浮起来。
-        glass.frame = CGRectInset(tabBar.bounds, 12, 4);
-        glass.layer.cornerRadius = glass.frame.size.height / 2;
-        glass.layer.masksToBounds = YES;
-    } else {
-        glass.frame = tabBar.bounds;
-        glass.layer.cornerRadius = 0;
-    }
-    if (glass.superview != tabBar) [tabBar insertSubview:glass atIndex:0];
-    tabBar.backgroundColor = [UIColor clearColor];
-    DYYYApplyTabBarSelectedGold(tabBar, YES);
 }
 
 %hook AWENormalModeTabBarPlusButton
@@ -11460,11 +11106,7 @@ static Class tabBarButtonClass = nil;
     DYYYApplyTabBarHideSettings(self);
     DYYYTabBarScheduleDelayedHideRecheck(self);
 
-    // 1.0.8：底栏毛玻璃 + 选中态金色（只在最底层垫毛玻璃，不动隐藏逻辑）。
-    DYYYApplyTabBarGlassEffect(self);
 
-    // 1.0.24：底部字体大小（按设定缩放）。
-    DYYYApplyTabBarFontScale(self);
 
     // 禁用首页刷新功能
     if (DYYYGetBool(@"DYYYDisableHomeRefresh")) {
@@ -12125,8 +11767,6 @@ static Class tabBarButtonClass = nil;
     if (!isSwitchOn) {
         %orig;
     }
-    // 1.0.8 双击爱心探针：双击后扫一遍互动层，认爱心动画的视图类（开关在设置里，默认关）。
-    GHLProbeDoubleTapHeartInView(self.view);
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -12226,12 +11866,6 @@ static Class tabBarButtonClass = nil;
 %new
 - (void)speedButtonTapped:(UIButton *)sender {
     [(FloatingSpeedButton *)sender resetFadeTimer];
-    // 1.0.23 第二批：67 显示功能按钮——快进档点一下快进 10 秒，不切倍速。
-    NSString *functionMode = GHLGetString(GHL_KEY_FLOAT_FUNCTION_BUTTON) ?: @"倍速";
-    if ([functionMode isEqualToString:@"快进"]) {
-        GHLSeekCurrentPlayerBySeconds(10);
-        return;
-    }
     NSArray *speeds = getSpeedOptions();
     if (speeds.count == 0)
         return;
@@ -13619,74 +13253,12 @@ static void findTargetViewInView(UIView *view) {
 %end
 %end
 
-// 1.0.23：评论文字变蓝（清单 5 号）——评论正文没有现成的文本设置点（Swift 组件，
-// 正文标签类名没声明），用启发式定位：评论容器布局时扫一遍层级，多行、字号 ≥14 的
-// 标签当正文染蓝；用户名/时间是单行小字，不动。已染过的打标记，不重复扫。
-// 需真机验证：启发式可能染到不该染的（比如商品卡标题），日志里会记染了几个。
-static char kGHLBlueCommentLabelKey;
 
-static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
-    if (!view) return;
-    if ([view isKindOfClass:[UILabel class]]) {
-        UILabel *label = (UILabel *)view;
-        Class interactionLabelClass = NSClassFromString(@"AWECommentSwiftBizUI.CommentInteractionBaseLabel");
-        BOOL isInteractionLabel = interactionLabelClass && [label isKindOfClass:interactionLabelClass];
-        if (!isInteractionLabel &&
-            !objc_getAssociatedObject(label, &kGHLBlueCommentLabelKey) &&
-            label.numberOfLines == 0 && label.font.pointSize >= 14 && label.text.length > 0) {
-            UIColor *blue = [UIColor colorWithRed:0.10 green:0.45 blue:0.95 alpha:1.0];
-            if (label.attributedText.length > 0) {
-                NSMutableAttributedString *attr = [[NSMutableAttributedString alloc] initWithAttributedString:label.attributedText];
-                [attr addAttribute:NSForegroundColorAttributeName value:blue range:NSMakeRange(0, attr.length)];
-                label.attributedText = attr;
-            } else {
-                label.textColor = blue;
-            }
-            objc_setAssociatedObject(label, &kGHLBlueCommentLabelKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            (*newCount)++;
-        }
-    }
-    for (UIView *subview in view.subviews) {
-        GHLBlueCommentLabelsInView(subview, newCount);
-    }
-}
-
-%group GHLBlueCommentTextGroup
-%hook AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    if (!GHLGetBool(GHL_KEY_BLUE_COMMENT_TEXT)) return;
-    NSInteger newCount = 0;
-    // 动态 %init 的 hook 里 self 没有声明类型，先转成 UIViewController 再读 view。
-    GHLBlueCommentLabelsInView(((UIViewController *)self).view, &newCount);
-    if (newCount > 0) {
-        GHLLog(@"评论文字变蓝：本次新染蓝 %ld 个正文标签", (long)newCount);
-    }
-}
-%end
-%end
-
-// 1.0.23 第二批：75 玻璃评论面板 + AI 解析——评论面板顶部加 评论/AI 解析 双页签。
-// 玻璃本身在 DYYYCommentBlurCoordinator 里做（GHL_KEY_COMMENT_GLASS_PANEL）；
-// 这里只挂页签和 AI 解析面板（开关在 hook 里运行时判断）。
-%group GHLCommentAIParseGroup
-%hook AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    if (!GHLGetBool(GHL_KEY_COMMENT_GLASS_PANEL)) return;
-    GHLInstallCommentAIParseSegment((UIViewController *)self);
-}
-%end
-%end
 
 %ctor {
     Class fullscreenCommentClass = objc_getClass("AWECommentPanelContainerSwiftImpl.CommentContainerInnerViewController");
     if (fullscreenCommentClass && [fullscreenCommentClass isSubclassOfClass:[UIViewController class]]) {
         %init(DYYYFullscreenCommentGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
-        // 1.0.23：评论文字变蓝（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
-        %init(GHLBlueCommentTextGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
-        // 1.0.23 第二批：75 AI 解析页签（同一容器类上再挂一组 hook；开关在 hook 里运行时判断）。
-        %init(GHLCommentAIParseGroup, AWECommentPanelContainerSwiftImpl_CommentContainerInnerViewController = fullscreenCommentClass);
     }
     // 1.0.28：画中画下架，1.0.20 的旧开关迁移没用了（后台听视频只走下面 registerDefaults 的默认开）。
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{
@@ -13711,31 +13283,15 @@ static void GHLBlueCommentLabelsInView(UIView *view, NSInteger *newCount) {
         @"DYYYLongPressCreateVideo" : @YES,
         // 1.0.18：视频页左上角龙头浮动钮默认开（设置页「悬浮按钮」分区可关；只填没存过值的 key）。
         @"GHLFloatPanelButton" : @YES,
-        // 1.0.28：后台听视频默认开（画中画下架，只剩这一个开关默认开）；
+        // 1.0.35：画中画装回来——切后台触发画中画和后台听视频都默认开（1.0.27 同款）；
         // DYYYEnableBackgroundListen 镜像也默认开（setListenVideoStatus 的改写跟它走）。
         @"GHLBackgroundListen" : @YES,
+        @"GHLBackgroundAudio" : @YES,
         @"DYYYEnableBackgroundListen" : @YES,
-        // 1.0.24：接口保存默认接皇上给的原画质接口（装完不用填就能点「接口保存」；
-        // registerDefaults 只填没存过值的 key，用户改过/清空过的不覆盖）。
-        @"DYYYInterfaceDownload" : @"http://111.231.72.74/douyin-api/public/?apikey=AwemeX_&url=",
         // 1.0.28：长按导入至语音包默认开（皇上点名要的重点功能；只填没存过值的 key）。
         @"GHLImportToVoicePackage" : @YES
     }];
 
-    // 1.0.28：长按面板恢复 1.0.22 样式——只改代码默认值不够，皇上手机上已存了
-    // 1.0.23–1.0.27 的面板外观值（材质曾改成液态玻璃），不清掉新默认值不生效。
-    // 升级后第一次启动清掉这 6 个外观 key（只清一次），面板回到 1.0.22 默认；
-    // 想再调去设置 → 面板设置里改（材质／模糊度／列数／格子颜色／透明度行都留着）。
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"GHLPanelLookReset1028"]) {
-        NSUserDefaults *lookDefaults = [NSUserDefaults standardUserDefaults];
-        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_MATERIAL];
-        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_BLUR];
-        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_CELL_ALPHA];
-        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_CELL_COLOR];
-        [lookDefaults removeObjectForKey:GHL_KEY_QUICK_PANEL_COLUMNS];
-        [lookDefaults removeObjectForKey:GHL_KEY_LONG_PRESS_PANEL_TRANSLUCENT];
-        [lookDefaults setBool:YES forKey:@"GHLPanelLookReset1028"];
-    }
 
     DYYYMigrateCombinedHDRModeIfNeeded();
 

@@ -531,23 +531,6 @@ UIImage *GHLCustomBackgroundImage(void) {
     return GHLValidImageAtPath(GHLCustomBackgroundPath());
 }
 
-BOOL GHLHasCustomBackground(void) {
-    return GHLCustomBackgroundImage() != nil;
-}
-
-BOOL GHLSaveCustomBackgroundImage(UIImage *image) {
-    if (!image) return NO;
-    // 先缩到合适尺寸再存，不存原图（长边 1242，够铺满手机屏，文件也小）。
-    UIImage *resized = GHLImageScaledToMaxDimension(image, 1242);
-    NSData *jpeg = UIImageJPEGRepresentation(resized, 0.85);
-    if (!jpeg) return NO;
-    return [jpeg writeToFile:GHLCustomBackgroundPath() atomically:YES];
-}
-
-void GHLClearCustomBackground(void) {
-    [[NSFileManager defaultManager] removeItemAtPath:GHLCustomBackgroundPath() error:nil];
-}
-
 // MARK: - 1.0.23 第二批（51 自定义背景图片）
 // 快捷操作面板（长按网格面板）的自选背景图，存 Documents/DYYY/ghl-quick-panel-bg.jpg；
 // 只给面板表面用，不动设置卡片（卡片是实心 A）。写法跟自选设置背景同一套。

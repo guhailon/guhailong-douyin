@@ -683,12 +683,6 @@
 
     [self removeMappingsForDownloadID:downloadID];
 
-    // 1.0.4 下载管理：一次下载成功收尾就记一次（自 1.0.4 起统计；之前没有记录，做不出历史数）。
-    if (success) {
-        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        [defaults setInteger:[defaults integerForKey:GHL_KEY_DOWNLOAD_SAVED_COUNT] + 1 forKey:GHL_KEY_DOWNLOAD_SAVED_COUNT];
-    }
-
     dispatch_async(dispatch_get_main_queue(), ^{
       DYYYToast *progressView = self.progressViews[downloadID];
       if (progressView) {
@@ -719,11 +713,7 @@
     }
 }
 
-#pragma mark - 1.0.4 下载管理（已保存计数 + 我们自己的临时缓存）
-
-+ (NSInteger)ghlSavedMediaCount {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:GHL_KEY_DOWNLOAD_SAVED_COUNT];
-}
+#pragma mark - 我们自己的临时缓存
 
 // 我们自己的临时文件落点（只认这些，不碰抖音自己的缓存）：
 // tmp 根目录下 DYYY_ / temp_img_ / sticker_ 前缀的文件；VideoComposition、DYYYLogs、tmp/DYYY 三个目录。

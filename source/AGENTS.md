@@ -19,11 +19,10 @@
   - `DYYY.xm`、`DYYYSettings.xm`：全局 Hook、设置页 Hook。
   - `DYYYSettingViewController.(h/m)`：自定义设置主界面。
   - `DYYYSettingsHelper.(h/m)`：设置项依赖、入口、协议弹窗。
-  - `DYYYSettingsBackup.(h/m)`：设置导入 / 导出 / 恢复默认（1.0.4）。
-  - `DYYYDownloadManagerViewController.(h/m)`：下载管理页（1.0.4，已保存统计 + 缓存清理）。
+  - （1.0.35 已删：`DYYYSettingsBackup.(h/m)` 设置导入/导出/恢复默认、`DYYYDownloadManagerViewController.(h/m)` 下载管理页——上游 DYYY 自带的备份/恢复仍在 `DYYYSettings.xm`，用 `DYYYBackupPickerDelegate`。）
   - `GHLLogViewerViewController.(h/m)`：顾海龙日志查看页（1.0.6，读 Documents/DYYY/GuHaiLongDouyin.log，只显示最后约 200KB）。
   - `GHLAboutViewController.(h/m)`：关于浅色玻璃页（1.0.13 方案四；1.0.21 深色改浅色：半透明白卡、深色字、金色点缀，显式浅色不跟随系统；横幅仍是雷鸣绿龙图，标题按龙头中心对齐；行图标/文字/箭头/转圈共用同一套对齐常量，长标题自动缩字不截断）。1.0.15：设置主页「关于」分类行直接进本页（不再经过只有一行的「关于」子页）；横幅换成展翅绿龙＋可自选横幅背景（Documents/DYYY/ghl-about-banner.jpg，标题对准：内置图按实测龙头中心，自选图按横幅中心）。1.0.24：QQ 行改回个人号「QQ：」+ 号码（2309103548 是个人 QQ，群是 1130823454）。
-  - `GHLMemoListViewController.(h/m)`：文案备忘录页（1.0.24；本地存 `GHL_KEY_MEMO_LIST`，点行复制，左滑删除，右上角 ＋ 新增；定时发送不做）。
+  - （1.0.35 已删：`GHLMemoListViewController.(h/m)` 文案备忘录页。）
 - **业务/下载**
   - `DYYYManager.(h/m)`：下载、合成、任务管理、授权。
   - `DYYYDownloadScheduler.(h/m)`：下载并发限制、等待队列与取消调度。
@@ -39,7 +38,7 @@
 - **浮窗与快捷操作**
   - 显示协调：`DYYYFloatingButtonCoordinator.(h/m)`，根据实际选中页面、评论、纯净模式与前后台状态统一管理两个悬浮按钮。
   - 漂浮按钮：`DYYYFloatSpeedButton.(h/m)`、`DYYYFloatClearButton.(h/xm)`。
-  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃；1.0.23 新增获取作品数据 694／图片预览 695 两项）、`GHLImagePreviewViewController.(h/m)`（1.0.23 图集全屏翻页预览）、`DYYYBottomAlertView.(h/m)`（复用提示）。
+  - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃；1.0.35 面板外观固定回 1.0.22 默认，只留背景图 51、材质 53 可调；1.0.23 的获取作品数据 694／图片预览 695 已拿掉）、`DYYYBottomAlertView.(h/m)`（复用提示）。
 - **辅助代理**
   - `DYYYImagePickerDelegate.(h/m)`、`DYYYBackupPickerDelegate.(h/m)`：统一封装系统 Picker 逻辑。
   - `DYYYCustomInputView.(h/m)`：文本输入。
@@ -95,7 +94,7 @@
 1. 所有弹窗、输入框、选择视图均继承自 `UIView` 或自定义控件，负责自己的布局和动画，控制器或 Hook 仅负责组装。
 2. 新的设置项请沿用 AWESetting 模型（`AWESettingSectionModel`、`AWESettingItemModel`）的构造方式，保持 icon/identifier/type 配置完整。
 3. Toast、提示统一调用 `DYYYToast` / `DYYYBottomAlertView`，不要直接 `UIAlertController`。
-4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.22：卡片外壳做玻璃（遮罩黑 0.12、ExtraLight 糊＋淡白 tint 0.06、卡片收小不近全屏），卡片里的页面（设置列表／关于／日志）强制不透明浅色（`DYYYSettingViewController.ghlInFloatPanel`／`GHLLogViewerViewController.ghlInFloatPanel`：页底和行底都不透明、深色字，不铺自定义背景图），只有首页和卡片 10pt 边框露玻璃；导航栏不透明——不然上一页/视频从下面透出来、顶部内容被导航栏盖住。1.0.23：卡片改回照片那款 A——8 按键首页拿掉，根就是设置页本身，浅色实心卡（实心浅灰底、遮罩黑 0.5），不再追毛玻璃；金底「完成」按钮保留，记页保留。1.0.23 第二批：面板外观选项（自定义背景图／材质三选一／排列／模糊度／微透明）只改长按网格面板（`DYYYLongPressGridPanelView`）和评论面板（`DYYYCommentBlurCoordinator`），不动设置卡片；评论面板另有 评论/AI 解析 双页签（`GHLInstallCommentAIParseSegment`，`GHLFeatures.xm`；AI 解析要用户自己填 OpenAI 兼容接口 Key，无 Key 只提示）；消息页手势（双击快捷回复／长按头像续火花；加号探针 1.0.28 已下架）也在 `GHLFeatures.xm`（`GHLInstallIMGesturesIfNeeded`，2 秒巡检里装，只装一次），输入框/发送按钮/头像都是启发式找的，需真机验证；快捷面板自选背景图存取在 `GHLLogo.m`（`GHLCustomQuickPanelBackgroundImage` 等，`Documents/DYYY/ghl-quick-panel-bg.jpg`）。1.0.24：设置卡背景图改全屏——卡片底铺整张自定义背景图（导航栏、列表、完成按钮区域都在图上；`GHLBuildFloatPanelIfNeeded` 加 tag 9871 背景 view，导航栏改透明，`GHLRefreshFloatPanelCardBackground()` 换图后重铺；卡片内页面页底改透明、行底半透明白 0.55，`ghlInFloatPanel` 要一路传给推上去的子页和关于页）；长按面板 1.0.28 恢复 1.0.22 样式（ExtraLight 满强度磨砂、格子白底 0.55、3 列固定；1.0.24 的藏原生列表、1.0.26 的不透白底板、1.0.27 的重挂置顶三样全拆，升级后第一次启动清掉旧面板外观值）；极简语音包页在 `GHLFeatures.xm`（1.0.28：旧管理器砍掉，只留 ★收藏／内置／在线／我的导入四档，搜索／试听／选中／刷新在线，长按只收藏；文件夹那套和导出都砍了，导入档都归“我的导入”，在 `Documents/DYYY/VoicePackages/`，导入的录音只能点播不能合成文字，`GHLVoicePackageIDs` 不含导入档；长按导入至语音包是格子项 696——输名字后下载当前视频、抽音轨成 .m4a 存进语音包）；1.0.28 下架没做成的功能：探针行（跳过 AD 章节／仅看一次下载／加号弹相册／消息防撤回／隐藏正在输入／隐藏已读回执／防阅后即焚／评论音频单独静音／抢红包黑名单）、画中画全套（设置行＋格子项 688＋实现＋监听＋迁移块）、长按／双击面板接口解析行（底层接口解析留着，面板 673 项照常出，见 :689 接口保存）；文案备忘录是新类 `GHLMemoListViewController.(h/m)`（存 `GHL_KEY_MEMO_LIST`，定时发送不做）；接口保存默认接 Lee 给的原画质接口（`DYYYInterfaceDownload` registerDefaults 默认值，值只在源码默认值里），`DYYYManager.m` 的 `ghlBestVideoURLFromData:` 做多字段容错＋首次解析成功记 data key 名进日志。
+4. 设置页统一视觉（1.0.4）：金色点缀 #D4AF37（跟头卡龙头金边同色）、卡片圆角 16、行高 44/60、开关 accent 金色；颜色集中在 `DYYYUtils` 的 `dYYYGoldAccentColor` / `dYYYSettings*Color` 系列方法里，深色跟随和自定义背景也走同一套，不要各页自己写死白/黑。1.0.22：卡片外壳做玻璃（遮罩黑 0.12、ExtraLight 糊＋淡白 tint 0.06、卡片收小不近全屏），卡片里的页面（设置列表／关于／日志）强制不透明浅色（`DYYYSettingViewController.ghlInFloatPanel`／`GHLLogViewerViewController.ghlInFloatPanel`：页底和行底都不透明、深色字，不铺自定义背景图），只有首页和卡片 10pt 边框露玻璃；导航栏不透明——不然上一页/视频从下面透出来、顶部内容被导航栏盖住。1.0.23：卡片改回照片那款 A——8 按键首页拿掉，根就是设置页本身，浅色实心卡（实心浅灰底、遮罩黑 0.5），不再追毛玻璃；金底「完成」按钮保留，记页保留。1.0.23 第二批：面板外观选项（自定义背景图／材质三选一／排列／模糊度／微透明）只改长按网格面板（`DYYYLongPressGridPanelView`）和评论面板（`DYYYCommentBlurCoordinator`），不动设置卡片；评论面板另有 评论/AI 解析 双页签（`GHLInstallCommentAIParseSegment`，`GHLFeatures.xm`；AI 解析要用户自己填 OpenAI 兼容接口 Key，无 Key 只提示）；消息页手势（双击快捷回复／长按头像续火花；加号探针 1.0.28 已下架）也在 `GHLFeatures.xm`（`GHLInstallIMGesturesIfNeeded`，2 秒巡检里装，只装一次），输入框/发送按钮/头像都是启发式找的，需真机验证；快捷面板自选背景图存取在 `GHLLogo.m`（`GHLCustomQuickPanelBackgroundImage` 等，`Documents/DYYY/ghl-quick-panel-bg.jpg`）。1.0.24：设置卡背景图改全屏——卡片底铺整张自定义背景图（导航栏、列表、完成按钮区域都在图上；`GHLBuildFloatPanelIfNeeded` 加 tag 9871 背景 view，导航栏改透明，`GHLRefreshFloatPanelCardBackground()` 换图后重铺；卡片内页面页底改透明、行底半透明白 0.55，`ghlInFloatPanel` 要一路传给推上去的子页和关于页）；长按面板 1.0.28 恢复 1.0.22 样式（ExtraLight 满强度磨砂、格子白底 0.55、3 列固定；1.0.24 的藏原生列表、1.0.26 的不透白底板、1.0.27 的重挂置顶三样全拆，升级后第一次启动清掉旧面板外观值）；极简语音包页在 `GHLFeatures.xm`（1.0.28：旧管理器砍掉，只留 ★收藏／内置／在线／我的导入四档，搜索／试听／选中／刷新在线，长按只收藏；文件夹那套和导出都砍了，导入档都归“我的导入”，在 `Documents/DYYY/VoicePackages/`，导入的录音只能点播不能合成文字，`GHLVoicePackageIDs` 不含导入档；长按导入至语音包是格子项 696——输名字后下载当前视频、抽音轨成 .m4a 存进语音包）；1.0.28 下架没做成的功能：探针行（跳过 AD 章节／仅看一次下载／加号弹相册／消息防撤回／隐藏正在输入／隐藏已读回执／防阅后即焚／评论音频单独静音／抢红包黑名单）、画中画全套（设置行＋格子项 688＋实现＋监听＋迁移块）、长按／双击面板接口解析行（底层接口解析留着，面板 673 项照常出，见 :689 接口保存）；文案备忘录是新类 `GHLMemoListViewController.(h/m)`（存 `GHL_KEY_MEMO_LIST`，定时发送不做）；接口保存默认接 Lee 给的原画质接口（`DYYYInterfaceDownload` registerDefaults 默认值，值只在源码默认值里），`DYYYManager.m` 的 `ghlBestVideoURLFromData:` 做多字段容错＋首次解析成功记 data key 名进日志。1.0.35：画中画、接口解析入口、文案备忘录之外的其余 1.0.28 下架项仍删着；画中画和接口解析入口已装回来，文案备忘录整类已删（见上）。
 
 ### 7. 资源与缓存
 1. `DYYYCustomAssetsDirectory`、`NSCache` 等资源缓存均用 `dispatch_once` 初始化。新增缓存时务必限制容量或提供清理策略。
