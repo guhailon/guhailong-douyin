@@ -92,7 +92,6 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
         case 674: names = @[ @"person.crop.circle.badge.xmark", @"person.slash" ]; break; // 过滤用户
         case 675: names = @[ @"doc.text.magnifyingglass", @"text.magnifyingglass" ]; break; // 过滤文案
         case 676: names = @[ @"timer", @"clock" ]; break; // 定时关闭 / 取消定时
-        case 686: names = @[ @"music.note", @"waveform" ]; break; // 提取原声
         case 687: names = @[ @"link.badge.plus", @"link" ]; break; // 复制无水印链接
         case 689: names = @[ @"speaker.wave.2", @"waveform" ]; break; // 语音包试听
         case 690: names = @[ @"square.and.arrow.up" ]; break; // 语音包读文案并分享

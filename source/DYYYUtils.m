@@ -2606,42 +2606,6 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
         [fields addObject:[NSString stringWithFormat:@"发布时间：%@", [formatter stringFromDate:date]]];
     }
 
-    // 1.0.24：保存相册详细——点赞/评论/分享/收藏/播放数、时长、视频 ID、音乐名也写进说明
-    // （说明本来就嵌进保存的文件里；计数用 KVC 探针，拿不到就不写，不瞎编）。
-    if ([awemeModel.itemID isKindOfClass:[NSString class]] && awemeModel.itemID.length > 0) {
-        [fields addObject:[NSString stringWithFormat:@"视频 ID：%@", awemeModel.itemID]];
-    }
-    if (awemeModel.videoDuration > 0) {
-        [fields addObject:[NSString stringWithFormat:@"视频时长：%.1f 秒", awemeModel.videoDuration]];
-    }
-    id stats = awemeModel.statistics;
-    NSMutableArray<NSString *> *countParts = [NSMutableArray array];
-    NSArray<NSArray<NSString *> *> *countSpecs = @[
-        @[@"diggCount", @"点赞"], @[@"commentCount", @"评论"], @[@"shareCount", @"分享"],
-        @[@"collectCount", @"收藏"], @[@"playCount", @"播放"]
-    ];
-    for (NSArray<NSString *> *spec in countSpecs) {
-        NSString *countText = nil;
-        @try {
-            id value = [stats valueForKey:spec[0]];
-            if ([value isKindOfClass:[NSNumber class]]) countText = [NSString stringWithFormat:@"%@", value];
-        } @catch (__unused NSException *exception) {
-        }
-        if (countText) [countParts addObject:[NSString stringWithFormat:@"%@ %@", spec[1], countText]];
-    }
-    if (countParts.count > 0) {
-        [fields addObject:[countParts componentsJoinedByString:@"　"]];
-    }
-    NSString *musicTitle = nil;
-    @try {
-        id title = [awemeModel.music valueForKey:@"title"];
-        if ([title isKindOfClass:[NSString class]] && [(NSString *)title length] > 0) musicTitle = title;
-    } @catch (__unused NSException *exception) {
-    }
-    if (musicTitle) {
-        [fields addObject:[NSString stringWithFormat:@"音乐：%@", musicTitle]];
-    }
-
     if (fields.count == 0) {
         return nil;
     }
