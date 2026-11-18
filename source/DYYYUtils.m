@@ -2612,6 +2612,24 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     return [fields componentsJoinedByString:@"\n"];
 }
 
+// 1.0.37：长按面板作品日期显示——createTime 是秒级时间戳；为 0/缺失时返回 nil，
+// 面板那行直接不显示（不要显示 1970 之类的假日期）。
++ (nullable NSString *)ghl_publishDateTextForAwemeModel:(nullable AWEAwemeModel *)awemeModel {
+    NSNumber *createTime = awemeModel.createTime;
+    if (![createTime isKindOfClass:[NSNumber class]] || createTime.doubleValue <= 0) {
+        return nil;
+    }
+    static NSDateFormatter *formatter = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        formatter = [[NSDateFormatter alloc] init];
+        formatter.dateFormat = @"yyyy-MM-dd HH:mm";
+        formatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    });
+    NSDate *date = [NSDate dateWithTimeIntervalSince1970:createTime.doubleValue];
+    return [NSString stringWithFormat:@"发布时间：%@", [formatter stringFromDate:date]];
+}
+
 
 + (NSURL *)temporaryImageURLByEmbeddingDescription:(NSString *)albumDescription intoImageAtURL:(NSURL *)imageURL {
     if (albumDescription.length == 0 || !imageURL) {

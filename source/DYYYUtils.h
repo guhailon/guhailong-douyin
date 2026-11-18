@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)authorProfileURL:(AWEUserModel *)author;
 + (NSString *)compactAlbumURL:(NSString *)rawURL;
 + (NSString *)albumDescriptionForAwemeModel:(AWEAwemeModel *)awemeModel authorProfileURL:(NSString *)authorProfileURL workURL:(NSString *)workURL;
+// 1.0.37：长按面板作品日期显示——返回「发布时间：yyyy-MM-dd HH:mm」，createTime 为 0/缺失时返回 nil（不显示）。
++ (nullable NSString *)ghl_publishDateTextForAwemeModel:(nullable AWEAwemeModel *)awemeModel;
 + (NSURL *)temporaryImageURLByEmbeddingDescription:(NSString *)albumDescription intoImageAtURL:(NSURL *)imageURL;
 + (NSArray<AVMetadataItem *> *)metadataItemsByAppendingDescription:(NSString *)albumDescription toItems:(NSArray<AVMetadataItem *> *)items;
 + (void)writeDescription:(NSString *)albumDescription toVideoAtURL:(NSURL *)videoURL completion:(void (^)(NSURL *outputURL))completion;

@@ -17,9 +17,15 @@ NS_ASSUME_NONNULL_BEGIN
             itemActionHandler:(void (^)(NSInteger actionType, NSString *title))itemActionHandler
                dismissHandler:(nullable void (^)(void))dismissHandler;
 
+// 1.0.37：作品日期显示——龙头下方的一行展示文字（如「发布时间：2026-11-18 12:00」）；
+// 为 nil/空时不显示该行。Hook 方在 init 后、挂上面板前赋值。
+@property(nonatomic, copy, nullable) NSString *publishDateText;
+
 // 1.0.16：建議的 sheet 高度——首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算，
 // 不留空）。抖音自己的 presentation 不一定採納 preferredContentSize，盡力而為，真機驗。
 + (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom;
+// 1.0.37：带作品日期行时的 sheet 高度（日期行占 8+20pt）。
++ (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom showsPublishDate:(BOOL)showsPublishDate;
 
 // 1.0.26：Show 时记一行解析到的面板设置（材质/模糊度/格子颜色/透明度/背景图有无），
 // 下次日志不用猜；每次 Show 刷新背景图（只在 init 读一次时，换图后旧面板一直沿用旧图）。

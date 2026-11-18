@@ -13289,7 +13289,9 @@ static void findTargetViewInView(UIView *view) {
         @"GHLBackgroundAudio" : @YES,
         @"DYYYEnableBackgroundListen" : @YES,
         // 1.0.28：长按导入至语音包默认开（皇上点名要的重点功能；只填没存过值的 key）。
-        @"GHLImportToVoicePackage" : @YES
+        @"GHLImportToVoicePackage" : @YES,
+        // 1.0.37：长按面板作品日期显示默认开（只填没存过值的 key）。
+        @"DYYYShowWorkDate" : @YES
     }];
 
 

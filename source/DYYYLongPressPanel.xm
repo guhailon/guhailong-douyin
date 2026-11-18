@@ -1001,8 +1001,9 @@ static BOOL DYYYLongPressSelectNativeItem(UIViewController *vc, NSInteger groupI
 
 // 1.0.16：建议的 sheet 高度——首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算）。
 // 抖音自己的 presentation 不一定採納 preferredContentSize，盡力而為，真機驗。
-static CGFloat DYYYLongPressGridPreferredSheetHeight(NSInteger totalItems, CGFloat safeBottom) {
-    return [DYYYLongPressGridPanelView ghl_preferredSheetHeightForItemCount:totalItems safeAreaBottom:safeBottom];
+// 1.0.37：有作品日期行时 sheet 跟着高 8+20。
+static CGFloat DYYYLongPressGridPreferredSheetHeight(NSInteger totalItems, CGFloat safeBottom, BOOL showsPublishDate) {
+    return [DYYYLongPressGridPanelView ghl_preferredSheetHeightForItemCount:totalItems safeAreaBottom:safeBottom showsPublishDate:showsPublishDate];
 }
 
 // 1.0.10：dataArray 刚存好数据时，主线程补一次盖网格（self 就是面板控制器）。
@@ -1079,10 +1080,21 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
         return;
     }
 
+    // 1.0.37：作品日期显示——开关默认开；createTime 为 0/缺失时那行不显示。
+    // 面板控制器自带 awemeModel（AWEModernLongPressPanelTableViewController.awemeModel）。
+    NSString *publishDateText = nil;
+    if (DYYYGetBool(@"DYYYShowWorkDate")) {
+        AWEAwemeModel *panelAwemeModel = nil;
+        if ([vc respondsToSelector:@selector(awemeModel)]) {
+            panelAwemeModel = [(id)vc awemeModel];
+        }
+        publishDateText = [DYYYUtils ghl_publishDateTextForAwemeModel:panelAwemeModel];
+    }
+
     // 1.0.16：sheet 首屏露 5 行（系统 sheet 不一定採納，盡力而為）。
     CGFloat safeBottom = 0;
     if (@available(iOS 11.0, *)) safeBottom = vc.view.safeAreaInsets.bottom;
-    vc.preferredContentSize = CGSizeMake(vc.view.bounds.size.width, DYYYLongPressGridPreferredSheetHeight((NSInteger)gridItems.count, safeBottom));
+    vc.preferredContentSize = CGSizeMake(vc.view.bounds.size.width, DYYYLongPressGridPreferredSheetHeight((NSInteger)gridItems.count, safeBottom, publishDateText.length > 0));
 
     __weak UIViewController *weakVC = vc; // 点按 handler 里走原生选中要用面板控制器（弱引用，不留住它）
     DYYYLongPressGridPanelView *panel = [[DYYYLongPressGridPanelView alloc] initWithItems:gridItems
@@ -1126,6 +1138,8 @@ static void DYYYShowLongPressGridPanelIfNeeded(UIViewController *vc) {
     }];
     // 1.0.28：恢复 1.0.22 的做法——不藏原生列表（1.0.22／1.0.23 两版本来就不藏，
     // 重影是 1.0.23 的 58% 糊＋0.40 格子造成的，格子改回不透明就盖住了），不置顶。
+    // 1.0.37：作品日期行（init 后、挂上前赋值，layout 里才排位置）。
+    panel.publishDateText = publishDateText;
     panel.frame = vc.view.bounds;
     [vc.view addSubview:panel];
     [panel setNeedsLayout];

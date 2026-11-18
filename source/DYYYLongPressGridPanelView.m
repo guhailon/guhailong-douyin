@@ -14,6 +14,9 @@ static const CGFloat kDYYYGridSpacing = 12.0;
 static const CGFloat kDYYYGridDragonSize = 76.0;
 static const CGFloat kDYYYGridDragonTop = 10.0;
 static const CGFloat kDYYYGridTopGap = 14.0; // 龙头底部到网格的距离
+// 1.0.37：作品日期行——龙头下方 8pt、行高 20（和高度方法里的同一套数字）。
+static const CGFloat kDYYYGridDateTopGap = 8.0;
+static const CGFloat kDYYYGridDateRowHeight = 20.0;
 
 // 1.0.35：格子几何固定回 1.0.22 默认（高 92、边距 16、白底），不再读设置。
 static CGFloat GHLQuickPanelCellHeight(void) { return 92; }
@@ -52,6 +55,7 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 @property(nonatomic, strong, nullable) UIImageView *backgroundImageView; // 51 自选背景图（在毛玻璃下面，糊出来）
 @property(nonatomic, strong, nullable) UIView *liquidTintView;           // 53 液态玻璃的淡白 tint
 @property(nonatomic, strong) UIImageView *dragonImageView;
+@property(nonatomic, strong) UILabel *publishDateLabel; // 1.0.37：作品日期行（龙头下方居中一行字，不可点）
 @property(nonatomic, strong) UIScrollView *gridScrollView;
 @property(nonatomic, strong) NSMutableArray<UIButton *> *cells;
 @property(nonatomic, assign) BOOL didLogLayout; // 1.0.26：layout 日志每面板只记一次
@@ -206,6 +210,15 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     _dragonImageView.accessibilityLabel = @"SeaDragon Douyin";
     [self addSubview:_dragonImageView];
 
+    // 1.0.37：作品日期行——龙头下方居中一行深灰小字（展示用，不可点）；没日期时隐藏。
+    _publishDateLabel = [[UILabel alloc] init];
+    _publishDateLabel.textColor = [UIColor colorWithWhite:0.35 alpha:1.0];
+    _publishDateLabel.font = [UIFont systemFontOfSize:13];
+    _publishDateLabel.textAlignment = NSTextAlignmentCenter;
+    _publishDateLabel.numberOfLines = 1;
+    _publishDateLabel.hidden = YES;
+    [self addSubview:_publishDateLabel];
+
     _gridScrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
     _gridScrollView.showsVerticalScrollIndicator = YES; // 1.0.11：下面还有格子时一眼能看出来
     _gridScrollView.showsHorizontalScrollIndicator = NO;
@@ -267,15 +280,31 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
 // 1.0.16：首屏露 5 行（再多就快佔滿屏了；行數少就按實際行數算，不留空）。
 // 数字和 layoutSubviews 里的同一套：龙头区 10+76+14，行高 92、间距 12，底部留 16。
 // 1.0.35：固定 3 列（1.0.22 默认）。
+// 1.0.37：有作品日期行时龙头区多 8+20。
 + (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom {
+    return [self ghl_preferredSheetHeightForItemCount:count safeAreaBottom:safeAreaBottom showsPublishDate:NO];
+}
+
++ (CGFloat)ghl_preferredSheetHeightForItemCount:(NSInteger)count safeAreaBottom:(CGFloat)safeAreaBottom showsPublishDate:(BOOL)showsPublishDate {
     NSInteger columns = 3;
     NSInteger rows = (NSInteger)ceil((double)MAX(count, 0) / (double)columns);
     NSInteger visibleRows = MIN(rows, 5);
-    CGFloat height = kDYYYGridDragonTop + kDYYYGridDragonSize + kDYYYGridTopGap
+    CGFloat height = kDYYYGridDragonTop + kDYYYGridDragonSize
+        + (showsPublishDate ? (kDYYYGridDateTopGap + kDYYYGridDateRowHeight) : 0)
+        + kDYYYGridTopGap
         + visibleRows * GHLQuickPanelCellHeight()
         + (visibleRows > 0 ? (visibleRows - 1) * kDYYYGridSpacing : 0)
         + 16 + safeAreaBottom;
     return height;
+}
+
+#pragma mark - 1.0.37：作品日期行
+
+- (void)setPublishDateText:(NSString *)publishDateText {
+    _publishDateText = [publishDateText copy];
+    self.publishDateLabel.text = _publishDateText;
+    self.publishDateLabel.hidden = (_publishDateText.length == 0);
+    [self setNeedsLayout];
 }
 
 #pragma mark - 布局
@@ -295,7 +324,16 @@ static UIBlurEffectStyle GHLQuickPanelBlurStyle(BOOL *outLiquidTint) {
     // 龙头居中在面板顶部。
     self.dragonImageView.frame = CGRectMake((bounds.size.width - kDYYYGridDragonSize) / 2, kDYYYGridDragonTop, kDYYYGridDragonSize, kDYYYGridDragonSize);
 
-    CGFloat gridTop = kDYYYGridDragonTop + kDYYYGridDragonSize + kDYYYGridTopGap;
+    // 1.0.37：作品日期行在龙头下方（有日期时占 8+20，没日期时不占地方）。
+    CGFloat gridTop = kDYYYGridDragonTop + kDYYYGridDragonSize;
+    if (self.publishDateText.length > 0) {
+        self.publishDateLabel.hidden = NO;
+        self.publishDateLabel.frame = CGRectMake(GHLQuickPanelSideMargin(), gridTop + kDYYYGridDateTopGap, bounds.size.width - GHLQuickPanelSideMargin() * 2, kDYYYGridDateRowHeight);
+        gridTop += kDYYYGridDateTopGap + kDYYYGridDateRowHeight;
+    } else {
+        self.publishDateLabel.hidden = YES;
+    }
+    gridTop += kDYYYGridTopGap;
     CGFloat bottomInset = 0;
     if (@available(iOS 11.0, *)) {
         bottomInset = self.safeAreaInsets.bottom;
