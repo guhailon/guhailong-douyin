@@ -305,8 +305,11 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：1.0.28 下架转发/秒数/替换三项
             // （没做成）；保存语音评论的 AWECommentAudioModel 已确认有 audioFilePath
             // （本地文件路径），1.0.25 起开关连到长按菜单的保存代码（本地文件优先，
-            // 拿不到再走 content 解析）。
+            // 拿不到再走 content 解析）。1.0.39：替换语音评论正式做了（录完换成语音包
+            // 里选好的本地音频，开关默认关；替换音频只认我的导入里的本地文件）。
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"替换语音评论" key:GHL_KEY_COMMENT_VOICE_REPLACE type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"替换用音频（我的导入里的本地文件）" key:GHL_KEY_COMMENT_VOICE_REPLACE_PATH type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"双击下载当前视频（开后双击不再快进）" key:GHL_KEY_DOUBLE_TAP_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按下载" key:GHL_KEY_LONG_PRESS_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"下载进度日志+提示" key:GHL_KEY_DOWNLOAD_PROGRESS type:DYYYSettingItemTypeSwitch],
@@ -803,6 +806,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return [NSString stringWithFormat:@"%.2f", speedValue];
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
         return GHLVoicePackageDisplayNameForID(value) ?: @"未选择";
+    } else if ([key isEqualToString:GHL_KEY_COMMENT_VOICE_REPLACE_PATH]) {
+        // 1.0.39：替换用音频行显示选好的音频名，没选过显示未选择。
+        NSString *name = [[NSUserDefaults standardUserDefaults] stringForKey:GHL_KEY_COMMENT_VOICE_REPLACE_NAME];
+        return name.length > 0 ? name : @"未选择";
     } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
         // 1.0.11：选单里的两个动作原样显示；没选过动作时行上显示当前头像状态
         if ([value isKindOfClass:[NSString class]] && ([value isEqualToString:@"从相册选图"] || [value isEqualToString:@"恢复默认龙头"])) return value;
@@ -840,6 +847,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         return @1.0;
     } else if ([key isEqualToString:GHL_KEY_VOICE_PACKAGE_ID]) {
         return GHLVoicePackageIDs().firstObject ?: @"sys:default-zh-CN";
+    } else if ([key isEqualToString:GHL_KEY_COMMENT_VOICE_REPLACE_PATH]) {
+        return @"未选择";
     } else if ([key isEqualToString:GHL_KEY_GRID_PANEL_AVATAR]) {
         return @"默认龙头";
     } else if ([key isEqualToString:GHL_KEY_ABOUT_PAGE]) {
@@ -1211,6 +1220,12 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         // 1.0.24：卡片内推关于页也带上卡片标记（同上）。
         aboutVC.ghlInFloatPanel = self.ghlInFloatPanel;
         [self.navigationController pushViewController:aboutVC animated:YES];
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        return;
+    }
+    // 1.0.39：替换用音频行点开进语音包挑选页（只挑我的导入里的本地音频）。
+    if ([item.key isEqualToString:GHL_KEY_COMMENT_VOICE_REPLACE_PATH]) {
+        GHLPresentReplaceAudioPickerFromViewController(self);
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
         return;
     }

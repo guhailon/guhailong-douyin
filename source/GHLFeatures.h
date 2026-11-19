@@ -139,6 +139,12 @@ void GHLProbeCommentVoiceRecorderInit(NSURL *url);
 void GHLProbeCommentVoiceRecordStarted(NSURL *url);
 void GHLProbeCommentVoiceRecordStopped(NSURL *url, NSTimeInterval duration);
 void GHLProbeCommentVoiceRecordPaused(void);
+// 1.0.39：替换语音评论——录音停下后把录好的文件换成选好的本地音频（只换评论录音）
+void GHLReplaceCommentVoiceRecording(NSURL *recordedURL);
+// 1.0.39：把语音包里选中的本地音频设为替换源（.m4a 直接存，不是就先转成 .m4a 再存）
+void GHLSelectVoicePackageForReplace(GHLVoicePackageInfo *info);
+// 1.0.39：打开替换音频挑选页（只列我的导入里的本地音频）
+void GHLPresentReplaceAudioPickerFromViewController(UIViewController *viewController);
 
 // MARK: - 32-43（xuu 抖音助手行为参考，代码全部自己写；只学功能清单，不抄它的代码）
 // (33) 自动抢红包
@@ -150,6 +156,10 @@ void GHLProbeCommentVoiceRecordPaused(void);
 #define GHL_KEY_AUTO_LIVE_LOTTERY @"GHLAutoLiveLottery"
 // (36) 评论语音保存（1.0.35：播放是实验，已取消，只留保存）
 #define GHL_KEY_COMMENT_VOICE_SAVE @"GHLCommentVoiceSave"
+// 1.0.39：替换语音评论（录完把录好的文件换成语音包里选的本地音频；默认关）
+#define GHL_KEY_COMMENT_VOICE_REPLACE @"GHLCommentVoiceReplace"
+#define GHL_KEY_COMMENT_VOICE_REPLACE_PATH @"GHLCommentVoiceReplacePath" // 替换用的 .m4a 全路径
+#define GHL_KEY_COMMENT_VOICE_REPLACE_NAME @"GHLCommentVoiceReplaceName" // 替换用的音频显示名
 #define GHL_KEY_DOUBLE_TAP_DOWNLOAD @"GHLDoubleTapDownload" // 双击下载（开后双击不再快进）
 #define GHL_KEY_LONG_PRESS_DOWNLOAD @"GHLLongPressDownload" // 长按下载（接上游）
 #define GHL_KEY_LONG_PRESS_GRID_PANEL @"GHLLongPressGridPanel" // 长按面板网格风格（龙头，1.0.9；默认开，%ctor 里 registerDefaults）

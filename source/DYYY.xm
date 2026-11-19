@@ -5028,6 +5028,12 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
     } @catch (__unused NSException *exception) {
         GHLLog(@"语音探针：停止录音钩子异常");
     }
+    // 1.0.39：录完停下后换成语音包里选好的本地音频（只换评论录音；失败留原文件）。
+    @try {
+        GHLReplaceCommentVoiceRecording(url);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音替换：替换钩子异常");
+    }
 }
 
 - (void)pause {
