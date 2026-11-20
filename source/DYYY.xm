@@ -11591,6 +11591,30 @@ static Class tabBarButtonClass = nil;
 
 %end
 
+// 1.0.43 C5：v3.0 的加号隐藏做法——开关开时工厂方法直接返回 nil，按钮根本不创建。
+// 只作补充：咱们 1.0.34 的子树恢复修法（DYYYRestorePlusButtonSubtree）留着不动，
+// 开关关时按钮照常创建、恢复逻辑照常跑；39.1.0 上方法不存在就不挂钩（%ctor 里查方法存在）。
+%group DYYYPlusButtonNilGroup
+%hook AWENormalModeTabBarGeneralPlusButton
++ (id)button {
+    BOOL isHidePlusButton = DYYYGetBool(@"DYYYHidePlusButton");
+    if (isHidePlusButton) {
+        return nil;
+    }
+    return %orig;
+}
+%end
+
+%hook AWENormalModeTabBarGeneralPlusInnerButton
++ (id)buttonWithParams:(id)arg1 {
+    if (DYYYGetBool(@"DYYYHidePlusButton")) {
+        return nil;
+    }
+    return %orig;
+}
+%end
+%end
+
 %hook AWENormalModeTabBarTextView
 
 - (void)layoutSubviews {
@@ -13759,6 +13783,14 @@ static void findTargetViewInView(UIView *view) {
             objc_getClass("_TtC21AWEIncentiveSwiftImpl20PendantContainerView") ||
             objc_getClass("AWEFullPageFeedContainerViewController")) {
             %init(DYYYV30ClassRenameGroup);
+        }
+
+        // 1.0.43 C5：加号工厂方法 nil-hook（开关开时不创建按钮；类和方法都存在才挂钩，子树恢复留着）。
+        Class plusButtonClass = objc_getClass("AWENormalModeTabBarGeneralPlusButton");
+        Class plusInnerButtonClass = objc_getClass("AWENormalModeTabBarGeneralPlusInnerButton");
+        if ((plusButtonClass && class_getClassMethod(plusButtonClass, @selector(button))) ||
+            (plusInnerButtonClass && class_getClassMethod(plusInnerButtonClass, @selector(buttonWithParams:)))) {
+            %init(DYYYPlusButtonNilGroup);
         }
 
         // 初始化红包激励挂件容器视图类组
