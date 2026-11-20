@@ -1322,9 +1322,6 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface AWEFullPageFeedNewContainerViewController : UIViewController
 - (BOOL)prefersStatusBarHidden;
 @end
-// 1.0.43 C3：详情页表（v3.0 的 setFrame hook 目标）。
-@interface AWEAwemeDetailTableView : UITableView
-@end
 // 1.0.43 C14：41.x 新类名（v3.0 做法）。
 @interface AWEFullPageFeedContainerViewController : UIViewController
 - (BOOL)prefersStatusBarHidden;

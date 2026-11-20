@@ -4567,26 +4567,6 @@ static NSArray<NSString *> *dyyy_qualityRank = nil;
 
 %end
 
-// 1.0.43 C3：v3.0 新增——全屏时把详情页表高度补成屏幕高度的整数倍（避免全屏留半截）。
-// 类和方法都存在才挂钩（39.1.0 保护）。
-%group DYYYDetailTableViewGroup
-%hook AWEAwemeDetailTableView
-
-- (void)setFrame:(CGRect)frame {
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
-        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-
-        CGFloat remainder = fmod(frame.size.height, screenHeight);
-        if (remainder != 0) {
-            frame.size.height += (screenHeight - remainder);
-        }
-    }
-    %orig(frame);
-}
-
-%end
-%end
-
 %hook AWEAwemeDetailContainerPlayControlConfig
 
 - (BOOL)enableUserProfilePostAutoPlay {
@@ -4618,6 +4598,26 @@ static NSArray<NSString *> *dyyy_qualityRank = nil;
 }
 %end
 
+%end
+
+// 1.0.43 C3：v3.0 新增——全屏时把详情页表高度补成屏幕高度的整数倍（避免全屏留半截）。
+// 类和方法都存在才挂钩（39.1.0 保护）。放 AutoPlay 组外面（Logos 不允许 %group 嵌套）。
+%group DYYYDetailTableViewGroup
+%hook AWEAwemeDetailTableView
+
+- (void)setFrame:(CGRect)frame {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+
+        CGFloat remainder = fmod(frame.size.height, screenHeight);
+        if (remainder != 0) {
+            frame.size.height += (screenHeight - remainder);
+        }
+    }
+    %orig(frame);
+}
+
+%end
 %end
 
 %hook AWEPlayInteractionSpeedController
