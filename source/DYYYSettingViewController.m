@@ -298,10 +298,10 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"侧边栏自定义排序" key:GHL_KEY_SIDEBAR_REORDER type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"侧边栏顺序（逗号分隔，从上到下）" key:GHL_KEY_SIDEBAR_ORDER type:DYYYSettingItemTypeTextField placeholder:@"如：评论,点赞,分享,收藏"],
             [DYYYSettingItem itemWithTitle:@"视频截图去水印" key:GHL_KEY_SCREENSHOT_CLEAN type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"语音包（选音色发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"语音包（选变音器发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"语音包变音器（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
             // 1.0.28：长按导入至语音包（开后长按视频就能把当前作品的音频存进语音包）。
-            [DYYYSettingItem itemWithTitle:@"导入至语音包" key:GHL_KEY_IMPORT_TO_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch infoText:@"启用后，长按视频点击导入至语音包，输入你要设置的语音名称，则将当前作品的语音导入到语音包"],
+            [DYYYSettingItem itemWithTitle:@"音色库" key:GHL_KEY_IMPORT_TO_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch infoText:@"启用后，长按视频点击音色库，输入你要设置的语音名称，则将当前作品的语音导入到语音包"],
             // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：1.0.28 下架转发/秒数/替换三项
             // （没做成）；保存语音评论的 AWECommentAudioModel 已确认有 audioFilePath
             // （本地文件路径），1.0.25 起开关连到长按菜单的保存代码（本地文件优先，
@@ -313,7 +313,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"双击下载当前视频（开后双击不再快进）" key:GHL_KEY_DOUBLE_TAP_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按下载" key:GHL_KEY_LONG_PRESS_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"下载进度日志+提示" key:GHL_KEY_DOWNLOAD_PROGRESS type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线音色用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置音色"],
+            [DYYYSettingItem itemWithTitle:@"Fish Audio API Key（在线变音器用）" key:GHL_KEY_FISH_AUDIO_API_KEY type:DYYYSettingItemTypeTextField placeholder:@"没有 key 就只用内置变音器"],
             // 1.0.16：抖音日志已移到关于页（本行拿掉，不是复制）。
         ],
         @[

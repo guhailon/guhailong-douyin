@@ -260,7 +260,7 @@ NSString *GHLChangelogText(void) {
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
            @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
            @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。\n"
-           @"1.0.42：替换语音挑选页加了两个功能——左滑一行就能删除不喜欢的语音（点一下直接删；删的是当前已选的替换语音时，设置行恢复「未选择」）；「我的导入」列表左上方第一行是「＋ 添加语音」，点它可以从文件里选语音导进来，导完就能在挑选页看到、点行就能选来替换（只收语音文件；不是 .m4a 的选时再转码）。语音包「我的导入」那页也一样：删除改成左滑，长按恢复成收藏。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。";
+           @"1.0.42：替换语音挑选页加了两个功能——左滑一行就能删除不喜欢的语音（点一下直接删；删的是当前已选的替换语音时，设置行恢复「未选择」）；「我的导入」列表左上方第一行是「＋ 添加语音」，点它可以从文件里选语音导进来，导完就能在挑选页看到、点行就能选来替换（只收语音文件；不是 .m4a 的选时再转码）。语音包「我的导入」那页也一样：删除改成左滑，长按恢复成收藏。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。语音包里「音色」改叫「变音器」，「导入至语音包」改叫「音色库」（只改显示名字，功能不动）。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -2249,7 +2249,7 @@ static void GHLSynthesizeWithFishAudio(NSString *text, NSString *modelId, void (
     if (apiKey.length == 0) {
         GHLLog(@"语音包合成（在线）：没有填 Fish Audio API Key，先去设置页填写");
         GHLRunOnMain(^{
-          [DYYYUtils showToast:@"在线音色要先在设置页填 Fish Audio API Key"];
+          [DYYYUtils showToast:@"在线变音器要先在设置页填 Fish Audio API Key"];
         });
         if (completion) completion(nil);
         return;
@@ -2578,7 +2578,7 @@ static BOOL ghlOnlineFetchFailed = NO;
 - (void)ghlRefreshOnline {
     NSString *apiKey = GHLFishAudioAPIKey();
     if (apiKey.length == 0) {
-        [DYYYUtils showToast:@"在线音色要先在设置页填 Fish Audio API Key"];
+        [DYYYUtils showToast:@"在线变音器要先在设置页填 Fish Audio API Key"];
         return;
     }
     [DYYYUtils showToast:@"正在拉取在线语音包…"];
@@ -2589,7 +2589,7 @@ static BOOL ghlOnlineFetchFailed = NO;
         if (error) {
             [DYYYUtils showToast:@"拉取失败，检查 key 和网络"];
         } else {
-            [DYYYUtils showToast:[NSString stringWithFormat:@"拉到 %lu 个在线音色", (unsigned long)voices.count]];
+            [DYYYUtils showToast:[NSString stringWithFormat:@"拉到 %lu 个在线变音器", (unsigned long)voices.count]];
         }
         [self.tableView reloadData];
       });
@@ -2639,7 +2639,7 @@ static BOOL ghlOnlineFetchFailed = NO;
     __weak __typeof(self) weakSelf = self;
     BOOL favorited = GHLIsVoiceFavorite(info.voiceId);
     [DYYYBottomAlertView showAlertWithTitle:info.displayName
-                                    message:favorited ? @"取消收藏这个音色？" : @"收藏这个音色？收藏的会排在最前面。"
+                                    message:favorited ? @"取消收藏这个变音器？" : @"收藏这个变音器？收藏的会排在最前面。"
                                   avatarURL:nil
                            cancelButtonText:@"取消"
                           confirmButtonText:favorited ? @"取消收藏" : @"收藏"
@@ -2755,19 +2755,19 @@ static BOOL ghlOnlineFetchFailed = NO;
     if ([categories[section] isEqualToString:@"★ 收藏"]) return @"点 ★ 取消收藏；点行选中并试听。";
     if ([categories[section] isEqualToString:@"在线"]) {
         NSString *apiKey = GHLFishAudioAPIKey();
-        if (apiKey.length == 0) return @"在线音色要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
+        if (apiKey.length == 0) return @"在线变音器要先在设置页填写 Fish Audio API Key，填完点右上角“刷新在线”拉取。";
         // 1.0.26：上次拉取失败时脚注留一行，不再静默失败。
         if (ghlOnlineFetchFailed) return @"上次拉取在线列表失败了，请检查网络和 Key，点右上角“刷新在线”再试一次。";
-        if ([self ghlPackagesInCategory:@"在线"].count == 0) return @"在线音色还没拉到，点右上角“刷新在线”。";
+        if ([self ghlPackagesInCategory:@"在线"].count == 0) return @"在线变音器还没拉到，点右上角“刷新在线”。";
         return nil;
     }
     if ([categories[section] isEqualToString:@"内置"]) return nil;
     // 1.0.39：挑选模式——点一行就选它当替换语音；只有我的导入里的本地语音能拿来替换。
     // 1.0.42：删除改成左滑；第一行「＋ 添加语音」点它可以从文件里导语音进来。
-    if (self.ghlReplacePickMode) return @"点一行就选它当替换语音；只有我的导入里的本地语音能拿来替换（内置/在线音色没有本地文件）；左滑一行可以删除；点第一行「＋ 添加语音」可以导入语音文件。";
+    if (self.ghlReplacePickMode) return @"点一行就选它当替换语音；只有我的导入里的本地语音能拿来替换（内置/在线变音器没有本地文件）；左滑一行可以删除；点第一行「＋ 添加语音」可以导入语音文件。";
     // 1.0.28：我的导入——长按视频导进来的语音都在这里，点一下就播放（不能用来合成文字）。
     // 1.0.42：删除改成左滑（1.0.41 的长按删除已拿掉）。
-    return @"长按视频选「导入至语音包」就能把当前作品的语音存到这里；点行播放（不能用来合成文字）；左滑一行可以删除。";
+    return @"长按视频选「音色库」就能把当前作品的语音存到这里；点行播放（不能用来合成文字）；左滑一行可以删除。";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {

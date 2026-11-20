@@ -786,10 +786,10 @@ static UITableView *_Nullable DYYYLongPressFindTableViewInView(UIView *view);
         importVoiceViewModel.awemeModel = self.awemeModel;
         importVoiceViewModel.actionType = 696;
         importVoiceViewModel.duxIconName = @"ic_download_outlined";
-        importVoiceViewModel.describeString = @"导入至语音包";
+        importVoiceViewModel.describeString = @"音色库";
         importVoiceViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
-          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"导入至语音包" defaultText:@"" placeholder:@"输入语音名称"];
+          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"音色库" defaultText:@"" placeholder:@"输入语音名称"];
           inputView.onConfirm = ^(NSString *text) {
             NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             if (name.length == 0) {
@@ -2011,10 +2011,10 @@ static void DYYYLayoutLongPressGridPanel(UIViewController *vc) {
         importVoiceViewModel.awemeModel = self.awemeModel;
         importVoiceViewModel.actionType = 696;
         importVoiceViewModel.duxIconName = @"ic_download_outlined";
-        importVoiceViewModel.describeString = @"导入至语音包";
+        importVoiceViewModel.describeString = @"音色库";
         importVoiceViewModel.action = ^{
           AWEAwemeModel *awemeModel = self.awemeModel;
-          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"导入至语音包" defaultText:@"" placeholder:@"输入语音名称"];
+          DYYYCustomInputView *inputView = [[DYYYCustomInputView alloc] initWithTitle:@"音色库" defaultText:@"" placeholder:@"输入语音名称"];
           inputView.onConfirm = ^(NSString *text) {
             NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             if (name.length == 0) {
