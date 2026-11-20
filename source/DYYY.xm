@@ -4861,6 +4861,65 @@ static CGFloat DYYYLongPressSetSpeedValue(void) {
 }
 %end
 
+// 1.0.43 C14：41.x 类名换代——新类名 hook（v3.0 做法），旧类名 hook 留着给 39.x 用。
+// 哪个类存在挂哪个（%ctor 里逐个查，39.1.0 保护）。
+%group DYYYV30ClassRenameGroup
+%hook AWEProfileAvatarFunctionManager
+- (BOOL)shouldShowSaveAvatarItem {
+    BOOL shouldEnable = DYYYGetBool(@"DYYYEnableSaveAvatar");
+    if (shouldEnable) {
+        return YES;
+    }
+    return %orig;
+}
+%end
+
+%hook AWEProfilePublishGuideCollectionViewCell
+
+- (void)didMoveToSuperview {
+    %orig;
+    if (DYYYGetBool(@"DYYYHidePostView")) {
+        if ([(UIView *)self superview]) {
+            [(UIView *)self setHidden:YES];
+        }
+    }
+}
+
+%end
+
+%hook AWEUserProfileUGCTaskCardStyleListCollectionViewCell
+- (BOOL)shouldShowPublishGuide {
+    if (DYYYGetBool(@"DYYYHidePostView")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+
+%hook _TtC21AWEIncentiveSwiftImpl20PendantContainerView
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHidePendantGroup")) {
+        [self removeFromSuperview];
+    }
+}
+%end
+
+%hook AWEFullPageFeedContainerViewController
+- (BOOL)prefersStatusBarHidden {
+    if (DYYYGetBool(@"DYYYHideStatusbar")) {
+        return YES;
+    } else {
+        if (class_getInstanceMethod([self class], @selector(prefersStatusBarHidden)) !=
+            class_getInstanceMethod([%c(AWEFullPageFeedContainerViewController) class], @selector(prefersStatusBarHidden))) {
+            return %orig;
+        }
+        return NO;
+    }
+}
+%end
+%end
+
 %hook AWECommentMediaDownloadConfigLivePhoto
 
 BOOL commentLivePhotoNotWaterMark = DYYYGetBool(@"DYYYCommentLivePhotoNotWaterMark");
@@ -12367,6 +12426,14 @@ static Class tabBarButtonClass = nil;
 %end
 
 %hook AWEFeedViewCell
+- (void)prepareForReuse {
+    // 1.0.43 C14：v3.0 新增——复用时也藏一次（旧版只在 layoutSubviews/setModel 藏）。
+    if (hideButton && hideButton.isElementsHidden) {
+        [hideButton hideUIElements];
+    }
+    %orig;
+}
+
 - (void)layoutSubviews {
     if (hideButton && hideButton.isElementsHidden) {
         [hideButton hideUIElements];
@@ -13684,6 +13751,14 @@ static void findTargetViewInView(UIView *view) {
         if (objc_getClass("AWEDSpeedCoreContainer") || objc_getClass("AWEDSpeedFeedContainer") ||
             objc_getClass("AWEDSpeedPinchContainer") || objc_getClass("AFDPureModePageLongPressFastSpeedController")) {
             %init(DYYYDSpeedGroup);
+        }
+
+        // 1.0.43 C14：41.x 类名换代（新类名 hook；哪个类存在挂哪个，旧类名 hook 留着给 39.x 用）。
+        if (objc_getClass("AWEProfileAvatarFunctionManager") || objc_getClass("AWEProfilePublishGuideCollectionViewCell") ||
+            objc_getClass("AWEUserProfileUGCTaskCardStyleListCollectionViewCell") ||
+            objc_getClass("_TtC21AWEIncentiveSwiftImpl20PendantContainerView") ||
+            objc_getClass("AWEFullPageFeedContainerViewController")) {
+            %init(DYYYV30ClassRenameGroup);
         }
 
         // 初始化红包激励挂件容器视图类组
