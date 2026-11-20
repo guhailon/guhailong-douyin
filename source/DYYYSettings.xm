@@ -1223,13 +1223,6 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
               @"cellType" : @20,
               @"imageName" : @"ic_playertime_outlined_20"
           },
-          // 1.0.43 C17/A1：按 v3.0 新增推荐过滤HDR行（v3.0 DYYYSettings.xm 约 631 行同款）。
-          @{@"identifier" : @"DYYYFilterFeedHDR",
-            @"title" : @"推荐过滤HDR",
-            @"subTitle" : @"开启后推荐流会屏蔽 HDR 视频",
-            @"detail" : @"",
-            @"cellType" : @37,
-            @"imageName" : @"ic_sun_outlined"},
           @{@"identifier" : @"DYYYHDRMode",
             @"title" : @"全局HDR设置",
             @"subTitle" : @"开启并选择后全局屏蔽HDR效果/过滤HDR作品。",
