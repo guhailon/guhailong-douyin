@@ -4799,16 +4799,22 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
         return YES;
     }
     AWECommentAudioModel *audio = [selected audioModel];
+    // 1.0.40：自己刚录的评论 content 为空（2026-11-20 日志证实），只认 content 会让保存项不出现；
+    // audioFilePath 非空也算有音频。
+    NSString *audioLocalPath = nil;
+    @try {
+        audioLocalPath = audio.audioFilePath;
+    } @catch (__unused NSException *exception) {
+    }
     // 1.0.25 评论语音保存探针（开关 GHL_KEY_COMMENT_VOICE_SAVE）：长按语音评论时，
     // 记 audio model 实例的 audioFilePath 和 content（为下版保存准备；只记日志，不下载不复制）。
     // 播放时没有可用的钩子，先接在这里——audioModel 就在手上。
     if (GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
         @try {
             if (audio) {
-                NSString *probePath = audio.audioFilePath;
                 NSString *probeContent = audio.content;
                 if (probeContent.length > 120) probeContent = [probeContent substringToIndex:120];
-                GHLLog(@"评论语音保存探针：audioFilePath=%@，content=%@（经 AWECommentModel.audioModel）", probePath.length > 0 ? probePath : @"（空）", probeContent.length > 0 ? probeContent : @"（空）");
+                GHLLog(@"评论语音保存探针：audioFilePath=%@，content=%@（经 AWECommentModel.audioModel）", audioLocalPath.length > 0 ? audioLocalPath : @"（空）", probeContent.length > 0 ? probeContent : @"（空）");
             } else {
                 GHLLog(@"评论语音保存探针：没找到 audio model 实例");
             }
@@ -4816,7 +4822,7 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
             GHLLog(@"评论语音保存探针：读 audio model 异常");
         }
     }
-    if (audio && audio.content) {
+    if (audio && (audio.content.length > 0 || audioLocalPath.length > 0)) {
         return YES;
     }
     return shouldShow;
@@ -4833,7 +4839,13 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
     BOOL hasSticker = (stickerURLList.count > 0);
 
     AWECommentAudioModel *audio = [comment audioModel];
-    BOOL hasAudio = (audio && audio.content);
+    // 1.0.40：自己刚录的评论 content 为空，只认 content 会漏掉它；audioFilePath 非空也算有音频。
+    NSString *audioLocalPath = nil;
+    @try {
+        audioLocalPath = audio.audioFilePath;
+    } @catch (__unused NSException *exception) {
+    }
+    BOOL hasAudio = (audio && (audio.content.length > 0 || audioLocalPath.length > 0));
     
     NSArray *imageList = nil;
     if ([comment respondsToSelector:@selector(imageList)]) {
@@ -4876,15 +4888,12 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
         
         // 1.0.25：audioFilePath 已证实是本地文件路径，优先直接复制本地文件，不走 JSON 解析；
         // 拿不到本地文件时再走原来的 content 解析流程（JSON 取 video_list，或 content 本身是直链就直下）。
-        NSString *localPath = nil;
-        @try {
-            localPath = audio.audioFilePath;
-        } @catch (__unused NSException *exception) {
-        }
+        // 1.0.40：有本地文件直接存进语音包，不再只弹分享表。
+        NSString *localPath = audioLocalPath;
         if (localPath.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:localPath]) {
-            [DYYYManager saveCommentAudioLocalFile:localPath
-                                          userName:userName
-                                        createTime:comment.createTime];
+            [DYYYManager saveCommentAudioToVoicePackage:localPath
+                                               userName:userName
+                                             createTime:comment.createTime];
             return;
         }
         

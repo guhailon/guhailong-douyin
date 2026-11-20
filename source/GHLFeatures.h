@@ -126,6 +126,8 @@ void GHLPresentSimpleVoicePackagePageFromViewController(UIViewController *viewCo
 // 导入的语音存在 Documents/DYYY/VoicePackages/，记录在 GHL_KEY_CUSTOM_VOICES。
 #define GHL_KEY_CUSTOM_VOICES @"GHLCustomVoices" // 导入的语音：数组，字典 @{@"name", @"file"}
 NSString *GHLCustomVoicePackagesDirectory(void);
+// 1.0.40：把已存进语音包目录的文件登记到「我的导入」（只拷文件不登记，列表里看不到；同名文件只登记一次）
+void GHLRegisterCustomVoiceFile(NSString *fileName, NSString *displayName);
 void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSString * _Nullable name)); // mp4/mov 转音频，其他音频直接复制
 NSString *GHLFileSizeText(NSString *path); // “1.2 MB”这种
 // 运行期探针：保存语音评论相关类（只记日志，不 hook、不发包；1.0.28：转发/秒数/替换三项已下架）

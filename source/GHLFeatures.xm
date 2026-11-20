@@ -257,7 +257,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.36：清掉 1.0.35 漏掉的三处残留——#27 保存相册详细的代码还在（说明里写视频 ID／时长／点赞评论分享收藏播放数／音乐那段整个拿掉，函数恢复成原版 DYYY；「保存作品信息」开关是原版的，留着）；巡检定时器日志不再列自动连播；面板图标映射里视频原声提取（686）的死分支删掉。\n"
            @"1.0.37：长按面板新增作品日期显示——面板顶部龙头下方多一行「发布时间：yyyy-MM-dd HH:mm」（取作品 createTime，为 0/缺失时那行不显示）；设置里新增「作品日期显示」开关，默认开。\n"
            @"1.0.38：探针版——只记录语音评论录制时的信息（评论输入框打开时的控制器/响应链、系统录音的起止与文件、录音开始时相关类清单），帮助定位替换语音评论的钩点；没有新功能、不改任何行为。\n"
-           @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。";
+           @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
+           @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -1930,6 +1931,23 @@ static NSArray<NSDictionary *> *GHLCustomVoiceRecords(void) {
 
 static void GHLSaveCustomVoiceRecords(NSArray<NSDictionary *> *records) {
     [[NSUserDefaults standardUserDefaults] setObject:records forKey:GHL_KEY_CUSTOM_VOICES];
+}
+
+// 1.0.40：保存语音评论存进语音包后登记——「我的导入」只认 GHL_KEY_CUSTOM_VOICES 里的记录，
+// 光拷文件进去列表里看不到。
+void GHLRegisterCustomVoiceFile(NSString *fileName, NSString *displayName) {
+    if (!fileName || fileName.length == 0 || !displayName || displayName.length == 0) return;
+    @try {
+        NSMutableArray *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+        for (NSDictionary *record in records) {
+            if ([record[@"file"] isEqualToString:fileName]) return; // 已登记过，不重复
+        }
+        [records addObject:@{@"name": displayName, @"file": fileName}];
+        GHLSaveCustomVoiceRecords(records);
+        GHLLog(@"语音保存：已登记到我的导入「%@」（%@）", displayName, fileName);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音保存：登记到我的导入失败 %@", fileName);
+    }
 }
 
 // 文件夹列表：我的导入在前，自建文件夹按建的顺序排。

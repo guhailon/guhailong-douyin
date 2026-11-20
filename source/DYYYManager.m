@@ -2570,6 +2570,12 @@
     if (!audioURLString) {
         NSArray *videoList = audioDict[@"video_list"];
         if (!videoList || videoList.count == 0) {
+            // 1.0.40：记下 JSON 顶层 key 名，方便以后诊断为什么拿不到语音地址。
+            if ([audioDict isKindOfClass:[NSDictionary class]]) {
+                GHLLog(@"语音保存：content 里没有 video_list，顶层 key=%@", [audioDict allKeys]);
+            } else {
+                GHLLog(@"语音保存：content 解析后不是字典");
+            }
             dispatch_async(dispatch_get_main_queue(), ^{
                 [DYYYUtils showToast:@"未找到语音URL"];
             });
@@ -2614,7 +2620,8 @@
             return;
         }
         
-        [DYYYManager shareCommentAudioFileAtPath:location.path userName:userName createTime:createTime];
+        // 1.0.40：下载完直接存进语音包，不再只弹分享表。
+        [DYYYManager saveCommentAudioToVoicePackage:location.path userName:userName createTime:createTime];
     }];
     
     [downloadTask resume];
@@ -2634,6 +2641,59 @@
     }
     NSLog(@"[DYYY] 本地语音文件已找到，复制分享：%@", localPath);
     [DYYYManager shareCommentAudioFileAtPath:localPath userName:userName createTime:createTime];
+}
+
+// 1.0.40：保存语音评论改成真正存到本地语音包（Documents/DYYY/VoicePackages/，
+// 「我的导入」读的就是这里），存完能在「我的导入」里看到，也能当替换用音频。
+// 复制不挪走——本地文件是抖音自己的缓存，不能删；下载的临时文件复制一份也无妨。
++ (void)saveCommentAudioToVoicePackage:(NSString *)localPath
+                             userName:(NSString *)userName
+                           createTime:(NSNumber *)createTime {
+    @try {
+        if (!localPath || localPath.length == 0 || ![[NSFileManager defaultManager] fileExistsAtPath:localPath]) {
+            GHLLog(@"语音保存：本地文件不存在 %@", localPath ?: @"（空）");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [DYYYUtils showToast:@"本地语音文件不存在"];
+            });
+            return;
+        }
+        // 文件名沿用分享那套：{用户名}_{时间}.m4a，同名加序号。
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        formatter.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+        NSTimeInterval timestamp = (createTime && [createTime doubleValue] > 0) ? [createTime doubleValue] : [[NSDate date] timeIntervalSince1970];
+        NSString *timeString = [formatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:timestamp]];
+        timeString = [timeString stringByReplacingOccurrencesOfString:@":" withString:@"-"];
+        timeString = [timeString stringByReplacingOccurrencesOfString:@" " withString:@"_"];
+        NSString *safeUserName = userName ?: @"未知用户";
+        safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+        safeUserName = [safeUserName stringByReplacingOccurrencesOfString:@"\\" withString:@"_"];
+        NSString *baseName = [NSString stringWithFormat:@"%@_%@", safeUserName, timeString];
+        NSString *dir = GHLCustomVoicePackagesDirectory();
+        NSString *fileName = [NSString stringWithFormat:@"%@.m4a", baseName];
+        NSInteger n = 2;
+        while ([[NSFileManager defaultManager] fileExistsAtPath:[dir stringByAppendingPathComponent:fileName]]) {
+            fileName = [NSString stringWithFormat:@"%@ %ld.m4a", baseName, (long)n];
+            n++;
+        }
+        NSError *copyError = nil;
+        if (![[NSFileManager defaultManager] copyItemAtPath:localPath toPath:[dir stringByAppendingPathComponent:fileName] error:&copyError]) {
+            GHLLog(@"语音保存：复制失败 %@", copyError.localizedDescription);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [DYYYUtils showToast:@"保存失败，文件复制不出来"];
+            });
+            return;
+        }
+        GHLRegisterCustomVoiceFile(fileName, baseName);
+        GHLLog(@"语音保存：已保存到语音包 %@", fileName);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [DYYYUtils showToast:@"已保存到语音包"];
+        });
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音保存：保存异常");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [DYYYUtils showToast:@"保存失败"];
+        });
+    }
 }
 
 // 1.0.25：把语音文件拷到 tmp（{用户名}_{时间}.m4a）再弹分享表；下载和本地文件两路共用。

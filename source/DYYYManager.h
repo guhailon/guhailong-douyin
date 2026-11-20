@@ -124,6 +124,15 @@
                         userName:(NSString *)userName
                       createTime:(NSNumber *)createTime;
 /**
+ * 把评论区语音真正存到本地语音包（Documents/DYYY/VoicePackages/，「我的导入」读的就是这里）
+ * @param localPath 本地音频文件全路径（或下载好的临时文件）
+ * @param userName 评论者用户名
+ * @param createTime 评论创建时间（NSNumber，秒级时间戳）
+ */
++ (void)saveCommentAudioToVoicePackage:(NSString *)localPath
+                              userName:(NSString *)userName
+                            createTime:(NSNumber *)createTime;
+/**
  * 把语音文件拷到 tmp 再弹分享表（下载和本地文件两路共用，复制不挪走）
  * @param sourcePath 下载好的临时文件或本地音频文件全路径
  * @param userName 评论者用户名
