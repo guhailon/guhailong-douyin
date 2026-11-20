@@ -9557,23 +9557,66 @@ static NSHashTable *processedParentViews = nil;
     return DYYYGetBool(key) ? nil : info;
 }
 
+- (void)setAnchorInfo:(id)info {
+    // 1.0.43：v3.0 新增 setter——开关开时直接写 nil（getter 的 POI 区分照用）。
+    NSString *key = [(AWEAnchorInfoModel *)info anchorType] == kDYYYPOIAnchorType ? @"DYYYHideLocation" : @"DYYYHideFeedAnchorContainer";
+    if (DYYYGetBool(key)) {
+        %orig(nil);
+        return;
+    }
+    %orig;
+}
+
 // 本地生活与同城锚点归入定位开关，不随普通视频锚点隐藏。
 - (id)localLifeAnchorInfo {
     return DYYYGetBool(@"DYYYHideLocation") ? nil : %orig;
+}
+
+- (void)setLocalLifeAnchorInfo:(id)info {
+    if (DYYYGetBool(@"DYYYHideLocation")) {
+        %orig(nil);
+        return;
+    }
+    %orig;
 }
 
 - (id)nearbyFeedDualAnchorInfo {
     return DYYYGetBool(@"DYYYHideLocation") ? nil : %orig;
 }
 
+- (void)setNearbyFeedDualAnchorInfo:(id)info {
+    if (DYYYGetBool(@"DYYYHideLocation")) {
+        %orig(nil);
+        return;
+    }
+    %orig;
+}
+
 - (id)minorAnchorInfo {
     return DYYYGetBool(@"DYYYHideFeedAnchorContainer") ? nil : %orig;
+}
+
+- (void)setMinorAnchorInfo:(id)info {
+    if (DYYYGetBool(@"DYYYHideFeedAnchorContainer")) {
+        %orig(nil);
+        return;
+    }
+    %orig;
 }
 
 - (id)commonAnchor {
     AWECodeGenCommonAnchorModel *anchor = %orig;
     NSString *key = anchor.basicInfoModel.type == kDYYYPOIAnchorType ? @"DYYYHideLocation" : @"DYYYHideFeedAnchorContainer";
     return DYYYGetBool(key) ? nil : anchor;
+}
+
+- (void)setCommonAnchor:(id)anchor {
+    NSString *key = [(AWECodeGenCommonAnchorModel *)anchor basicInfoModel].type == kDYYYPOIAnchorType ? @"DYYYHideLocation" : @"DYYYHideFeedAnchorContainer";
+    if (DYYYGetBool(key)) {
+        %orig(nil);
+        return;
+    }
+    %orig;
 }
 
 // 屏蔽作者声明及风险提示
