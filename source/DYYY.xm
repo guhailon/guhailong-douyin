@@ -4555,6 +4555,26 @@ static NSArray<NSString *> *dyyy_qualityRank = nil;
 
 %end
 
+// 1.0.43 C3：v3.0 新增——全屏时把详情页表高度补成屏幕高度的整数倍（避免全屏留半截）。
+// 类和方法都存在才挂钩（39.1.0 保护）。
+%group DYYYDetailTableViewGroup
+%hook AWEAwemeDetailTableView
+
+- (void)setFrame:(CGRect)frame {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+
+        CGFloat remainder = fmod(frame.size.height, screenHeight);
+        if (remainder != 0) {
+            frame.size.height += (screenHeight - remainder);
+        }
+    }
+    %orig(frame);
+}
+
+%end
+%end
+
 %hook AWEAwemeDetailContainerPlayControlConfig
 
 - (BOOL)enableUserProfilePostAutoPlay {
@@ -13791,6 +13811,12 @@ static void findTargetViewInView(UIView *view) {
         if ((plusButtonClass && class_getClassMethod(plusButtonClass, @selector(button))) ||
             (plusInnerButtonClass && class_getClassMethod(plusInnerButtonClass, @selector(buttonWithParams:)))) {
             %init(DYYYPlusButtonNilGroup);
+        }
+
+        // 1.0.43 C3：详情页表高度补整（全屏；类和方法都存在才挂钩）。
+        Class detailTableViewClass = objc_getClass("AWEAwemeDetailTableView");
+        if (detailTableViewClass && class_getInstanceMethod(detailTableViewClass, @selector(setFrame:))) {
+            %init(DYYYDetailTableViewGroup);
         }
 
         // 初始化红包激励挂件容器视图类组
