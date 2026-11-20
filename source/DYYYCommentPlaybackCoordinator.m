@@ -1,6 +1,6 @@
 #import "DYYYCommentPlaybackCoordinator.h"
 #import "AwemeHeaders.h"
-#import "DYYYFloatingButtonCoordinator.h"
+#import "DYYYFloatSpeedButton.h"
 
 @interface DYYYCommentPlaybackCoordinator ()
 @property(nonatomic, strong) NSHashTable *viewModels;
@@ -37,7 +37,7 @@
     DYYYCommentPlaybackCoordinator *coordinator = [self shared];
     if (!coordinator.commentController || coordinator.pausedViewModel || !DYYYGetBool(@"DYYYCommentPausePlayback")) return;
 
-    AWEPlayInteractionViewController *current = (id)[DYYYFloatingButtonCoordinator currentInteractionController];
+    AWEPlayInteractionViewController *current = (id)DYYYCurrentSpeedInteractionController();
     id bestViewModel = nil;
     CGFloat bestScore = -CGFLOAT_MAX;
     for (_TtC33AWECommentPanelContainerSwiftImpl30CommentContainerInnerViewModel *viewModel in coordinator.viewModels.allObjects) {

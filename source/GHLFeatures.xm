@@ -11,7 +11,7 @@
 #import "DYYYConstants.h"
 #import "DYYYManager.h"
 #import "DYYYUtils.h"
-#import "DYYYFloatingButtonCoordinator.h"
+#import "DYYYFloatSpeedButton.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYBottomAlertView.h"
 #import "DYYYSettingsHelper.h"
@@ -148,7 +148,7 @@ void GHLRunOnMain(dispatch_block_t block) {
 
 AWEAwemeModel *GHLCurrentAwemeModel(void) {
     @try {
-        UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+        UIViewController *controller = DYYYCurrentSpeedInteractionController();
         if ([controller respondsToSelector:@selector(model)]) {
             id model = [(AWEPlayInteractionViewController *)controller model];
             if ([model isKindOfClass:NSClassFromString(@"AWEAwemeModel")]) return model;
@@ -188,7 +188,7 @@ BOOL GHLPerformFloatButtonAction(NSString *action) {
             [DYYYUtils showToast:@"清屏按钮当前不可用"];
         }
     } else if ([action isEqualToString:GHL_FLOAT_ACTION_SPEED]) {
-        UIViewController *controller = [DYYYFloatingButtonCoordinator currentInteractionController];
+        UIViewController *controller = DYYYCurrentSpeedInteractionController();
         if (controller && [controller respondsToSelector:@selector(speedButtonTapped:)]) {
             @try {
                 [(id)controller speedButtonTapped:nil];
@@ -260,7 +260,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
            @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
            @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。\n"
-           @"1.0.42：替换语音挑选页加了两个功能——左滑一行就能删除不喜欢的语音（点一下直接删；删的是当前已选的替换语音时，设置行恢复「未选择」）；「我的导入」列表左上方第一行是「＋ 添加语音」，点它可以从文件里选语音导进来，导完就能在挑选页看到、点行就能选来替换（只收语音文件；不是 .m4a 的选时再转码）。语音包「我的导入」那页也一样：删除改成左滑，长按恢复成收藏。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。语音包里「音色」改叫「变音器」，「导入至语音包」改叫「音色库」（只改显示名字，功能不动）。";
+           @"1.0.42：替换语音挑选页加了两个功能——左滑一行就能删除不喜欢的语音（点一下直接删；删的是当前已选的替换语音时，设置行恢复「未选择」）；「我的导入」列表左上方第一行是「＋ 添加语音」，点它可以从文件里选语音导进来，导完就能在挑选页看到、点行就能选来替换（只收语音文件；不是 .m4a 的选时再转码）。语音包「我的导入」那页也一样：删除改成左滑，长按恢复成收藏。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。语音包里「音色」改叫「变音器」，「导入至语音包」改叫「音色库」（只改显示名字，功能不动）。\n"
+           @"1.0.43：按上游 v3.0（适配抖音 41.2.0）逐项并进来，底子不动——新加隐藏头像光圈（设置里开关）、长按倍速上下滑调倍速（DSpeed 新播放架构那路；旧路早就有）；长按倍速、全屏、悬浮按钮、评论长按面板隐藏、下载队列、设置页按最新做法换（悬浮按钮改共享标志模型，按钮位置改存一个字串，贴边自动隐藏没了；下载改内置队列，最大并发 3；设置页补 4 行：推荐过滤 HDR、自动勾选原图、接口解析保存、长按评论复制）；登录绕过、精确互动数、隐私拦截、保存作品信息等 16 项和咱们自己的语音包／替换保存语音／画中画／作品日期／抢红包／长按网格／关于页原样留着；39.1.0 上 v3.0 的新类不存在就不挂钩，旧路继续用。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -3513,7 +3514,7 @@ static void GHLRefreshFloatPanelButton(void) {
     ghlFloatPanelButton.frame = CGRectMake(10, topInset + 8, 40, 40);
     // 显隐：开关开＋正在视频 feed 页（有当前互动控制器）＋不在直播间／设置／关于／日志／评论页。
     BOOL show = NO;
-    if (GHLFloatPanelButtonEnabled() && [DYYYFloatingButtonCoordinator currentInteractionController]) {
+    if (GHLFloatPanelButtonEnabled() && DYYYCurrentSpeedInteractionController()) {
         NSString *topName = NSStringFromClass([GHLTopViewController() class]);
         BOOL inOverlayPage = [topName containsString:@"Setting"] || [topName containsString:@"About"] ||
                              [topName containsString:@"LogViewer"] || [topName containsString:@"Comment"] ||

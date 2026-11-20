@@ -426,6 +426,28 @@ static const void *kCurrentIPRequestCityCodeKey = &kCurrentIPRequestCityCodeKey;
     return NO;
 }
 
++ (BOOL)isControllerVisible:(UIViewController *)controller {
+    // 1.0.43 C4：从已删的 DYYYFloatingButtonCoordinator 原样挪过来（纯 UIKit 判断，无状态）。
+    UIView *view = controller.viewIfLoaded;
+    UIWindow *window = view.window;
+    if (!window || window.hidden || CGRectIsEmpty(view.bounds)) return NO;
+    for (UIView *ancestor = view; ancestor; ancestor = ancestor.superview) {
+        if (ancestor.hidden || ancestor.alpha <= 0.01) return NO;
+    }
+    CGRect rect = [view convertRect:view.bounds toView:window];
+    if (!CGRectIntersectsRect(rect, window.bounds)) return NO;
+
+    // 缓存页面可能仍挂在窗口上，只承认当前选中的 Tab 和导航栈顶。
+    for (UIViewController *child = controller; child; child = child.parentViewController) {
+        UIViewController *parent = child.parentViewController;
+        if ([parent isKindOfClass:UITabBarController.class] && ((UITabBarController *)parent).selectedViewController != child) return NO;
+        if ([parent isKindOfClass:UINavigationController.class] && ((UINavigationController *)parent).topViewController != child) return NO;
+        UIViewController *presented = child.presentedViewController;
+        if (presented.viewIfLoaded.window && !presented.isBeingDismissed) return NO;
+    }
+    return YES;
+}
+
 + (BOOL)isAdvertisementAwemeModel:(id)model {
     Class awemeModelClass = NSClassFromString(@"AWEAwemeModel");
     if (!model || !awemeModelClass || ![model isKindOfClass:awemeModelClass]) {

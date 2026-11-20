@@ -36,7 +36,7 @@
   - 输入/图标配置：`DYYYCustomInputView.(h/m)`、`DYYYIconOptionsDialogView.(h/m)`、`DYYYImagePickerDelegate.(h/m)`、`DYYYBackupPickerDelegate.(h/m)`。
   - 弹窗/提示：`DYYYBottomAlertView.(h/m)`、`DYYYConfirmCloseView.(h/m)`、`DYYYAboutDialogView.(h/m)`、`DYYYToast.(h/m)`。
 - **浮窗与快捷操作**
-  - 显示协调：`DYYYFloatingButtonCoordinator.(h/m)`，根据实际选中页面、评论、纯净模式与前后台状态统一管理两个悬浮按钮。
+  - 显示协调：悬浮按钮改 v3.0 模型（1.0.43，`DYYYFloatingButtonCoordinator` 已删）——`DYYYFloatSpeedButton`／`DYYYFloatClearButton` 各自管显隐，共享标志 `dyyyCommentViewVisible`／`dyyyInteractionViewVisible`／`isPureViewVisible`／`isAppInTransition` 由 `DYYY.xm` 的页面钩子维护；`DYYYUtils isControllerVisible:` 是从旧协调器挪过来的可见性判断。
   - 漂浮按钮：`DYYYFloatSpeedButton.(h/m)`、`DYYYFloatClearButton.(h/xm)`。
   - 长按/面板：`DYYYLongPressPanel.xm`、`DYYYLongPressGridPanelView.(h/m)`（1.0.9 网格长按面板；1.0.21 深色改浅色玻璃；1.0.35 面板外观固定回 1.0.22 默认，只留背景图 51、材质 53 可调；1.0.23 的获取作品数据 694／图片预览 695 已拿掉）、`DYYYBottomAlertView.(h/m)`（复用提示）。
 - **辅助代理**

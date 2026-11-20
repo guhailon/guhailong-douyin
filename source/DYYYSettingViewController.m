@@ -9,7 +9,6 @@
 #import "GHLAboutViewController.h"
 #import "DYYYFloatClearButton.h"
 #import "DYYYFloatSpeedButton.h"
-#import "DYYYFloatingButtonCoordinator.h"
 #import "DYYYImagePickerDelegate.h"
 #import "DYYYSettingsHelper.h"
 #import "DYYYUtils.h"

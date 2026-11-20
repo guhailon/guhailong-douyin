@@ -29,6 +29,9 @@ NS_ASSUME_NONNULL_BEGIN
 /** 使用抖音模型自身的广告判定及明确广告字段识别广告作品。 */
 + (BOOL)isAdvertisementAwemeModel:(id)model;
 
+/** 判断一个控制器当前是否真正可见（在窗口内、未被隐藏／遮挡、是选中 Tab／导航栈顶、未被弹窗盖住）。 */
++ (BOOL)isControllerVisible:(UIViewController *)controller;
+
 /** 识别作品模型或搜索结果包装模型中的广告。 */
 + (BOOL)isAdvertisementContainerModel:(id)model;
 

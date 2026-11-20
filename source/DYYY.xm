@@ -36,7 +36,6 @@
 #import "DYYYUtils.h"
 #import "DYYYFullscreenCoordinator.h"
 #import "DYYYCommentBlurCoordinator.h"
-#import "DYYYFloatingButtonCoordinator.h"
 
 static CGFloat gStartY = 0.0;
 static CGFloat gStartVal = 0.0;
@@ -249,7 +248,8 @@ static CGFloat DYYYViewControllerVisibilityScore(UIViewController *viewControlle
         return -1.0;
     }
 
-    if (![DYYYFloatingButtonCoordinator isControllerVisible:viewController]) return -1.0;
+    // 1.0.43 C4：协调器已删，可见性判断改调 DYYYUtils 的同名方法（逻辑从旧协调器原样挪过去）。
+    if (![DYYYUtils isControllerVisible:viewController]) return -1.0;
     UIView *view = viewController.view;
     UIWindow *window = view.window;
     if (!window || view.hidden || view.alpha <= 0.01 || CGRectIsEmpty(view.bounds)) {
@@ -393,11 +393,22 @@ static AWEPlayInteractionViewController *DYYYResolveCurrentSpeedInteractionContr
 }
 
 id DYYYCurrentSpeedInteractionController(void) {
-    return [DYYYFloatingButtonCoordinator currentInteractionController];
+    // 1.0.43 C4：协调器已删——先用倍速按钮自己记的 controller（attachToWindow／viewDidLayoutSubviews 维护），
+    // 没有再按 39.x 的可见度打分解析。v3.0 里没有这个函数，定义留在这里供新版 FloatSpeedButton.m 与 GHL 调用。
+    if (speedButton.interactionController) {
+        return speedButton.interactionController;
+    }
+    return DYYYResolveCurrentSpeedInteractionController(nil);
 }
 
 static void DYYYEnsureFloatSpeedButton(AWEPlayInteractionViewController *interactionController) {
-    [DYYYFloatingButtonCoordinator registerInteractionController:interactionController];
+    // 1.0.43 C4：改走新模型——开关开且有窗就 attach（建钮＋记 controller＋刷新显隐），不再过协调器。
+    if (interactionController && isFloatSpeedButtonEnabled) {
+        UIWindow *window = interactionController.viewIfLoaded.window ?: [DYYYUtils getActiveWindow];
+        if (window) {
+            [FloatingSpeedButton attachToWindow:window interactionController:interactionController];
+        }
+    }
     AWEPlayInteractionViewController *currentController = (AWEPlayInteractionViewController *)DYYYCurrentSpeedInteractionController();
     if (currentController) {
         if ((dyyyLongPressFastSpeedActive || dyyyLongPressLockedSpeedActive) &&
@@ -407,7 +418,8 @@ static void DYYYEnsureFloatSpeedButton(AWEPlayInteractionViewController *interac
         dyyyCurrentSpeedAweme = currentController.model;
         DYYYRestoreFloatSpeedButtonForAwemeIfNeeded(currentController.model);
     }
-    [DYYYFloatingButtonCoordinator refresh];
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 
 static BOOL DYYYSetPlaybackRateOnTarget(id target, double speed) {
@@ -11935,7 +11947,10 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    [DYYYFloatingButtonCoordinator commentController:self visible:YES];
+    // 1.0.43 C4：评论页出现——改共享标志＋刷新两个悬浮按钮（旧协调器 commentController 已删）。
+    dyyyCommentViewVisible = YES;
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
     [DYYYCommentPlaybackCoordinator commentController:self visible:YES];
     NSString *transparentValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYTopBarTransparent"];
     if (transparentValue && transparentValue.length > 0) {
@@ -11961,14 +11976,17 @@ static Class tabBarButtonClass = nil;
     if (skipsLifecycle) return;
     [DYYYCommentPlaybackCoordinator commentController:self visible:NO];
     [DYYYFullscreenCoordinator commentController:self visible:NO];
-    [DYYYFloatingButtonCoordinator commentController:self visible:NO];
+    // 1.0.43 C4：评论页消失——改共享标志＋刷新两个悬浮按钮。
+    dyyyCommentViewVisible = NO;
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 
 - (void)viewDidLayoutSubviews {
     %orig;
     [DYYYCommentBlurCoordinator layoutController:self];
     [DYYYFullscreenCoordinator commentController:self visible:YES];
-    [DYYYFloatingButtonCoordinator commentController:self visible:YES];
+    // 1.0.43 C4：本页的评论可见标志由 viewDidAppear／viewDidDisappear 维护，这里不再调协调器。
 
     if (!DYYYGetBool(@"DYYYEnableCommentBlur"))
         return;
@@ -12252,6 +12270,9 @@ static Class tabBarButtonClass = nil;
     %orig;
     dyyyCurrentSpeedAweme = self.model;
     DYYYRestoreFloatSpeedButtonForAwemeIfNeeded(self.model);
+    // 1.0.43 C4：v3.0 做法——进播放页就把互动层可见标志打开（显隐由 update 函数按标志算）。
+    isInPlayInteractionVC = YES;
+    dyyyInteractionViewVisible = YES;
     DYYYEnsureFloatSpeedButton(self);
 }
 
@@ -12261,7 +12282,48 @@ static Class tabBarButtonClass = nil;
     // 离屏和复用中的互动层保留原生尺寸，避免回退布局与原生回收布局反复改高。
     if (!self.viewIfLoaded.window) return;
 
-    [DYYYFloatingButtonCoordinator registerInteractionController:self];
+    // 1.0.43 C4：v3.0 做法——右侧元素栈在位时才建／更新倍速按钮（旧协调器 registerInteractionController 已删）。
+    if (isFloatSpeedButtonEnabled) {
+        BOOL hasRightStack = NO;
+        Class stackClass = NSClassFromString(@"AWEElementStackView");
+        for (UIView *sub in self.view.subviews) {
+            if ([sub isKindOfClass:stackClass] && ([sub.accessibilityLabel isEqualToString:@"right"] || [DYYYUtils containsSubviewOfClass:NSClassFromString(@"AWEPlayInteractionUserAvatarView")
+                                                                                                                              inContainer:self.view])) {
+                hasRightStack = YES;
+                break;
+            }
+        }
+        if (hasRightStack) {
+            if (speedButton == nil) {
+                speedButtonSize = [[NSUserDefaults standardUserDefaults] floatForKey:@"DYYYSpeedButtonSize"] ?: 32.0;
+                CGRect screenBounds = [UIScreen mainScreen].bounds;
+                CGRect initialFrame = CGRectMake((screenBounds.size.width - speedButtonSize) / 2, (screenBounds.size.height - speedButtonSize) / 2, speedButtonSize, speedButtonSize);
+                speedButton = [[FloatingSpeedButton alloc] initWithFrame:initialFrame];
+                speedButton.interactionController = self;
+                showSpeedX = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYSpeedButtonShowX"];
+                updateSpeedButtonUI();
+            } else {
+                [speedButton resetButtonState];
+                if (speedButton.interactionController == nil || speedButton.interactionController != self) {
+                    speedButton.interactionController = self;
+                }
+                if (speedButton.frame.size.width != speedButtonSize) {
+                    CGPoint center = speedButton.center;
+                    CGRect newFrame = CGRectMake(0, 0, speedButtonSize, speedButtonSize);
+                    speedButton.frame = newFrame;
+                    speedButton.center = center;
+                    speedButton.layer.cornerRadius = speedButtonSize / 2;
+                }
+            }
+            dyyyInteractionViewVisible = YES;
+            UIWindow *keyWindow = [DYYYUtils getActiveWindow];
+            if (keyWindow && ![speedButton isDescendantOfView:keyWindow]) {
+                [keyWindow addSubview:speedButton];
+                [speedButton loadSavedPosition];
+                [speedButton resetFadeTimer];
+            }
+        }
+    }
 
     UIViewController *directParentVC = self.parentViewController;
     for (UIViewController *parent = directParentVC; parent; parent = parent.parentViewController) {
@@ -12339,7 +12401,22 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
-    [DYYYFloatingButtonCoordinator refresh];
+    // 1.0.43 C4：v3.0 做法——播放页消失就把互动层可见标志关掉（评论是否在看按 isCommentVCShowing 回填）。
+    BOOL hasRightStack = NO;
+    Class stackClass = NSClassFromString(@"AWEElementStackView");
+    for (UIView *sub in self.view.subviews) {
+        if ([sub isKindOfClass:stackClass] && ([sub.accessibilityLabel isEqualToString:@"right"] || [DYYYUtils containsSubviewOfClass:NSClassFromString(@"AWEPlayInteractionUserAvatarView")
+                                                                                                                          inContainer:self.view])) {
+            hasRightStack = YES;
+            break;
+        }
+    }
+    if (hasRightStack) {
+        dyyyInteractionViewVisible = NO;
+        dyyyCommentViewVisible = self.isCommentVCShowing;
+        updateSpeedButtonVisibility();
+        updateClearButtonVisibility();
+    }
 }
 
 %new
@@ -12563,50 +12640,35 @@ static Class tabBarButtonClass = nil;
 %hook UIViewController
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
-    if (hideButton.isElementsHidden) [hideButton hideUIElements];
-    [DYYYFloatingButtonCoordinator setNeedsRefresh];
+    // 1.0.43 C4：v3.0 做法——转场期间先把按钮藏起来（isAppInTransition 由显隐函数读），0.5 秒后恢复判断。
+    isAppInTransition = YES;
+    if (hideButton && hideButton.isElementsHidden) {
+        [hideButton hideUIElements];
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      isAppInTransition = NO;
+    });
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     %orig;
-    [DYYYFloatingButtonCoordinator setNeedsRefresh];
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    [DYYYFloatingButtonCoordinator refresh];
-}
-
-- (void)viewDidDisappear:(BOOL)animated {
-    %orig;
-    [DYYYFloatingButtonCoordinator refresh];
-}
-%end
-
-// 缓存中的 Feed 子控制器不一定重新出现，Tab 选中和内容替换必须主动刷新。
-%hook AWENormalModeTabBarController
-- (void)setSelectedIndex:(NSUInteger)index {
-    %orig;
-    [DYYYFloatingButtonCoordinator refresh];
-    [DYYYFloatingButtonCoordinator setNeedsRefresh];
-}
-
-- (void)p_updateCurrentRootController:(UIViewController *)controller {
-    %orig;
-    [DYYYFloatingButtonCoordinator refresh];
-    [DYYYFloatingButtonCoordinator setNeedsRefresh];
+    isAppInTransition = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      isAppInTransition = NO;
+    });
 }
 %end
 
 %hook AFDPureModePageContainerViewController
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    [DYYYFloatingButtonCoordinator pureModeController:self visible:YES];
+    // 1.0.43 C4：纯净页出现——改共享标志（旧协调器 pureModeController 已删）。
+    isPureViewVisible = YES;
 }
 
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
-    [DYYYFloatingButtonCoordinator pureModeController:self visible:NO];
+    isPureViewVisible = NO;
     // 清屏页归还媒体和互动层后，再让原页面按自己的底栏更新布局。
     [DYYYFullscreenCoordinator invalidateGuides];
 }
@@ -12675,30 +12737,58 @@ static void DYYYRemoveKeyboardObserver(void) {
 
     [[NSUserDefaults standardUserDefaults] addObserver:(NSObject *)self forKeyPath:kDYYYGlobalTransparencyKey options:NSKeyValueObservingOptionNew context:DYYYGlobalTransparencyContext];
 
-    [DYYYFloatingButtonCoordinator reloadConfiguration];
-    DYYYRemoveAppLifecycleObservers();
+    // 1.0.43 C4：v3.0 做法——启动时直接建清屏按钮（位置从 DYYYHideUIButtonPosition 字串读），不再过协调器 reloadConfiguration。
+    BOOL isEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableFloatClearButton"];
+    if (isEnabled) {
+        if (hideButton) {
+            [hideButton removeFromSuperview];
+            hideButton = nil;
+        }
 
-    dyyyWindowKeyObserverToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIWindowDidBecomeKeyNotification
+        CGFloat buttonSize = [[NSUserDefaults standardUserDefaults] floatForKey:@"DYYYEnableFloatClearButtonSize"] ?: 40.0;
+        hideButton = [[HideUIButton alloc] initWithFrame:CGRectMake(0, 0, buttonSize, buttonSize)];
+        hideButton.alpha = 0.5;
+
+        NSString *savedPositionString = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYHideUIButtonPosition"];
+        if (savedPositionString) {
+            hideButton.center = CGPointFromString(savedPositionString);
+        } else {
+            CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+            CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+            hideButton.center = CGPointMake(screenWidth - buttonSize / 2 - 5, screenHeight / 2);
+        }
+
+        hideButton.hidden = NO;
+        [getKeyWindow() addSubview:hideButton];
+        updateClearButtonVisibility();
+
+        DYYYRemoveAppLifecycleObservers();
+
+        dyyyWindowKeyObserverToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIWindowDidBecomeKeyNotification
                                                                                    object:nil
                                                                                     queue:[NSOperationQueue mainQueue]
                                                                                usingBlock:^(NSNotification *_Nonnull notification) {
-                                                                                 [DYYYFloatingButtonCoordinator reloadConfiguration];
+                                                                                 updateClearButtonVisibility();
                                                                                }];
 
-    dyyyDidBecomeActiveToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
+        dyyyDidBecomeActiveToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                                                  object:nil
                                                                                   queue:[NSOperationQueue mainQueue]
                                                                              usingBlock:^(NSNotification *_Nonnull notification) {
-                                                                               [DYYYFloatingButtonCoordinator setApplicationActive:YES];
-                                                                               [DYYYFloatingButtonCoordinator reloadConfiguration];
+                                                                               isAppActive = YES;
+                                                                               updateClearButtonVisibility();
                                                                              }];
 
-    dyyyWillResignActiveToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillResignActiveNotification
+        dyyyWillResignActiveToken = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillResignActiveNotification
                                                                                   object:nil
                                                                                    queue:[NSOperationQueue mainQueue]
                                                                               usingBlock:^(NSNotification *_Nonnull notification) {
-                                                                                [DYYYFloatingButtonCoordinator setApplicationActive:NO];
+                                                                                isAppActive = NO;
+                                                                                updateClearButtonVisibility();
                                                                               }];
+    } else {
+        DYYYRemoveAppLifecycleObservers();
+    }
 
     return result;
 }
@@ -13730,12 +13820,17 @@ static void findTargetViewInView(UIView *view) {
     %orig;
     [DYYYCommentBlurCoordinator layoutController:self];
     [DYYYFullscreenCoordinator commentController:self visible:YES];
-    [DYYYFloatingButtonCoordinator commentController:self visible:YES];
+    // 1.0.43 C4：评论内层在布局——评论可见标志打开＋刷新两个悬浮按钮。
+    dyyyCommentViewVisible = YES;
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
     [DYYYFullscreenCoordinator commentController:self visible:NO];
-    [DYYYFloatingButtonCoordinator commentController:self visible:NO];
+    dyyyCommentViewVisible = NO;
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 %end
 %end
@@ -13835,7 +13930,8 @@ static void findTargetViewInView(UIView *view) {
                 %init(GHLCommentVoiceTitleGroup);
             }
         }
-        [DYYYFloatingButtonCoordinator reloadConfiguration];
+        // 1.0.43 C4：v3.0 做法——%ctor 里只同步倍速按钮开关缓存（旧协调器 reloadConfiguration 已删，建钮在启动钩子里做）。
+        isFloatSpeedButtonEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableFloatSpeedButton"];
         DYYYStartHideMessageAndMinePageHooks();
         DYYYStartExactInteractionCountHooks();
 

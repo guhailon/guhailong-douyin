@@ -3,7 +3,6 @@
 #import <math.h>
 #import "DYYYFloatSpeedButton.h"
 #import "DYYYFloatClearButton.h"
-#import "DYYYFloatingButtonCoordinator.h"
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import "DYYYImagePickerDelegate.h"
@@ -38,7 +37,9 @@
             [NSUserDefaults.standardUserDefaults setDouble:number forKey:key];
             target.detail = [NSString stringWithFormat:@"%.4g", number];
             [target refreshCell];
-            [DYYYFloatingButtonCoordinator reloadConfiguration];
+            // 1.0.43 C4：协调器已删——数值改完直接重载两个按钮的配置（v3.0 没有对应写法，按新模型等价处理）。
+            [FloatingSpeedButton reloadConfiguration];
+            reloadClearButtonConfiguration();
             [speedButton loadSavedPosition];
             [hideButton loadSavedPosition];
         } onCancel:nil];

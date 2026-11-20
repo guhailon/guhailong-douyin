@@ -1,7 +1,6 @@
 #import "DYYYFullscreenCoordinator.h"
 #import "DYYYFullscreenGeometry.h"
 #import "DYYYUtils.h"
-#import "DYYYFloatingButtonCoordinator.h"
 #import "AwemeHeaders.h"
 #import <objc/runtime.h>
 
@@ -349,7 +348,7 @@
     if ([self hasCommentInWindow:bar.window] && state.bottomBarEnabled) playback = YES;
     if (!playback) for (UIViewController *controller in [self interactions].allObjects) {
         if (controller.viewIfLoaded.window != bar.window || ![self usesFullscreenLayoutForController:controller] ||
-            ![DYYYFloatingButtonCoordinator isControllerVisible:controller]) continue;
+            ![DYYYUtils isControllerVisible:controller]) continue;
         playback = YES;
         break;
     }
