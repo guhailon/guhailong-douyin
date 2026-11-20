@@ -259,7 +259,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.38：探针版——只记录语音评论录制时的信息（评论输入框打开时的控制器/响应链、系统录音的起止与文件、录音开始时相关类清单），帮助定位替换语音评论的钩点；没有新功能、不改任何行为。\n"
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
            @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
-           @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。";
+           @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。\n"
+           @"1.0.42：替换音频挑选页加了两个功能——长按一行可以删除不喜欢的语音（弹确认再删；删的是当前已选的替换音频时，设置行恢复「未选择」）；右上角「添加」可以从文件里选音频导进「我的导入」，导完就能在挑选页看到、点行就能选来替换（只收音频文件；不是 .m4a 的选时再转码）。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -2524,7 +2525,7 @@ void GHLFetchFishAudioVoiceListWithCompletion(void (^completion)(NSArray<GHLVoic
 // 1.0.26：上次拉取在线列表失败过没（刷新成功后清掉；在线分区脚注靠它留一行失败提示，不再静默失败）。
 static BOOL ghlOnlineFetchFailed = NO;
 
-@interface GHLSimpleVoicePackageViewController : UITableViewController <UISearchBarDelegate>
+@interface GHLSimpleVoicePackageViewController : UITableViewController <UISearchBarDelegate, UIDocumentPickerDelegate>
 @property(nonatomic, strong) UISearchBar *searchBar;
 @property(nonatomic, copy) NSString *searchText;
 @property(nonatomic, strong, nullable) UIImage *backgroundImage;
@@ -2546,12 +2547,13 @@ static BOOL ghlOnlineFetchFailed = NO;
     self.tableView.tableHeaderView = self.searchBar;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     // 1.0.28：右上角只留「刷新在线」（+ 菜单、导入、文件夹、导出、试听下载全随旧管理器砍掉）。
-    self.navigationItem.rightBarButtonItem = self.ghlReplacePickMode ? nil : [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+    // 1.0.42：挑选模式右上角改成「添加」——从文件里选一段音频导进「我的导入」。
+    self.navigationItem.rightBarButtonItem = self.ghlReplacePickMode ? [[UIBarButtonItem alloc] initWithTitle:@"添加" style:UIBarButtonItemStylePlain target:self action:@selector(ghlAddAudio)] : [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
     // 1.0.28：长按一行只留收藏/取消收藏。
-    if (!self.ghlReplacePickMode) {
-        UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlRowLongPressed:)];
-        [self.tableView addGestureRecognizer:longPress];
-    }
+    // 1.0.41：「我的导入」里的本地语音长按改成删除（收藏改按行右侧的 ★ 按钮）。
+    // 1.0.42：挑选模式也要长按删除（原来挑选模式没装长按手势）；挑选页只列「我的导入」，长按到的都是本地项。
+    UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlRowLongPressed:)];
+    [self.tableView addGestureRecognizer:longPress];
     [self ghlApplyAppearance];
 }
 
@@ -2593,6 +2595,37 @@ static BOOL ghlOnlineFetchFailed = NO;
         [self.tableView reloadData];
       });
     });
+}
+
+// 1.0.42：挑选模式「添加」——从文件里选一段音频导进「我的导入」。
+// 只收音频文件（public.audio），复用 GHLImportVoiceAudioFileAtURL：音频直接复制＋登记，
+// 视频文件才转码；不是 .m4a 的不用在添加时转，选来替换时再按 1.0.39 的老办法转。
+- (void)ghlAddAudio {
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.audio"] inMode:UIDocumentPickerModeImport];
+    picker.delegate = self;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+#pragma mark UIDocumentPickerDelegate
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *url = urls.firstObject;
+    if (!url) return;
+    // 文件 App 选出来的 URL 可能是沙盒外的，先拿安全访问权限；导入完成（成功失败都算）再放掉。
+    BOOL accessing = [url startAccessingSecurityScopedResource];
+    __weak __typeof(self) weakSelf = self;
+    GHLImportVoiceAudioFileAtURL(url, ^(BOOL success, NSString * _Nullable name) {
+      if (accessing) [url stopAccessingSecurityScopedResource];
+      if (!success) return;
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      [strongSelf.tableView reloadData];
+      GHLLog(@"语音替换挑选：已添加音频「%@」", name ?: @"");
+    });
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+    // 取消不做事。
 }
 
 // 1.0.28：长按一行只留收藏/取消收藏（确认框点一下就好，不再出多项菜单）。
@@ -2714,7 +2747,8 @@ static BOOL ghlOnlineFetchFailed = NO;
     }
     if ([categories[section] isEqualToString:@"内置"]) return nil;
     // 1.0.39：挑选模式——点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换。
-    if (self.ghlReplacePickMode) return @"点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换（内置/在线音色没有本地文件）。";
+    // 1.0.42：长按一行可以删除；点右上角「添加」可以从文件里导音频进来。
+    if (self.ghlReplacePickMode) return @"点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换（内置/在线音色没有本地文件）；长按一行可以删除；点右上角「添加」可以导入音频文件。";
     // 1.0.28：我的导入——长按视频导进来的音频都在这里，点一下就播放（不能用来合成文字）。
     // 1.0.41：长按一行可以删除不喜欢的语音（弹确认再删）。
     return @"长按视频选「导入至语音包」就能把当前作品的音频存到这里；点行播放（不能用来合成文字）；长按一行可以删除。";

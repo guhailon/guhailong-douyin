@@ -5108,10 +5108,12 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
 %end
 %end
 
-// 1.0.41：长按语音评论时，把保存行「下载到相册」改成「保存语音」（单独出来，不再顶着抖音的名字）。
+// 1.0.41：长按语音评论时，把保存行改成「保存语音」（单独出来，不再顶着抖音的名字）。
+// 1.0.42 修正：1.0.41 的 guard 只认「下载到相册」，但 Lee 照片证实抖音那行实际叫「保存到相册」，
+// 改名从没触发过；现在两串都认（不同抖音版本用字可能不同）。
 // 标题来源假说：elementContent 是面板行的标题——同协议的 Report 元素在 AwemeHeaders.h 里同时声明了
 // elementContent＋elementImage（内容＋图标就是标题＋图标），SaveImageElement 应该是同款协议。
-// 替换是运行时验证过才换：只当 %orig 回来的正好是 NSString/NSAttributedString「下载到相册」才换成新标题，
+// 替换是运行时验证过才换：只当 %orig 回来的是 NSString/NSAttributedString「保存到相册」或「下载到相册」才换成新标题，
 // 其它一律原样返回；所以就算 elementContent 不是标题，这钩子也不会改坏任何东西。
 // 换没换、elementContent 到底返回了什么，日志里「标题探针：」一行写明（下版定位就靠它）。
 // %orig 安全：%ctor 里只当类真实现了 elementContent 才 %init 这一组（方法不存在时 %orig 会指到空实现）。
@@ -5134,15 +5136,15 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
         if (![DYYYUtils commentHasVoiceAudio:selected]) {
             return originalContent;
         }
-        if ([originalContent isKindOfClass:[NSString class]] && [(NSString *)originalContent isEqualToString:@"下载到相册"]) {
-            GHLLog(@"标题探针：elementContent 是标题（NSString「下载到相册」），已改成「%@」", GHL_COMMENT_VOICE_SAVE_TITLE);
+        if ([originalContent isKindOfClass:[NSString class]] && ([(NSString *)originalContent isEqualToString:@"保存到相册"] || [(NSString *)originalContent isEqualToString:@"下载到相册"])) {
+            GHLLog(@"标题探针：elementContent 是标题（NSString「%@」），已改成「%@」", (NSString *)originalContent, GHL_COMMENT_VOICE_SAVE_TITLE);
             return GHL_COMMENT_VOICE_SAVE_TITLE;
         }
         if ([originalContent isKindOfClass:[NSAttributedString class]]) {
             NSAttributedString *attrContent = (NSAttributedString *)originalContent;
-            if ([attrContent.string isEqualToString:@"下载到相册"]) {
+            if ([attrContent.string isEqualToString:@"保存到相册"] || [attrContent.string isEqualToString:@"下载到相册"]) {
                 NSDictionary *attrs = attrContent.length > 0 ? [attrContent attributesAtIndex:0 effectiveRange:NULL] : @{};
-                GHLLog(@"标题探针：elementContent 是标题（NSAttributedString「下载到相册」），已改成「%@」", GHL_COMMENT_VOICE_SAVE_TITLE);
+                GHLLog(@"标题探针：elementContent 是标题（NSAttributedString「%@」），已改成「%@」", attrContent.string, GHL_COMMENT_VOICE_SAVE_TITLE);
                 return [[NSAttributedString alloc] initWithString:GHL_COMMENT_VOICE_SAVE_TITLE attributes:attrs];
             }
         }
