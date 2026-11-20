@@ -3668,16 +3668,8 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
                 @"imageName" : @"ic_xspeed_outlined"}];
       [speedButtonItems addObject:enableSpeedButton];
       [speedButtonItems addObject:[DYYYSettingsHelper createSettingItem:@{@"identifier":DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY, @"title":@"固定按钮贴边", @"detail":@"", @"cellType":@6, @"imageName":@"ic_switch_outlined"}]];
-      [speedButtonItems addObject:[DYYYSettingsHelper createSettingItem:@{
-              @"identifier" : @"DYYYAutoHideSpeedButton",
-              @"title" : @"自动隐藏快捷倍速按钮",
-              @"detail" : @"",
-              @"cellType" : @6,
-              @"imageName" : @"ic_eyeslash_outlined_16"
-          }]];
-      [speedButtonItems addObject:[DYYYSettingsHelper floatingButtonInputItemForKey:@"DYYYAutoHideSpeedButtonTime" title:@"隐藏快捷倍速按钮时间" placeholder:@"秒，默认 30" minimum:0.1 maximum:86400]];
-      [speedButtonItems addObject:[DYYYSettingsHelper floatingButtonInputItemForKey:@"DYYYSpeedButtonCenterXPercent" title:@"按钮横坐标" placeholder:@"0–1，按当前容器比例" minimum:0 maximum:1]];
-      [speedButtonItems addObject:[DYYYSettingsHelper floatingButtonInputItemForKey:@"DYYYSpeedButtonCenterYPercent" title:@"按钮纵坐标" placeholder:@"0–1，按当前容器比例" minimum:0 maximum:1]];
+      // 1.0.43 C4：贴边自动隐藏已删（v3.0 模型无此行为），自动隐藏开关／时间／百分比坐标三行一并拿掉；
+      // 按钮位置改存 DYYYHideUIButtonPosition／DYYYSpeedButtonPosition 一个字串，旧百分比键只留一次性迁移读取。
       [speedButtonItems addObject:[DYYYSettingsHelper floatingButtonResetItemForSpeed:YES]];
 
 
@@ -3822,8 +3814,7 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
                 @"imageName" : @"ic_eyeslash_outlined_16"}];
       [clearButtonItems addObject:enableClearButton];
       [clearButtonItems addObject:[DYYYSettingsHelper createSettingItem:@{@"identifier":DYYY_CLEAR_BUTTON_STICK_TO_EDGE_KEY, @"title":@"固定按钮贴边", @"detail":@"", @"cellType":@6, @"imageName":@"ic_switch_outlined"}]];
-      [clearButtonItems addObject:[DYYYSettingsHelper floatingButtonInputItemForKey:@"DYYYHideButtonCenterXPercent" title:@"按钮横坐标" placeholder:@"0–1，按当前容器比例" minimum:0 maximum:1]];
-      [clearButtonItems addObject:[DYYYSettingsHelper floatingButtonInputItemForKey:@"DYYYHideButtonCenterYPercent" title:@"按钮纵坐标" placeholder:@"0–1，按当前容器比例" minimum:0 maximum:1]];
+      // 1.0.43 C4：同倍速按钮，百分比坐标两行拿掉（位置改存 DYYYHideUIButtonPosition 一个字串）。
       [clearButtonItems addObject:[DYYYSettingsHelper floatingButtonResetItemForSpeed:NO]];
 
 
@@ -3931,16 +3922,7 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
           @"imageName" : @"ic_eyeslash_outlined_16"
       }];
       [clearButtonItems addObject:hideSpeedButton];
-      // 清屏后隐藏清屏按钮自身（仍可点击恢复）
-      AWESettingItemModel *hideClearButtonOnTap = [DYYYSettingsHelper createSettingItem:@{
-          @"identifier" : @"DYYYHideClearButtonOnTap",
-          @"title" : @"清屏隐藏清屏按钮",
-          @"subTitle" : @"清屏后隐藏清屏按钮自身，原位置仍可点击恢复",
-          @"detail" : @"",
-          @"cellType" : @37,
-          @"imageName" : @"ic_eyeslash_outlined_16"
-      }];
-      [clearButtonItems addObject:hideClearButtonOnTap];
+      // 1.0.43 C4：清屏按钮点按自隐藏已删（v3.0 模型无此行为），「清屏隐藏清屏按钮」行一并拿掉。
       AWESettingItemModel *hidePauseVideoIcon = [DYYYSettingsHelper createSettingItem:@{
           @"identifier" : @"DYYYHidePauseVideoIcon",
           @"title" : @"清屏隐藏暂停图标",

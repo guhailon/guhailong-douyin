@@ -589,8 +589,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
         ],
         @[
             [DYYYSettingItem itemWithTitle:@"启用快捷倍速按钮" key:@"DYYYEnableFloatSpeedButton" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"隐藏快捷倍速按钮时间" key:@"DYYYAutoHideSpeedButtonTime" type:DYYYSettingItemTypeTextField placeholder:@"s"],
-            [DYYYSettingItem itemWithTitle:@"自动隐藏快捷倍速按钮" key:@"DYYYAutoHideSpeedButton" type:DYYYSettingItemTypeSwitch],
+            // 1.0.43 C4：自动隐藏两行已删（v3.0 模型无贴边自动隐藏，开关无人读）。
             [DYYYSettingItem itemWithTitle:@"快捷倍速数值设置" key:@"DYYYSpeedSettings" type:DYYYSettingItemTypeTextField placeholder:@"逗号分隔"],
             [DYYYSettingItem itemWithTitle:@"自动恢复默认倍速" key:@"DYYYAutoRestoreSpeed" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"倍速按钮显示后缀" key:@"DYYYSpeedButtonShowX" type:DYYYSettingItemTypeSwitch],

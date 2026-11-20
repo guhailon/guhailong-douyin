@@ -116,10 +116,10 @@
               @"DYYYEnableArea" : @[ @"DYYYGeonamesUsername", @"DYYYLabelColor", @"DYYYEnableRandomGradient" ],
               @"DYYYShowScheduleDisplay" : @[ @"DYYYScheduleStyle", @"DYYYProgressLabelColor", @"DYYYTimelineVerticalPosition" ],
               @"DYYYEnableNotificationTransparency" : @[ @"DYYYNotificationCornerRadius" ],
-              @"DYYYEnableFloatSpeedButton" : @[ @"DYYYAutoRestoreSpeed", @"DYYYSpeedButtonShowX", @"DYYYSpeedButtonSize", @"DYYYSpeedSettings", @"DYYYAutoHideSpeedButton", DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY, DYYY_RESET_SPEED_BUTTON_POSITION_KEY, @"DYYYSpeedButtonCenterXPercent", @"DYYYSpeedButtonCenterYPercent" ],
+              @"DYYYEnableFloatSpeedButton" : @[ @"DYYYAutoRestoreSpeed", @"DYYYSpeedButtonShowX", @"DYYYSpeedButtonSize", @"DYYYSpeedSettings", DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY, DYYY_RESET_SPEED_BUTTON_POSITION_KEY ],
               @"DYYYEnableFloatClearButton" : @[
-                  DYYY_CLEAR_BUTTON_STICK_TO_EDGE_KEY, DYYY_RESET_CLEAR_BUTTON_POSITION_KEY, @"DYYYHideButtonCenterXPercent", @"DYYYHideButtonCenterYPercent", @"DYYYClearButtonIcon", @"DYYYEnableFloatClearButtonSize", @"DYYYRemoveTimeProgress", @"DYYYHideTimeProgress", @"DYYYHideDanmaku", @"DYYYHideSlider", @"DYYYHideTabBar",
-                  @"DYYYHideSpeed", @"DYYYHideClearButtonOnTap", @"DYYYHideChapter", @"DYYYHidePauseVideoIcon", @"DYYYHideStatusBarOnClear"
+                  DYYY_CLEAR_BUTTON_STICK_TO_EDGE_KEY, DYYY_RESET_CLEAR_BUTTON_POSITION_KEY, @"DYYYClearButtonIcon", @"DYYYEnableFloatClearButtonSize", @"DYYYRemoveTimeProgress", @"DYYYHideTimeProgress", @"DYYYHideDanmaku", @"DYYYHideSlider", @"DYYYHideTabBar",
+                  @"DYYYHideSpeed", @"DYYYHideChapter", @"DYYYHidePauseVideoIcon", @"DYYYHideStatusBarOnClear"
               ],
               @"DYYYEnableModernPanel" : @[ @"DYYYLongPressPanelBlur", @"DYYYLongPressPanelDark" ],
               @"DYYYEnableDoubleTapMenu" : @[ @"DYYYDoubleTapMenuSettings" ],
@@ -128,8 +128,7 @@
           // ===== 条件依赖配置 =====
           // 一些设置项依赖于多个其他设置项的复杂条件
           @"conditionalDependencies" : @{
-              @"DYYYAutoHideSpeedButton" : @{@"condition":@"AND", @"settings":@[@"DYYYEnableFloatSpeedButton", DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY]},
-              @"DYYYAutoHideSpeedButtonTime" : @{@"condition":@"AND", @"settings":@[@"DYYYEnableFloatSpeedButton", DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY, @"DYYYAutoHideSpeedButton"]},
+              // 1.0.43 C4：DYYYAutoHideSpeedButton／DYYYAutoHideSpeedButtonTime 的条件依赖随死开关行一并删掉。
               @"DYYYCommentBlurTransparent" : @{@"condition" : @"OR", @"settings" : @[ @"DYYYEnableCommentBlur", @"DYYYEnableNotificationTransparency" ]},
           },
 
