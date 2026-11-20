@@ -414,8 +414,6 @@ static NSArray *allSettingsViewControllers(void) {
     [self updateDependentItemsForSetting:identifier value:@(isEnabled)];
 }
 + (void)updateConflictingItemUIState:(NSString *)identifier withValue:(BOOL)value {
-    [self setUserDefaults:@(value) forKey:identifier];
-
     for (AWESettingBaseViewController *settingsVC in allSettingsViewControllers()) {
         AWESettingsViewModel *viewModel = (AWESettingsViewModel *)[settingsVC viewModel];
         if (!viewModel || ![viewModel respondsToSelector:@selector(sectionDataArray)])
@@ -432,6 +430,9 @@ static NSArray *allSettingsViewControllers(void) {
                 if ([item.identifier isEqualToString:identifier]) {
                     if (item.cellType == 6 || item.cellType == 37) {
                         item.isSwitchOn = value;
+                        // 1.0.43 C17：按 v3.0 只在开关行才写 defaults——旧写法会对
+                        // 非开关行也写 @(BOOL)，会盖掉字符串类 key 的值。
+                        [self setUserDefaults:@(value) forKey:identifier];
                     }
                     item.isEnable = value;
                     [item refreshCell];
