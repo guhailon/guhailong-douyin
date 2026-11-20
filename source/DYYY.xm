@@ -8975,7 +8975,12 @@ static NSHashTable *processedParentViews = nil;
     }
 
     // 第二阶段：低赞过滤。字段缺失时放行；只要能解析到数值，就严格按阈值过滤。
+    // 1.0.43 C10：v3.0 的回退保护——新版部分链路点赞字段会短暂缺失/回填为 0，
+    // 若一批里大半未知、留下的只剩 1 个或 0 个，就整批放行，避免把推荐流滤空。
     NSMutableArray *lowLikesFiltered = [NSMutableArray arrayWithCapacity:baseFiltered.count];
+    NSInteger awemeCount = 0;
+    NSInteger unresolvedLikesCount = 0;
+    NSInteger filteredByLowLikesCount = 0;
 
     for (id obj in baseFiltered) {
         if (![obj isKindOfClass:%c(AWEAwemeModel)]) {
@@ -8983,19 +8988,38 @@ static NSHashTable *processedParentViews = nil;
             continue;
         }
 
+        awemeCount++;
         AWEAwemeModel *m = (AWEAwemeModel *)obj;
         NSNumber *diggCountValue = [self dyyy_resolvedDiggCountForAweme:m];
+        NSInteger diggCount = diggCountValue.integerValue;
 
-        if (!diggCountValue) {
+        // 新版部分链路点赞字段会短暂缺失/回填为0，这里按未知放行，避免整批误过滤
+        if (!diggCountValue || diggCount <= 0) {
+            unresolvedLikesCount++;
             [lowLikesFiltered addObject:obj];
             continue;
         }
 
-        if (diggCountValue.integerValue < minLikesThreshold) {
+        if (diggCount < minLikesThreshold) {
+            filteredByLowLikesCount++;
             continue;
         }
 
         [lowLikesFiltered addObject:obj];
+    }
+
+    CGFloat unresolvedRatio = awemeCount > 0 ? ((CGFloat)unresolvedLikesCount / (CGFloat)awemeCount) : 0.0f;
+    BOOL shouldRollbackLowLikes = (awemeCount >= 3 && lowLikesFiltered.count <= 1 && unresolvedRatio >= 0.5f);
+    BOOL shouldPreventEmptyBatch = (awemeCount >= 3 && lowLikesFiltered.count == 0 && filteredByLowLikesCount > 0);
+
+    if (shouldRollbackLowLikes || shouldPreventEmptyBatch) {
+        NSLog(@"[DYYY] 低赞过滤回退: total=%ld kept=%ld unresolved=%ld lowLikesFiltered=%ld threshold=%ld",
+              (long)awemeCount,
+              (long)lowLikesFiltered.count,
+              (long)unresolvedLikesCount,
+              (long)filteredByLowLikesCount,
+              (long)minLikesThreshold);
+        return [baseFiltered copy];
     }
 
     return [lowLikesFiltered copy];
