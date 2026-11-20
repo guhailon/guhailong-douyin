@@ -12835,6 +12835,20 @@ static Class TagViewClass = nil;
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 
+    // 1.0.43 C4：v3.0 做法——元素栈透明度归零／回满时，同步评论可见标志＋刷新两个悬浮按钮
+    //（纯净模式那段定时器不并，咱们的纯净模式走原有实现；isApplyingGlobal 里的清屏条件留着）。
+    BOOL hasFloatingButtons = (speedButton && isFloatSpeedButtonEnabled) || hideButton;
+    if (!isApplyingGlobal && hasFloatingButtons && !dyyyIsPerformingFloatClearOperation) {
+        const CGFloat threshold = 0.01f;
+        if (alpha <= threshold) {
+            dyyyCommentViewVisible = YES;
+        } else if (alpha >= (1.0f - threshold)) {
+            dyyyCommentViewVisible = NO;
+        }
+        updateSpeedButtonVisibility();
+        updateClearButtonVisibility();
+    }
+
     // 值守全局透明度
     CGFloat finalAlpha = alpha;
     if (!isApplyingGlobal && self.tag != DYYY_IGNORE_GLOBAL_ALPHA_TAG && gGlobalTransparency != kInvalidAlpha) {
@@ -13045,6 +13059,17 @@ static Class TagViewClass = nil;
     BOOL isApplyingGlobal = (dyyyGlobalTransparencyMutationDepth > 0 || dyyyIsPerformingFloatClearOperation);
     if (!isApplyingGlobal) {
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    // 1.0.43 C4：v3.0 做法——直播元素栈透明度归零／回满时，同步评论可见标志＋刷新两个悬浮按钮。
+    if (!isApplyingGlobal && speedButton && isFloatSpeedButtonEnabled) {
+        if (alpha == 0) {
+            dyyyCommentViewVisible = YES;
+        } else if (alpha == 1) {
+            dyyyCommentViewVisible = NO;
+        }
+        updateSpeedButtonVisibility();
+        updateClearButtonVisibility();
     }
 
     CGFloat finalAlpha = alpha;
