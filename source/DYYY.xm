@@ -4593,8 +4593,14 @@ static NSArray<NSString *> *dyyy_qualityRank = nil;
 static CGFloat currentLongPressSpeed = 0;
 static CGFloat initialTouchX = 0;
 static BOOL isGestureActive = NO;
+// 1.0.43 C1：v3.0 的 2.0 切换标志（第一次按 2.0 用设定倍速，再按一次回 1.0）。
+static BOOL hasChangedSpeed = NO;
 
 - (CGFloat)longPressFastSpeedValue {
+    // 1.0.43 C1：长按期间抖音会持续读取本方法来驱动倍速；上下滑时必须返回实时档位，否则会被原值压回。
+    if (isGestureActive && currentLongPressSpeed > 0) {
+        return currentLongPressSpeed;
+    }
     float longPressSpeed = DYYYGetFloat(@"DYYYLongPressSpeed");
     if (longPressSpeed == 0) {
         longPressSpeed = 2.0;
@@ -4612,8 +4618,23 @@ static BOOL isGestureActive = NO;
         return;
     }
 
-    if (speed == 2.0 && longPressSpeed != 0 && longPressSpeed != 2.0) {
-        %orig(longPressSpeed);
+    if (speed == 2.0) {
+        // 1.0.43 C1：v3.0 的切换逻辑——第一次按 2.0 用设定倍速，再按一次回 1.0。
+        if (!hasChangedSpeed) {
+            if (longPressSpeed != 0 && longPressSpeed != 2.0) {
+                hasChangedSpeed = YES;
+                %orig(longPressSpeed);
+                return;
+            }
+        } else {
+            hasChangedSpeed = NO;
+            %orig(1.0);
+            return;
+        }
+    }
+
+    if (longPressSpeed == 0 || longPressSpeed == 2) {
+        %orig(speed);
         return;
     }
 
@@ -4725,6 +4746,80 @@ static BOOL isGestureActive = NO;
 %end
 %end
 
+// 1.0.43 C1＋A2：DPlayer 流（41.x 新版主信息流）长按倍速——把老架构逻辑移植到 AWEDSpeed* 容器族（v3.0 做法）。
+// 39.1.0 上这几个类不存在就不挂钩（%ctor 里查类存在才 %init）；旧 AWEPlayInteractionSpeedController 那套留着给 39.x 用。
+%group DYYYDSpeedGroup
+static BOOL dyyyDPSpeedGestureActive = NO;
+static CGFloat dyyyDPSpeedCurrent = 0;
+static CGFloat DYYYLongPressSetSpeedValue(void) {
+    if (dyyyDPSpeedGestureActive && dyyyDPSpeedCurrent > 0) {
+        return dyyyDPSpeedCurrent;
+    }
+    float s = DYYYGetFloat(@"DYYYLongPressSpeed");
+    return (s == 0) ? 2.0 : s;
+}
+
+%hook AWEDSpeedCoreContainer
+- (double)longPressFastSpeedValue {
+    double v = (double)DYYYLongPressSetSpeedValue();
+    return v;
+}
+
+- (void)handleFastSpeed:(id)gesture {
+    %orig;
+    if (!DYYYGetBool(@"DYYYEnableLongPressSpeedGesture")) {
+        return;
+    }
+    if (![gesture isKindOfClass:[UIGestureRecognizer class]]) {
+        return;
+    }
+    UIGestureRecognizer *g = (UIGestureRecognizer *)gesture;
+    CGPoint location = [g locationInView:g.view];
+    static CGFloat dpInitialY = 0;
+    if (g.state == UIGestureRecognizerStateBegan) {
+        dpInitialY = location.y;
+        dyyyDPSpeedGestureActive = YES;
+        float s = DYYYGetFloat(@"DYYYLongPressSpeed");
+        dyyyDPSpeedCurrent = (s == 0) ? 2.0 : s;
+    } else if (g.state == UIGestureRecognizerStateChanged && dyyyDPSpeedGestureActive) {
+        CGFloat deltaY = location.y - dpInitialY;
+        if (fabs(deltaY) > 10.0) {
+            CGFloat newSpeed = dyyyDPSpeedCurrent + ((deltaY > 0) ? 0.25 : -0.25);
+            newSpeed = MAX(0.5, MIN(3.0, newSpeed));
+            if (newSpeed != dyyyDPSpeedCurrent) {
+                dyyyDPSpeedCurrent = newSpeed;
+                dpInitialY = location.y;
+                ((void (*)(id, SEL, double))objc_msgSend)(self, @selector(changeSpeed:), (double)newSpeed);
+            }
+        }
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        dyyyDPSpeedGestureActive = NO;
+        dyyyDPSpeedCurrent = 0;
+        dpInitialY = 0;
+    }
+}
+%end
+
+%hook AWEDSpeedFeedContainer
+- (double)longPressFastSpeedValue {
+    double v = (double)DYYYLongPressSetSpeedValue();
+    return v;
+}
+%end
+
+%hook AWEDSpeedPinchContainer
+- (double)longPressFastSpeedValue {
+    return (double)DYYYLongPressSetSpeedValue();
+}
+%end
+
+%hook AFDPureModePageLongPressFastSpeedController
+- (double)longPressFastSpeedValue {
+    return (double)DYYYLongPressSetSpeedValue();
+}
+%end
+%end
+
 %hook UILabel
 
 - (void)setText:(NSString *)text {
@@ -4743,8 +4838,11 @@ static BOOL isGestureActive = NO;
             speedString = [speedString substringToIndex:speedString.length - 1];
         }
 
-        if ([text containsString:@"2"]) {
-            text = [text stringByReplacingOccurrencesOfString:@"2" withString:speedString];
+        // 1.0.43 C1：只替换官方文案里的第一个数字（旧版把所有 "2" 都换掉是 bug，v3.0 改正则）。
+        NSRegularExpression *dyyySpeedRe = [NSRegularExpression regularExpressionWithPattern:@"[0-9]+(\\.[0-9]+)?" options:0 error:nil];
+        NSTextCheckingResult *dyyySpeedMatch = [dyyySpeedRe firstMatchInString:text options:0 range:NSMakeRange(0, text.length)];
+        if (dyyySpeedMatch) {
+            text = [text stringByReplacingCharactersInRange:dyyySpeedMatch.range withString:speedString];
         }
     }
 
@@ -13580,6 +13678,12 @@ static void findTargetViewInView(UIView *view) {
             [control getArgumentTypeAtIndex:2][0] == '@' && locked.numberOfArguments == 2 &&
             (locked.methodReturnType[0] == 'B' || locked.methodReturnType[0] == 'c')) {
             %init(DYYYLongPressControlCallback);
+        }
+
+        // 1.0.43 C1＋A2：DSpeed 长按倍速（41.x 容器族；39.1.0 上类不存在就不挂钩，旧倍速那套继续用）。
+        if (objc_getClass("AWEDSpeedCoreContainer") || objc_getClass("AWEDSpeedFeedContainer") ||
+            objc_getClass("AWEDSpeedPinchContainer") || objc_getClass("AFDPureModePageLongPressFastSpeedController")) {
+            %init(DYYYDSpeedGroup);
         }
 
         // 初始化红包激励挂件容器视图类组
