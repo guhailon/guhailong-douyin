@@ -9,7 +9,6 @@
 
 #import "DYYYToast.h"
 #import "DYYYUtils.h"
-#import "DYYYDownloadScheduler.h"
 #import "DYYYConstants.h"
 #import "GHLFeatures.h"
 
@@ -19,15 +18,9 @@
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *albumDescriptionMap;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSURLSessionDownloadTask *> *downloadTasks;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, DYYYToast *> *progressViews;
-@property(nonatomic, strong) DYYYDownloadScheduler *downloadScheduler;
-@property(nonatomic, strong) NSURLSession *downloadSession;
-@property(nonatomic, strong) NSOperationQueue *downloadDelegateQueue;
-@property(nonatomic, strong) dispatch_queue_t mediaProcessingQueue;
-@property(nonatomic, strong) NSMutableArray<void (^)(dispatch_block_t)> *mediaJobs;
-@property(nonatomic, assign) BOOL mediaJobActive;
-@property(nonatomic, strong) NSMutableDictionary<NSString *, void (^)(BOOL, NSURL *)> *transferCompletionBlocks;
+// C9（v3.0）：删掉 DYYYDownloadScheduler，改回内置 NSOperationQueue（最大并发 3）。
+@property(nonatomic, strong) NSOperationQueue *downloadQueue;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, void (^)(float)> *transferProgressBlocks;
-@property(nonatomic, strong) NSMutableDictionary<NSString *, dispatch_block_t> *cancellationHandlers;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *taskProgressMap;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, void (^)(BOOL success, NSURL *fileURL)> *completionBlocks;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *mediaTypeMap;
@@ -254,20 +247,10 @@
         _albumDescriptionMap = [NSMutableDictionary dictionary];
         _downloadTasks = [NSMutableDictionary dictionary];
         _progressViews = [NSMutableDictionary dictionary];
-        _downloadScheduler = [[DYYYDownloadScheduler alloc] initWithMaximumConcurrentDownloads:3];
-        _downloadDelegateQueue = [[NSOperationQueue alloc] init];
-        _downloadDelegateQueue.maxConcurrentOperationCount = 1;
-        _downloadDelegateQueue.qualityOfService = NSQualityOfServiceUtility;
-        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
-        configuration.HTTPMaximumConnectionsPerHost = 3;
-        configuration.timeoutIntervalForRequest = 60;
-        configuration.timeoutIntervalForResource = 300;
-        _downloadSession = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:_downloadDelegateQueue];
-        _mediaProcessingQueue = dispatch_queue_create("com.dyyy.media.processing", DISPATCH_QUEUE_SERIAL);
-        _mediaJobs = [NSMutableArray array];
-        _transferCompletionBlocks = [NSMutableDictionary dictionary];
+        // C9（v3.0）：内置下载队列，最大并发 3，取代 DYYYDownloadScheduler。
+        _downloadQueue = [[NSOperationQueue alloc] init];
+        _downloadQueue.maxConcurrentOperationCount = 3;
         _transferProgressBlocks = [NSMutableDictionary dictionary];
-        _cancellationHandlers = [NSMutableDictionary dictionary];
         _taskProgressMap = [NSMutableDictionary dictionary];
         _completionBlocks = [NSMutableDictionary dictionary];
         _mediaTypeMap = [NSMutableDictionary dictionary];
@@ -309,10 +292,9 @@
         DYYYToast *view = [[DYYYToast alloc] initWithFrame:UIScreen.mainScreen.bounds];
         manager.progressViews[identifier] = view;
         [view show];
-        view.cancelBlock = ^{ [self cancelAllDownloads]; };
-        manager.cancellationHandlers[identifier] = ^{ [cancellation cancel]; };
+        // C9：取消直接取消本次的 NSProgress 再取消全部下载，不再走 cancellationHandlers。
+        view.cancelBlock = ^{ [cancellation cancel]; [self cancelAllDownloads]; };
         void (^finish)(BOOL) = ^(BOOL success) {
-            [manager.cancellationHandlers removeObjectForKey:identifier];
             [manager.progressViews removeObjectForKey:identifier];
             view.cancelBlock = nil;
             view.allowSuccessAnimation = success && !cancellation.cancelled;
@@ -324,7 +306,7 @@
         __block BOOL imageReady = NO, videoReady = NO;
         __block float imageProgress = 0, videoProgress = 0;
         dispatch_group_enter(downloads);
-        [manager enqueueDownloadURL:imageURL destinationURL:imageFile progress:^(float value) {
+        [manager startDownloadTaskWithURL:imageURL destinationURL:imageFile progress:^(float value) {
             imageProgress = value;
             if (!cancellation.cancelled) [view setProgress:(imageProgress + videoProgress) / 2];
         } completion:^(BOOL success, NSURL *fileURL) {
@@ -332,7 +314,7 @@
             dispatch_group_leave(downloads);
         }];
         dispatch_group_enter(downloads);
-        [manager enqueueDownloadURL:videoURL destinationURL:videoFile progress:^(float value) {
+        [manager startDownloadTaskWithURL:videoURL destinationURL:videoFile progress:^(float value) {
             videoProgress = value;
             if (!cancellation.cancelled) [view setProgress:(imageProgress + videoProgress) / 2];
         } completion:^(BOOL success, NSURL *fileURL) {
@@ -441,7 +423,9 @@
         }
         NSURL *destination = [DYYYUtils uniqueTemporaryFileURLWithFileName:fileName];
         __block NSString *downloadID;
-        downloadID = [manager enqueueDownloadURL:url destinationURL:destination progress:^(float value) {
+        // C9（v3.0）：每次下载建自己的 NSURLSession，不再走共享 downloadSession + Scheduler；
+        // 完成回调直接挂在 completionBlocks 上（v3.0 的做法），不再经过 transferCompletionBlocks / finishTransfer。
+        downloadID = [manager startDownloadTaskWithURL:url destinationURL:destination progress:^(float value) {
             if (!view.isCancelled) [view setProgress:value];
             if (progressBlock) progressBlock(value);
         } completion:^(BOOL success, NSURL *fileURL) {
@@ -457,7 +441,6 @@
             }
         }];
         manager.progressViews[downloadID] = view;
-        [manager setCompletionBlock:completion forDownloadID:downloadID];
         [manager setMediaType:mediaType forDownloadID:downloadID];
         manager.albumDescriptionMap[downloadID] = albumDescription ?: @"";
     });
@@ -469,15 +452,21 @@
         return;
     }
     DYYYManager *manager = self.shared;
-    NSArray<dispatch_block_t> *handlers = manager.cancellationHandlers.allValues;
-    [manager.cancellationHandlers removeAllObjects];
+    // C9（v3.0）：不再走 downloadScheduler；先清批次账本，让取消后到的收尾回调不再计入批次
+    //（各下载入口的 cancelBlock 在调这里之前已先读走了成功数／取消了自己的 NSProgress，见 finishBatch 取消分支的内联处理）。
+    [manager.batchTotalCountMap removeAllObjects];
+    [manager.batchCompletedCountMap removeAllObjects];
+    [manager.batchSuccessCountMap removeAllObjects];
+    [manager.batchProgressBlocks removeAllObjects];
+    [manager.batchCompletionBlocks removeAllObjects];
+    [manager.downloadToBatchMap removeAllObjects];
     for (DYYYToast *view in manager.progressViews.allValues) {
         view.isCancelled = YES;
         [view dismiss];
     }
+    [manager.progressViews removeAllObjects];
     // 保留任务映射到终止回调，避免取消丢失 completion 和清理机会。
-    [manager.downloadScheduler cancelAllTasks];
-    for (dispatch_block_t handler in handlers) handler();
+    for (NSURLSessionDownloadTask *task in manager.downloadTasks.allValues) [task cancel];
 }
 
 + (void)downloadAllImages:(NSMutableArray *)imageURLs {
@@ -499,9 +488,14 @@
         DYYYToast *view = [[DYYYToast alloc] initWithFrame:UIScreen.mainScreen.bounds];
         manager.progressViews[batchID] = view;
         [view show];
-        view.cancelBlock = ^{ [self cancelAllDownloads]; };
+        // C9：取消时先读走已成功数再取消全部下载，completion 在这里内联触发（原 finishBatch 的取消分支）。
+        view.cancelBlock = ^{
+            NSInteger successes = [manager.batchSuccessCountMap[batchID] integerValue];
+            NSInteger total = [manager.batchTotalCountMap[batchID] integerValue];
+            [self cancelAllDownloads];
+            if (completion) completion(successes, total);
+        };
         [manager setBatchInfo:batchID totalCount:urls.count progressBlock:progressBlock completionBlock:completion];
-        manager.cancellationHandlers[batchID] = ^{ [manager finishBatch:batchID cancelled:YES]; };
         for (id value in urls) {
             NSURL *url = [value isKindOfClass:NSString.class] ? [NSURL URLWithString:value] : nil;
             if (!url) {
@@ -510,9 +504,9 @@
             }
             NSURL *destination = [DYYYUtils uniqueTemporaryFileURLWithFileName:url.lastPathComponent.length ? url.lastPathComponent : @"image.jpg"];
             __block NSString *downloadID;
-            downloadID = [manager enqueueDownloadURL:url destinationURL:destination progress:nil completion:^(BOOL success, NSURL *fileURL) {
+            downloadID = [manager startDownloadTaskWithURL:url destinationURL:destination progress:nil completion:^(BOOL success, NSURL *fileURL) {
                 if (!manager.batchTotalCountMap[batchID]) {
-                    if (fileURL) dispatch_async(manager.mediaProcessingQueue, ^{ [NSFileManager.defaultManager removeItemAtURL:fileURL error:nil]; });
+                    if (fileURL) [manager removeTemporaryFiles:@[fileURL]];
                     [manager finalizeDownloadWithID:downloadID success:NO fileURL:fileURL];
                     return;
                 }
@@ -569,28 +563,24 @@
     [self.progressViews[batchID] setProgress:(float)completed / MAX(1, total.integerValue)];
     void (^progress)(NSInteger, NSInteger) = self.batchProgressBlocks[batchID];
     if (progress) progress(completed, total.integerValue);
-    if (completed >= total.integerValue) [self finishBatch:batchID cancelled:NO];
-}
-
-- (void)finishBatch:(NSString *)batchID cancelled:(BOOL)cancelled {
-    NSNumber *total = self.batchTotalCountMap[batchID];
-    if (!total) return;
-    NSInteger successes = [self.batchSuccessCountMap[batchID] integerValue];
-    void (^completion)(NSInteger, NSInteger) = self.batchCompletionBlocks[batchID];
-    DYYYToast *view = self.progressViews[batchID];
-    // 先删除完成入口，再调用业务回调，允许回调重入或启动下一批。
-    [self.batchTotalCountMap removeObjectForKey:batchID];
-    [self.batchCompletedCountMap removeObjectForKey:batchID];
-    [self.batchSuccessCountMap removeObjectForKey:batchID];
-    [self.batchProgressBlocks removeObjectForKey:batchID];
-    [self.batchCompletionBlocks removeObjectForKey:batchID];
-    [self.cancellationHandlers removeObjectForKey:batchID];
-    [self.progressViews removeObjectForKey:batchID];
-    for (NSString *downloadID in [self.downloadToBatchMap allKeysForObject:batchID]) [self.downloadToBatchMap removeObjectForKey:downloadID];
-    view.cancelBlock = nil;
-    view.allowSuccessAnimation = !cancelled && successes == total.integerValue;
-    [view dismiss];
-    if (completion) completion(successes, total.integerValue);
+    if (completed >= total.integerValue) {
+        // C9（v3.0）：finishBatch 已删，收尾内联在这里。
+        NSInteger successes = [self.batchSuccessCountMap[batchID] integerValue];
+        void (^completion)(NSInteger, NSInteger) = self.batchCompletionBlocks[batchID];
+        DYYYToast *view = self.progressViews[batchID];
+        // 先删除完成入口，再调用业务回调，允许回调重入或启动下一批。
+        [self.batchTotalCountMap removeObjectForKey:batchID];
+        [self.batchCompletedCountMap removeObjectForKey:batchID];
+        [self.batchSuccessCountMap removeObjectForKey:batchID];
+        [self.batchProgressBlocks removeObjectForKey:batchID];
+        [self.batchCompletionBlocks removeObjectForKey:batchID];
+        [self.progressViews removeObjectForKey:batchID];
+        for (NSString *downloadID in [self.downloadToBatchMap allKeysForObject:batchID]) [self.downloadToBatchMap removeObjectForKey:downloadID];
+        view.cancelBlock = nil;
+        view.allowSuccessAnimation = successes == total.integerValue;
+        [view dismiss];
+        if (completion) completion(successes, total.integerValue);
+    }
 }
 
 // 保存完成回调
@@ -772,40 +762,48 @@
     return freed;
 }
 
-#pragma mark - 统一下载调度
+#pragma mark - 统一下载调度（C9：v3.0 的做法）
 
 - (NSURL *)destinationURLForTask:(NSURLSessionTask *)task {
     return objc_getAssociatedObject(task, @selector(destinationURLForTask:));
 }
 
-- (NSString *)enqueueDownloadURL:(NSURL *)url
-                 destinationURL:(NSURL *)destinationURL
-                       progress:(void (^)(float))progress
-                     completion:(void (^)(BOOL, NSURL *))completion {
+// C9（v3.0）：每次下载建自己的 NSURLSession（delegate=self，主队列回调），不再用共享
+// downloadSession + DYYYDownloadScheduler；完成回调挂在 completionBlocks 上，由
+// NSURLSessionDownloadDelegate 的两个回调直接触发，不再经过 finishTransfer。
+// 返回 downloadID；调用方用它在 progressViews / albumDescriptionMap 里挂状态。
+- (NSString *)startDownloadTaskWithURL:(NSURL *)url
+                      destinationURL:(NSURL *)destinationURL
+                            progress:(void (^)(float))progress
+                          completion:(void (^)(BOOL, NSURL *))completion {
     NSAssert(NSThread.isMainThread, @"下载状态必须在主线程更新");
     NSString *downloadID = NSUUID.UUID.UUIDString;
-    NSURLSessionDownloadTask *task = [self.downloadSession downloadTaskWithURL:url];
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:[NSOperationQueue mainQueue]];
+    NSURLSessionDownloadTask *task = [session downloadTaskWithURL:url];
     task.taskDescription = downloadID;
     objc_setAssociatedObject(task, @selector(destinationURLForTask:), destinationURL, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     self.downloadTasks[downloadID] = task;
     self.albumDescriptionMap[downloadID] = [DYYYManager currentAlbumDescription] ?: @"";
     self.taskProgressMap[downloadID] = @0;
     if (progress) self.transferProgressBlocks[downloadID] = [progress copy];
-    if (completion) self.transferCompletionBlocks[downloadID] = [completion copy];
-    [self.downloadScheduler enqueueTask:task];
+    if (completion) self.completionBlocks[downloadID] = [completion copy];
+    [task resume];
     return downloadID;
 }
 
-- (void)finishTransfer:(NSURLSessionTask *)task fileURL:(NSURL *)fileURL error:(NSError *)error {
+// 两个 delegate 回调共用的收尾：只认一次（先从 downloadTasks 里摘掉，迟到的第二个回调直接返回），
+// 再调 completionBlocks 里挂的完成块。HTTP >= 400 / 取消 / 搬文件失败都按失败处理。
+- (void)completeDownloadTask:(NSURLSessionTask *)task fileURL:(NSURL *)fileURL error:(NSError *)error {
     NSAssert(NSThread.isMainThread, @"下载收尾必须在主线程更新");
     NSString *downloadID = task.taskDescription;
     if (self.downloadTasks[downloadID] != task) return;
-    void (^completion)(BOOL, NSURL *) = self.transferCompletionBlocks[downloadID];
     [self.downloadTasks removeObjectForKey:downloadID];
-    [self.transferCompletionBlocks removeObjectForKey:downloadID];
-    [self.transferProgressBlocks removeObjectForKey:downloadID];
     [self.taskProgressMap removeObjectForKey:downloadID];
-    [self.downloadScheduler completeTask:task];
+    [self.transferProgressBlocks removeObjectForKey:downloadID];
+    void (^completion)(BOOL, NSURL *) = self.completionBlocks[downloadID];
+    [self.completionBlocks removeObjectForKey:downloadID];
+    [self.mediaTypeMap removeObjectForKey:downloadID];
     if (completion) completion(fileURL != nil && error == nil, fileURL);
 }
 
@@ -826,12 +824,24 @@
         self.taskProgressMap[downloadID] = @(progress);
         void (^callback)(float) = self.transferProgressBlocks[downloadID];
         if (callback) callback(progress);
+        DYYYToast *progressView = self.progressViews[downloadID];
+        if (progressView && !progressView.isCancelled) [progressView setProgress:progress];
     });
 }
 
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)task didFinishDownloadingToURL:(NSURL *)location {
     // delegate 队列处理文件；临时 location 仅在本回调内有效。
     NSURL *destination = [self destinationURLForTask:task];
+    if (!destination) {
+        // 没指定落点的下载（防御分支）：按 v3.0 的做法落到 tmp，以 mediaType 补扩展名。
+        NSString *fileName = task.originalRequest.URL.lastPathComponent;
+        MediaType mediaType = (MediaType)[self.mediaTypeMap[task.taskDescription] integerValue];
+        if (!fileName.pathExtension.length) {
+            NSString *extension = mediaType == MediaTypeVideo ? @"mp4" : mediaType == MediaTypeAudio ? @"mp3" : mediaType == MediaTypeHeic ? @"heic" : @"jpg";
+            fileName = [(fileName.length ? fileName : @"media") stringByAppendingPathExtension:extension];
+        }
+        destination = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:fileName];
+    }
     NSError *error = nil;
     NSInteger status = [(NSHTTPURLResponse *)task.response isKindOfClass:NSHTTPURLResponse.class] ? [(NSHTTPURLResponse *)task.response statusCode] : 200;
     if (status >= 400 || !destination) {
@@ -843,44 +853,24 @@
         [files createDirectoryAtURL:destination.URLByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:&error];
         if (!error) [files moveItemAtURL:location toURL:destination error:&error];
     }
+    NSURL *resultURL = error ? nil : destination;
+    NSError *resultError = error;
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self finishTransfer:task fileURL:error ? nil : destination error:error];
+        [self completeDownloadTask:task fileURL:resultURL error:resultError];
     });
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     if (!error) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ [self finishTransfer:task fileURL:nil error:error]; });
+    dispatch_async(dispatch_get_main_queue(), ^{ [self completeDownloadTask:task fileURL:nil error:error]; });
 }
 
 #pragma mark - 实况照片保存
 
-// 编码器也按完整生命周期串行调度，避免多张图片/实况同时占满编码资源。
-- (void)enqueueMediaJob:(void (^)(dispatch_block_t))job {
-    dispatch_async(self.mediaProcessingQueue, ^{
-        [self.mediaJobs addObject:[job copy]];
-        [self startNextMediaJob];
-    });
-}
-
-- (void)startNextMediaJob {
-    if (self.mediaJobActive || self.mediaJobs.count == 0) return;
-    self.mediaJobActive = YES;
-    void (^job)(dispatch_block_t) = self.mediaJobs.firstObject;
-    [self.mediaJobs removeObjectAtIndex:0];
-    __block BOOL finished = NO;
-    job(^{
-        dispatch_async(self.mediaProcessingQueue, ^{
-            if (finished) return;
-            finished = YES;
-            self.mediaJobActive = NO;
-            [self startNextMediaJob];
-        });
-    });
-}
-
+// C9：enqueueMediaJob / startNextMediaJob 已删（v3.0 没有媒体任务串行队列）；
+// 编码器不再串行调度，见 useAssetWriter / createVideoFromImage 的改动说明。
 - (void)removeTemporaryFiles:(NSArray<NSURL *> *)files {
-    dispatch_async(self.mediaProcessingQueue, ^{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         for (NSURL *url in files) [NSFileManager.defaultManager removeItemAtURL:url error:nil];
     });
 }
@@ -938,13 +928,14 @@
 }
 
 - (void)useAssetWriter:(NSURL *)photoURL video:(NSURL *)videoURL identifier:(NSString *)identifier albumDescription:(NSString *)albumDescription complete:(void (^)(BOOL, NSString *, NSString *, NSError *))complete {
-    [self enqueueMediaJob:^(dispatch_block_t jobDone) {
+    // C9：不再经 enqueueMediaJob 串行调度（v3.0 没有媒体任务队列）；直接放后台全局队列跑，
+    // 多张实况同时转码时不再排队，受 saveLivePhotoBatch 的逐个调用约束（批量仍逐个保存）。
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         @autoreleasepool {
             NSURL *photoFile = [DYYYUtils uniqueTemporaryFileURLWithFileName:@"livephoto.jpg"];
             NSURL *videoFile = [DYYYUtils uniqueTemporaryFileURLWithFileName:@"livephoto.mov"];
             if (![self addMetadataToPhoto:photoURL outputFile:photoFile.path identifier:identifier albumDescription:albumDescription]) {
                 [self removeTemporaryFiles:@[photoFile, videoFile]];
-                jobDone();
                 dispatch_async(dispatch_get_main_queue(), ^{ complete(NO, nil, nil, [self mediaErrorWithDescription:@"图片元数据写入失败"]); });
                 return;
             }
@@ -953,11 +944,10 @@
                     NSLog(@"[DYYY] 实况照片转码失败: %@", error);
                     [self removeTemporaryFiles:@[photoFile, videoFile]];
                 }
-                jobDone();
                 complete(success, success ? photoFile.path : nil, success ? videoFile.path : nil, error);
             }];
         }
-    }];
+    });
 }
 
 - (BOOL)addMetadataToPhoto:(NSURL *)photoURL outputFile:(NSString *)outputFile identifier:(NSString *)identifier albumDescription:(NSString *)albumDescription {
@@ -1276,8 +1266,8 @@
         DYYYToast *view = [[DYYYToast alloc] initWithFrame:UIScreen.mainScreen.bounds];
         manager.progressViews[batchID] = view;
         [view show];
-        view.cancelBlock = ^{ [self cancelAllDownloads]; };
-        manager.cancellationHandlers[batchID] = ^{ [cancellation cancel]; };
+        // C9：取消直接取消本次的 NSProgress 再取消全部下载，不再走 cancellationHandlers。
+        view.cancelBlock = ^{ [cancellation cancel]; [self cancelAllDownloads]; };
         NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
         NSMutableIndexSet *imagesReady = [NSMutableIndexSet indexSet];
         NSMutableIndexSet *videosReady = [NSMutableIndexSet indexSet];
@@ -1292,7 +1282,6 @@
         void (^finish)(NSInteger) = ^(NSInteger successes) {
             if (finished) return;
             finished = YES;
-            [manager.cancellationHandlers removeObjectForKey:batchID];
             [manager.progressViews removeObjectForKey:batchID];
             view.cancelBlock = nil;
             view.allowSuccessAnimation = !cancellation.cancelled && successes == items.count;
@@ -1313,7 +1302,7 @@
                 NSURL *url = [value isKindOfClass:NSString.class] ? [NSURL URLWithString:value] : nil;
                 if (!url) { completedSteps += 4; continue; }
                 dispatch_group_enter(downloads);
-                [manager enqueueDownloadURL:url destinationURL:files[index][kind] progress:nil completion:^(BOOL success, NSURL *fileURL) {
+                [manager startDownloadTaskWithURL:url destinationURL:files[index][kind] progress:nil completion:^(BOOL success, NSURL *fileURL) {
                     if (success) [([kind isEqualToString:@"image"] ? imagesReady : videosReady) addIndex:index];
                     completedSteps += 4;
                     updateProgress();
@@ -2364,11 +2353,11 @@
 
 // 创建从静态图片生成的视频片段
 + (void)createVideoFromImage:(UIImage *)image duration:(float)duration outputPath:(NSString *)outputPath completion:(void (^)(BOOL success))completion {
-    [[self shared] enqueueMediaJob:^(dispatch_block_t jobDone) {
-        void (^complete)(BOOL) = ^(BOOL success) {
-            jobDone();
-            if (completion) completion(success);
-        };
+    // C9：不再经 enqueueMediaJob 串行调度（v3.0 没有媒体任务队列），直接在调用线程跑；
+    // 调用方 composeVideo 本来就在后台跑，帧写入仍走自己的串行 queue + 看门狗。
+    void (^complete)(BOOL) = ^(BOOL success) {
+        if (completion) completion(success);
+    };
         CGSize videoSize = CGSizeMake(1080, 1920);
         NSInteger frameRate = 30;
         if (!image.CGImage || !isfinite(duration) || duration <= 0 || duration > (double)NSIntegerMax / frameRate) { complete(NO); return; }
@@ -2448,7 +2437,6 @@
             }
             if (frame == totalFrames) finish(YES);
         }];
-    }];
 }
 
 // 动画贴纸和GIF相关方法迁移自 DYYYUtils.m
