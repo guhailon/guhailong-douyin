@@ -259,7 +259,7 @@ NSString *GHLChangelogText(void) {
            @"1.0.38：探针版——只记录语音评论录制时的信息（评论输入框打开时的控制器/响应链、系统录音的起止与文件、录音开始时相关类清单），帮助定位替换语音评论的钩点；没有新功能、不改任何行为。\n"
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
            @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
-           @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。";
+           @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -2347,6 +2347,44 @@ void GHLPreviewVoicePackage(NSString *voiceId) {
     });
 }
 
+// 1.0.41：删除「我的导入」里的本地语音（GHLRegisterCustomVoiceFile 的反向操作）。
+// 删文件＋删 GHL_KEY_CUSTOM_VOICES 里的记录；若删的是当前设好的替换用音频
+// （GHL_KEY_COMMENT_VOICE_REPLACE_PATH 正好指向它），替换选择（路径＋名字）一起清空，
+// 别让替换开关指着一个不存在的文件；★收藏里若有同一项也清掉（voiceId 就是 custom:文件名）。
+// 只删「我的导入」的本地项；调用前必须先弹确认（长按处理里弹），这里不弹框、不静默删。
+// 全程 @try/@catch。
+void GHLDeleteCustomVoicePackage(GHLVoicePackageInfo *info) {
+    @try {
+        if (!info || info.source != GHLVoicePackageSourceCustom) return;
+        NSString *path = info.audioFilePath;
+        NSString *fileName = path.lastPathComponent;
+        if (fileName.length == 0) return;
+        // 正在播它就先停（AVAudioPlayer 是读进内存播，删文件不会闪退，但别让它继续播一段已删的语音）。
+        if (ghlCustomVoicePlayer.playing && [ghlCustomVoicePlayer.url.path isEqualToString:path]) {
+            [ghlCustomVoicePlayer stop];
+        }
+        if (path.length > 0) {
+            [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+        }
+        NSMutableArray *records = [NSMutableArray arrayWithArray:GHLCustomVoiceRecords()];
+        NSUInteger before = records.count;
+        [records filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *record, NSDictionary *bindings) {
+          return ![record[@"file"] isEqualToString:fileName];
+        }]];
+        if (records.count != before) GHLSaveCustomVoiceRecords(records);
+        GHLSetVoiceFavorite(info.voiceId, NO);
+        NSString *replacePath = GHLGetString(GHL_KEY_COMMENT_VOICE_REPLACE_PATH);
+        if (replacePath.length > 0 && [replacePath isEqualToString:path]) {
+            [[NSUserDefaults standardUserDefaults] removeObjectForKey:GHL_KEY_COMMENT_VOICE_REPLACE_PATH];
+            [[NSUserDefaults standardUserDefaults] removeObjectForKey:GHL_KEY_COMMENT_VOICE_REPLACE_NAME];
+            GHLLog(@"语音包删除：删的是当前替换音频，替换选择已清空");
+        }
+        GHLLog(@"语音包删除：已删除「%@」（%@）", info.displayName, fileName);
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"语音包删除：删除时异常");
+    }
+}
+
 void GHLSynthesizeVoicePackageText(NSString *text, NSString *voiceId, void (^completion)(NSURL *fileURL)) {
     if (text.length == 0) {
         if (completion) completion(nil);
@@ -2568,6 +2606,25 @@ static BOOL ghlOnlineFetchFailed = NO;
     NSArray *packages = [self ghlPackagesInCategory:categories[indexPath.section]];
     if (indexPath.row < 0 || indexPath.row >= (NSInteger)packages.count) return;
     GHLVoicePackageInfo *info = packages[indexPath.row];
+    // 1.0.41：「我的导入」里的本地语音，长按改成删除（收藏改按行右侧的 ★ 按钮）；其它档还是收藏/取消收藏。
+    if (info.source == GHLVoicePackageSourceCustom) {
+        __weak __typeof(self) weakSelf = self;
+        [DYYYBottomAlertView showAlertWithTitle:info.displayName
+                                        message:@"删除这段语音？"
+                                      avatarURL:nil
+                               cancelButtonText:@"取消"
+                              confirmButtonText:@"删除"
+                                   cancelAction:nil
+                                    closeAction:nil
+                                  confirmAction:^{
+            __strong __typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            GHLDeleteCustomVoicePackage(info);
+            [strongSelf.tableView reloadData];
+            [DYYYUtils showToast:[NSString stringWithFormat:@"已删除「%@」", info.displayName]];
+        }];
+        return;
+    }
     __weak __typeof(self) weakSelf = self;
     BOOL favorited = GHLIsVoiceFavorite(info.voiceId);
     [DYYYBottomAlertView showAlertWithTitle:info.displayName
@@ -2659,7 +2716,8 @@ static BOOL ghlOnlineFetchFailed = NO;
     // 1.0.39：挑选模式——点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换。
     if (self.ghlReplacePickMode) return @"点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换（内置/在线音色没有本地文件）。";
     // 1.0.28：我的导入——长按视频导进来的音频都在这里，点一下就播放（不能用来合成文字）。
-    return @"长按视频选「导入至语音包」就能把当前作品的音频存到这里；点行播放（不能用来合成文字）。";
+    // 1.0.41：长按一行可以删除不喜欢的语音（弹确认再删）。
+    return @"长按视频选「导入至语音包」就能把当前作品的音频存到这里；点行播放（不能用来合成文字）；长按一行可以删除。";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
