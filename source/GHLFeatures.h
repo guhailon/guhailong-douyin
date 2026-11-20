@@ -141,6 +141,8 @@ void GHLProbeCommentVoiceRecorderInit(NSURL *url);
 void GHLProbeCommentVoiceRecordStarted(NSURL *url);
 void GHLProbeCommentVoiceRecordStopped(NSURL *url, NSTimeInterval duration);
 void GHLProbeCommentVoiceRecordPaused(void);
+// 1.0.41：长按语音评论时 SaveImageElement 的标题探针（只记日志，不改行为；每进程一次）
+void GHLProbeSaveImageElementTitle(id element);
 // 1.0.39：替换语音评论——录音停下后把录好的文件换成选好的本地音频（只换评论录音）
 void GHLReplaceCommentVoiceRecording(NSURL *recordedURL);
 // 1.0.39：把语音包里选中的本地音频设为替换源（.m4a 直接存，不是就先转成 .m4a 再存）
@@ -158,6 +160,8 @@ void GHLPresentReplaceAudioPickerFromViewController(UIViewController *viewContro
 #define GHL_KEY_AUTO_LIVE_LOTTERY @"GHLAutoLiveLottery"
 // (36) 评论语音保存（1.0.35：播放是实验，已取消，只留保存）
 #define GHL_KEY_COMMENT_VOICE_SAVE @"GHLCommentVoiceSave"
+// 1.0.41：长按语音评论时保存行的标题（皇上 2026-11-20 定：用「保存语音」；要改只改这一处）
+#define GHL_COMMENT_VOICE_SAVE_TITLE @"保存语音"
 // 1.0.39：替换语音评论（录完把录好的文件换成语音包里选的本地音频；默认关）
 #define GHL_KEY_COMMENT_VOICE_REPLACE @"GHLCommentVoiceReplace"
 #define GHL_KEY_COMMENT_VOICE_REPLACE_PATH @"GHLCommentVoiceReplacePath" // 替换用的 .m4a 全路径

@@ -4822,7 +4822,11 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
             GHLLog(@"评论语音保存探针：读 audio model 异常");
         }
     }
-    if (audio && (audio.content.length > 0 || audioLocalPath.length > 0)) {
+    // 1.0.41：有音频的判断抽到 DYYYUtils commentHasVoiceAudio（elementTapped 同款判断，不再各写一份）。
+    BOOL hasAudio = [DYYYUtils commentHasVoiceAudio:selected];
+    if (hasAudio) {
+        // 1.0.41 标题探针：长按语音评论时记 SaveImageElement 的方法/属性/ivar 清单与候选标题键（只记日志，不改行为；每进程一次）。
+        GHLProbeSaveImageElementTitle(self);
         return YES;
     }
     return shouldShow;
@@ -4845,7 +4849,8 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
         audioLocalPath = audio.audioFilePath;
     } @catch (__unused NSException *exception) {
     }
-    BOOL hasAudio = (audio && (audio.content.length > 0 || audioLocalPath.length > 0));
+    // 1.0.41：有音频的判断抽到 DYYYUtils commentHasVoiceAudio（elementShouldShow 同款判断，不再各写一份）。
+    BOOL hasAudio = [DYYYUtils commentHasVoiceAudio:comment];
     
     NSArray *imageList = nil;
     if ([comment respondsToSelector:@selector(imageList)]) {
@@ -5101,6 +5106,82 @@ static BOOL dyyyShouldUseLastStickerURL = NO;
 }
 
 %end
+%end
+
+// 1.0.41：长按语音评论时，把保存行「下载到相册」改成「保存语音」（单独出来，不再顶着抖音的名字）。
+// 标题来源假说：elementContent 是面板行的标题——同协议的 Report 元素在 AwemeHeaders.h 里同时声明了
+// elementContent＋elementImage（内容＋图标就是标题＋图标），SaveImageElement 应该是同款协议。
+// 替换是运行时验证过才换：只当 %orig 回来的正好是 NSString/NSAttributedString「下载到相册」才换成新标题，
+// 其它一律原样返回；所以就算 elementContent 不是标题，这钩子也不会改坏任何东西。
+// 换没换、elementContent 到底返回了什么，日志里「标题探针：」一行写明（下版定位就靠它）。
+// %orig 安全：%ctor 里只当类真实现了 elementContent 才 %init 这一组（方法不存在时 %orig 会指到空实现）。
+%group GHLCommentVoiceTitleGroup
+
+%hook _TtC33AWECommentLongPressPanelSwiftImpl37CommentLongPressPanelSaveImageElement
+
+- (id)elementContent {
+    id originalContent = nil;
+    @try {
+        originalContent = %orig;
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"标题探针：elementContent 原实现异常");
+        return nil;
+    }
+    @try {
+        AWECommentLongPressPanelContext *context = [self commentPageContext];
+        AWECommentModel *selected = [context selectdComment] ?: [[context params] selectdComment];
+        // 只改语音评论：表情包/图片评论保持抖音原标题不动。
+        if (![DYYYUtils commentHasVoiceAudio:selected]) {
+            return originalContent;
+        }
+        if ([originalContent isKindOfClass:[NSString class]] && [(NSString *)originalContent isEqualToString:@"下载到相册"]) {
+            GHLLog(@"标题探针：elementContent 是标题（NSString「下载到相册」），已改成「%@」", GHL_COMMENT_VOICE_SAVE_TITLE);
+            return GHL_COMMENT_VOICE_SAVE_TITLE;
+        }
+        if ([originalContent isKindOfClass:[NSAttributedString class]]) {
+            NSAttributedString *attrContent = (NSAttributedString *)originalContent;
+            if ([attrContent.string isEqualToString:@"下载到相册"]) {
+                NSDictionary *attrs = attrContent.length > 0 ? [attrContent attributesAtIndex:0 effectiveRange:NULL] : @{};
+                GHLLog(@"标题探针：elementContent 是标题（NSAttributedString「下载到相册」），已改成「%@」", GHL_COMMENT_VOICE_SAVE_TITLE);
+                return [[NSAttributedString alloc] initWithString:GHL_COMMENT_VOICE_SAVE_TITLE attributes:attrs];
+            }
+        }
+        // elementContent 不是标题：只记一次（类名＋返回值的类型/内容），下版靠它定位。
+        static BOOL contentNotTitleLogged = NO;
+        if (!contentNotTitleLogged) {
+            contentNotTitleLogged = YES;
+            NSString *valueText = nil;
+            @try {
+                valueText = [originalContent description];
+                if (valueText.length > 120) valueText = [valueText substringToIndex:120];
+            } @catch (__unused NSException *exception) {
+                valueText = @"(读不到)";
+            }
+            GHLLog(@"标题探针：elementContent 不是标题（%@：%@），原样返回", NSStringFromClass([originalContent class]), valueText ?: @"(nil)");
+            // 不是字符串时，把它的方法里带 title/content 的列出来，下版就知道标题藏在哪。
+            if (originalContent && ![originalContent isKindOfClass:[NSString class]] && ![originalContent isKindOfClass:[NSAttributedString class]]) {
+                unsigned int methodCount = 0;
+                Method *methods = class_copyMethodList([originalContent class], &methodCount);
+                NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+                for (unsigned int i = 0; i < methodCount; i++) {
+                    NSString *selName = NSStringFromSelector(method_getName(methods[i]));
+                    NSString *lower = [selName lowercaseString];
+                    if ([lower containsString:@"title"] || [lower containsString:@"content"] || [lower containsString:@"text"] || [lower containsString:@"label"]) {
+                        [candidates addObject:selName];
+                    }
+                }
+                free(methods);
+                GHLLog(@"标题探针：%@ 带 title/content 的方法：%@", NSStringFromClass([originalContent class]), candidates.count > 0 ? candidates : @"没有");
+            }
+        }
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"标题探针：elementContent 替换判断异常，原样返回");
+    }
+    return originalContent;
+}
+
+%end
+
 %end
 
 %hook AWEIMEmoticonPreviewV2
@@ -13436,6 +13517,17 @@ static void findTargetViewInView(UIView *view) {
             DYYYGetBool(@"DYYYForceDownloadCommentImage") ||
             GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
             %init(EnableStickerSaveMenu);
+        }
+        // 1.0.41：长按语音评论的保存行改标题（elementContent 钩子）。
+        // 只有 SaveImageElement 真实现了 elementContent 才装——方法不存在时 %orig 会指到空实现，所以先查。
+        if (DYYYGetBool(@"DYYYForceDownloadEmotion") ||
+            DYYYGetBool(@"DYYYForceDownloadCommentAudio") ||
+            DYYYGetBool(@"DYYYForceDownloadCommentImage") ||
+            GHLGetBool(GHL_KEY_COMMENT_VOICE_SAVE)) {
+            Class saveImageElementClass = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelSaveImageElement");
+            if (saveImageElementClass && class_getInstanceMethod(saveImageElementClass, @selector(elementContent))) {
+                %init(GHLCommentVoiceTitleGroup);
+            }
         }
         [DYYYFloatingButtonCoordinator reloadConfiguration];
         DYYYStartHideMessageAndMinePageHooks();

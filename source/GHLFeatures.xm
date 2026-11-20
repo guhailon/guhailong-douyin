@@ -258,7 +258,8 @@ NSString *GHLChangelogText(void) {
            @"1.0.37：长按面板新增作品日期显示——面板顶部龙头下方多一行「发布时间：yyyy-MM-dd HH:mm」（取作品 createTime，为 0/缺失时那行不显示）；设置里新增「作品日期显示」开关，默认开。\n"
            @"1.0.38：探针版——只记录语音评论录制时的信息（评论输入框打开时的控制器/响应链、系统录音的起止与文件、录音开始时相关类清单），帮助定位替换语音评论的钩点；没有新功能、不改任何行为。\n"
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
-           @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。";
+           @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
+           @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -3007,6 +3008,71 @@ void GHLProbeVoiceFeatures(void) {
     }
 
     GHLLog(@"语音探针：只记录类/属性存在，保存流程待真机日志进一步验证");
+}
+
+// 1.0.41：长按语音评论时 SaveImageElement 的标题探针（只记日志，不改行为；每进程一次）。
+// 标题来源假说：elementContent 是面板行的标题（同协议的 Report 元素同时声明了 elementContent＋elementImage）。
+// 这里不猜 Swift 属性名——直接列出这个类的方法/属性/ivar 清单，再试 KVC 读 title 候选键，
+// 下版能不能改标题、改哪，看这份日志定。注意：方法清单只含 @objc 可见的方法，Swift 内部方法列不出来。
+void GHLProbeSaveImageElementTitle(id element) {
+    static BOOL probed = NO;
+    if (probed || !element) {
+        return;
+    }
+    probed = YES;
+    @try {
+        Class elementClass = [element class];
+        unsigned int methodCount = 0;
+        Method *methods = class_copyMethodList(elementClass, &methodCount);
+        NSMutableArray<NSString *> *methodNames = [NSMutableArray array];
+        for (unsigned int i = 0; i < methodCount; i++) {
+            [methodNames addObject:NSStringFromSelector(method_getName(methods[i]))];
+        }
+        free(methods);
+        GHLLog(@"标题探针：SaveImageElement 方法 %lu 个：%@", (unsigned long)methodNames.count, methodNames);
+
+        unsigned int propCount = 0;
+        objc_property_t *props = class_copyPropertyList(elementClass, &propCount);
+        NSMutableArray<NSString *> *propNames = [NSMutableArray array];
+        for (unsigned int i = 0; i < propCount; i++) {
+            [propNames addObject:[NSString stringWithUTF8String:property_getName(props[i])]];
+        }
+        free(props);
+        GHLLog(@"标题探针：SaveImageElement 属性 %lu 个：%@", (unsigned long)propNames.count, propNames);
+
+        unsigned int ivarCount = 0;
+        Ivar *ivars = class_copyIvarList(elementClass, &ivarCount);
+        NSMutableArray<NSString *> *ivarDescs = [NSMutableArray array];
+        NSMutableArray<NSString *> *titleIvarValues = [NSMutableArray array];
+        for (unsigned int i = 0; i < ivarCount; i++) {
+            const char *ivarName = ivar_getName(ivars[i]);
+            const char *ivarType = ivar_getTypeEncoding(ivars[i]);
+            [ivarDescs addObject:[NSString stringWithFormat:@"%s(%s)", ivarName, ivarType ? ivarType : "?"]];
+            // 名字带 title 的对象 ivar，直接读值看看是不是标题
+            NSString *name = [NSString stringWithUTF8String:ivarName];
+            if (ivarType && ivarType[0] == '@' && [name rangeOfString:@"title" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                id value = object_getIvar(element, ivars[i]);
+                NSString *valueText = value ? [value description] : @"(nil)";
+                if (valueText.length > 120) valueText = [valueText substringToIndex:120];
+                [titleIvarValues addObject:[NSString stringWithFormat:@"%@=%@", name, valueText]];
+            }
+        }
+        free(ivars);
+        GHLLog(@"标题探针：SaveImageElement ivar %lu 个：%@", (unsigned long)ivarDescs.count, ivarDescs);
+        GHLLog(@"标题探针：名字带 title 的 ivar 值：%@", titleIvarValues.count > 0 ? [titleIvarValues componentsJoinedByString:@"、"] : @"没有");
+
+        // 候选标题键：KVC 读 title / elementTitle（没有就抛异常，接住只记一行）
+        for (NSString *key in @[ @"title", @"elementTitle" ]) {
+            @try {
+                id value = [element valueForKey:key];
+                GHLLog(@"标题探针：KVC 键 %@ = %@", key, value ? [value description] : @"(nil)");
+            } @catch (__unused NSException *exception) {
+                GHLLog(@"标题探针：KVC 键 %@ 不存在", key);
+            }
+        }
+    } @catch (__unused NSException *exception) {
+        GHLLog(@"标题探针：SaveImageElement 清单扫描异常");
+    }
 }
 
 #pragma mark - 1.0.38 语音评论录制探针（只记日志，不改行为）

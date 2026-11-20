@@ -4,7 +4,7 @@
 #define DYYY_NAME @"SeaDragon Douyin"
 #define DYYY_SETTINGS_NAME @"SeaDragon Douyin 设置"
 
-#define DYYY_VERSION @"1.0.40"
+#define DYYY_VERSION @"1.0.41"
 
 // 1.0.31：头卡自定义显示名（点名字改 / 设置行改，留空恢复默认）
 #define GHL_KEY_CUSTOM_DISPLAY_NAME @"GHLCustomDisplayName"

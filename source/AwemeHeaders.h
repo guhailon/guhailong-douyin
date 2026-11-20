@@ -664,6 +664,7 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 
 @interface _TtC33AWECommentLongPressPanelSwiftImpl37CommentLongPressPanelSaveImageElement : NSObject
 - (AWECommentLongPressPanelContext *)commentPageContext;
+- (id)elementContent; // 1.0.41：面板行标题的候选来源（同协议的 Report 元素同时声明了 elementContent＋elementImage）
 @end
 
 @interface _TtC33AWECommentLongPressPanelSwiftImpl32CommentLongPressPanelCopyElement : NSObject

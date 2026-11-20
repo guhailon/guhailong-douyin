@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)albumDescriptionForAwemeModel:(AWEAwemeModel *)awemeModel authorProfileURL:(NSString *)authorProfileURL workURL:(NSString *)workURL;
 // 1.0.37：长按面板作品日期显示——返回「发布时间：yyyy-MM-dd HH:mm」，createTime 为 0/缺失时返回 nil（不显示）。
 + (nullable NSString *)ghl_publishDateTextForAwemeModel:(nullable AWEAwemeModel *)awemeModel;
+// 1.0.41：这条评论是不是语音评论（audioModel 在，且 content 非空或本地文件路径非空；自己刚录的 content 为空，只认 content 会漏掉）。
++ (BOOL)commentHasVoiceAudio:(nullable AWECommentModel *)comment;
 + (NSURL *)temporaryImageURLByEmbeddingDescription:(NSString *)albumDescription intoImageAtURL:(NSURL *)imageURL;
 + (NSArray<AVMetadataItem *> *)metadataItemsByAppendingDescription:(NSString *)albumDescription toItems:(NSArray<AVMetadataItem *> *)items;
 + (void)writeDescription:(NSString *)albumDescription toVideoAtURL:(NSURL *)videoURL completion:(void (^)(NSURL *outputURL))completion;

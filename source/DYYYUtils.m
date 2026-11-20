@@ -2630,6 +2630,27 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     return [NSString stringWithFormat:@"发布时间：%@", [formatter stringFromDate:date]];
 }
 
+// 1.0.41：这条评论是不是语音评论（audioModel 在，且 content 非空或本地文件路径非空；
+// 自己刚录的 content 为空，只认 content 会漏掉它——2026-11-20 日志证实）。
++ (BOOL)commentHasVoiceAudio:(nullable AWECommentModel *)comment {
+    if (!comment) {
+        return NO;
+    }
+    @try {
+        AWECommentAudioModel *audio = [comment audioModel];
+        if (!audio) {
+            return NO;
+        }
+        NSString *audioLocalPath = nil;
+        @try {
+            audioLocalPath = audio.audioFilePath;
+        } @catch (__unused NSException *exception) {
+        }
+        return (audio.content.length > 0 || audioLocalPath.length > 0);
+    } @catch (__unused NSException *exception) {
+        return NO;
+    }
+}
 
 + (NSURL *)temporaryImageURLByEmbeddingDescription:(NSString *)albumDescription intoImageAtURL:(NSURL *)imageURL {
     if (albumDescription.length == 0 || !imageURL) {
