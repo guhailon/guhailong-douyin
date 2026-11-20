@@ -13,6 +13,7 @@
 #import <math.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <syslog.h>
 
 #import "AwemeHeaders.h"
@@ -4050,6 +4051,33 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
     return bestURL;
 }
+%end
+
+// 1.0.43 C7：屏蔽版本更新改 hook AWEVersionUpdateManager（v3.0 做法，不依赖登录绕过文件）。
+// 类不存在时 %ctor 里不 %init（39.1.0 保护）。
+%group DYYYNoUpdatesGroup
+%hook AWEVersionUpdateManager
+
+- (void)startVersionUpdateWorkflow:(id)arg1 completion:(id)arg2 {
+    if (DYYYGetBool(@"DYYYNoUpdates")) {
+        if (arg2) {
+            void (^completionBlock)(void) = arg2;
+            completionBlock();
+        }
+    } else {
+        %orig;
+    }
+}
+
+- (id)workflow {
+    return DYYYGetBool(@"DYYYNoUpdates") ? nil : %orig;
+}
+
+- (id)badgeModule {
+    return DYYYGetBool(@"DYYYNoUpdates") ? nil : %orig;
+}
+
+%end
 %end
 
 // 应用内推送毛玻璃效果
@@ -9389,7 +9417,7 @@ static NSHashTable *processedParentViews = nil;
 
 - (id)storyRing {
 	BOOL DYYYHideAvatarButton = DYYYGetBool(@"DYYYHideAvatarButton");
-	if (DYYYHideAvatarButton) {
+	if (DYYYHideAvatarButton || DYYYGetBool(@"DYYYHideAvatarRing")) {
 		return nil;
 	}
 	return %orig;
@@ -9397,7 +9425,7 @@ static NSHashTable *processedParentViews = nil;
 
 - (void)setStoryRing:(id)ring {
 	BOOL DYYYHideAvatarButton = DYYYGetBool(@"DYYYHideAvatarButton");
-	if (DYYYHideAvatarButton) {
+	if (DYYYHideAvatarButton || DYYYGetBool(@"DYYYHideAvatarRing")) {
 		%orig(nil);
 		return;
 	}
@@ -9410,7 +9438,7 @@ static NSHashTable *processedParentViews = nil;
 
 - (NSArray *)storyRingsModelArray {
 	BOOL DYYYHideAvatarButton = DYYYGetBool(@"DYYYHideAvatarButton");
-	if (DYYYHideAvatarButton) {
+	if (DYYYHideAvatarButton || DYYYGetBool(@"DYYYHideAvatarRing")) {
 		return @[];
 	}
 	return %orig;
@@ -9418,7 +9446,7 @@ static NSHashTable *processedParentViews = nil;
 
 - (void)setStoryRingsModelArray:(NSArray *)array {
 	BOOL DYYYHideAvatarButton = DYYYGetBool(@"DYYYHideAvatarButton");
-	if (DYYYHideAvatarButton) {
+	if (DYYYHideAvatarButton || DYYYGetBool(@"DYYYHideAvatarRing")) {
 		%orig(@[]);
 		return;
 	}
@@ -13583,6 +13611,12 @@ static void findTargetViewInView(UIView *view) {
         Class tipsVCClass = objc_getClass("AWECommentPanelListSwiftImpl.CommentBottomTipsContainerViewController");
         if (tipsVCClass) {
             %init(CommentBottomTipsVCGroup, AWECommentPanelListSwiftImpl_CommentBottomTipsContainerViewController = tipsVCClass);
+        }
+
+        // 1.0.43 C7：屏蔽版本更新（AWEVersionUpdateManager，v3.0 做法）。
+        // 类不存在就不挂钩（39.1.0 保护）。
+        if (objc_getClass("AWEVersionUpdateManager")) {
+            %init(DYYYNoUpdatesGroup);
         }
 
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
