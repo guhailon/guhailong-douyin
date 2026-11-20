@@ -10,6 +10,15 @@ extern HideUIButton *hideButton;
 extern BOOL dyyyIsPerformingFloatClearOperation;
 extern NSArray *targetClassNames;
 extern char dyyyClearOriginalAlphaKey;
+// v3.0 共享显示标志：定义在 DYYYFloatClearButton.xm（isPureViewVisible 等）和
+// DYYYFloatSpeedButton.m（dyyyCommentViewVisible、dyyyInteractionViewVisible）。
+extern BOOL isInPlayInteractionVC;
+extern BOOL isPureViewVisible;
+extern BOOL clearButtonForceHidden;
+extern BOOL isAppActive;
+extern BOOL isAppInTransition;
+extern BOOL dyyyInteractionViewVisible;
+extern BOOL dyyyCommentViewVisible;
 
 BOOL DYYYIsDynamicAlphaView(UIView *view);
 void DYYYApplyClearTargetViewHiddenState(UIView *view);
@@ -19,6 +28,9 @@ UIWindow *getKeyWindow(void);
 
 void initTargetClassNames(void);
 void reloadClearButtonConfiguration(void);
+void updateClearButtonVisibility(void);
+void showClearButton(void);
+void hideClearButton(void);
 void DYYYApplyFloatClearProgressStateToView(UIView *view);
 
 #ifdef __cplusplus
@@ -36,7 +48,6 @@ void DYYYApplyFloatClearProgressStateToView(UIView *view);
 @property(nonatomic, assign) CGFloat originalAlpha;
 @property(nonatomic, strong) NSTimer *checkTimer;
 @property(nonatomic, strong) NSTimer *fadeTimer;
-@property(nonatomic, strong) UIView *edgeIndicatorView;
 - (void)resetFadeTimer;
 - (void)loadSavedPosition;
 - (void)resetToDefaultPosition;

@@ -15,6 +15,10 @@ FloatingSpeedButton *speedButton = nil;
 BOOL showSpeedX = NO;
 CGFloat speedButtonSize = 32.0;
 BOOL isFloatSpeedButtonEnabled = NO;
+// v3.0 共享显示标志：定义在这里，DYYYFloatClearButton.h 也声明 extern。
+BOOL dyyyCommentViewVisible = NO;
+BOOL dyyyInteractionViewVisible = NO;
+BOOL speedButtonForceHidden = NO;
 static NSString *const kDYYYDefaultSpeedSettingsString = @"0.75,1.0,1.25,1.5,2.0,2.5,3.0";
 
 static NSString *DYYYFormatSpeedOption(double speed) {
@@ -230,9 +234,78 @@ NSArray *findViewControllersInHierarchy(UIViewController *rootViewController) {
     return viewControllers;
 }
 
+#pragma mark - v3.0 显示／隐藏模型
+
+static void DYYYApplySpeedButtonHiddenState(UIView *button, BOOL hidden) {
+    if (!button) {
+        return;
+    }
+    void (^applyBlock)(UIView *) = ^(UIView *target) {
+        if (!target) {
+            return;
+        }
+        if (target.hidden != hidden) {
+            target.hidden = hidden;
+        }
+    };
+
+    if ([NSThread isMainThread]) {
+        applyBlock(button);
+    } else {
+        __weak UIView *weakButton = button;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            applyBlock(weakButton);
+        });
+    }
+}
+
+static BOOL DYYYShouldHideSpeedButton(void) {
+    // v3.0 规则：清屏状态下只看 DYYYHideSpeed；其余只看播放页、评论和强制隐藏。
+    BOOL clearModeActive = (hideButton && hideButton.isElementsHidden);
+    if (clearModeActive) {
+        BOOL hideSpeedInClearMode = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideSpeed"];
+        if (hideSpeedInClearMode) {
+            return YES;
+        }
+        return speedButtonForceHidden;
+    }
+    if (!dyyyInteractionViewVisible) {
+        return YES;
+    }
+    if (dyyyCommentViewVisible) {
+        return YES;
+    }
+    if (speedButtonForceHidden) {
+        return YES;
+    }
+    return NO;
+}
+
+void showSpeedButton(void) {
+    speedButtonForceHidden = NO;
+    updateSpeedButtonVisibility();
+}
+
+void hideSpeedButton(void) {
+    speedButtonForceHidden = YES;
+    updateSpeedButtonVisibility();
+}
+
+void toggleSpeedButtonVisibility(void) {
+    // v3.0 只在头文件声明了本函数，未给实现；这里按“翻转强制隐藏”实现。
+    speedButtonForceHidden = !speedButtonForceHidden;
+    updateSpeedButtonVisibility();
+}
+
+void updateSpeedButtonVisibility(void) {
+    if (!speedButton || !isFloatSpeedButtonEnabled)
+        return;
+
+    DYYYApplySpeedButtonHiddenState(speedButton, DYYYShouldHideSpeedButton());
+}
+
 static const CGFloat kDYYYSpeedButtonEdgeInset = 10.0;
 static const CGFloat kDYYYSpeedButtonDefaultYFromBottomPercent = 0.65;
-static const CGFloat kDYYYSpeedButtonPressedScale = 0.75;
 
 typedef NS_ENUM(NSInteger, DYYYSpeedButtonEdge) {
     DYYYSpeedButtonEdgeLeft = 0,
@@ -245,26 +318,10 @@ static BOOL DYYYSpeedButtonStickToEdgeEnabled(void) {
     return [[NSUserDefaults standardUserDefaults] boolForKey:DYYY_SPEED_BUTTON_STICK_TO_EDGE_KEY];
 }
 
-static BOOL DYYYAutoHideSpeedButtonEnabled(void) {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYAutoHideSpeedButton"] && DYYYSpeedButtonStickToEdgeEnabled();
-}
-
-static NSTimeInterval DYYYAutoHideSpeedButtonInterval(void) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if ([defaults objectForKey:@"DYYYAutoHideSpeedButtonTime"] == nil) {
-        return 30.0;
-    }
-    double interval = [defaults doubleForKey:@"DYYYAutoHideSpeedButtonTime"];
-    return interval > 0.0 ? interval : 30.0;
-}
-
-
 static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 
 @interface FloatingSpeedButton ()
 @property(nonatomic, assign) DYYYSpeedButtonEdge dyyyActiveDragEdge;
-@property(nonatomic, assign) BOOL dyyyHasCenterBeforeEdgeHidden;
-@property(nonatomic, assign) CGPoint dyyyCenterBeforeEdgeHidden;
 @end
 
 @implementation FloatingSpeedButton
@@ -284,25 +341,36 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
     showSpeedX = showX;
     speedButtonSize = size;
     if (speedButton) {
-        if (speedButton.isEdgeHidden && !DYYYAutoHideSpeedButtonEnabled()) [speedButton dyyy_restoreFromEdgeHidden];
         [speedButton loadSavedPosition];
         [speedButton resetFadeTimer];
     }
-    if (!changed) return;
+    if (!enabled) {
+        // 开关关闭时直接隐藏，不再等协调器刷新。
+        if (speedButton) speedButton.hidden = YES;
+        return;
+    }
+    if (!changed) {
+        updateSpeedButtonVisibility();
+        return;
+    }
     if (speedButton && fabs(speedButton.bounds.size.width - size) > FLT_EPSILON) {
         speedButton.bounds = CGRectMake(0, 0, size, size);
         speedButton.layer.cornerRadius = size / 2.0;
         [speedButton loadSavedPosition];
     }
     updateSpeedButtonUI();
+    updateSpeedButtonVisibility();
 }
 
 + (void)attachToWindow:(UIWindow *)window interactionController:(UIViewController *)controller {
+    if (!window) {
+        return;
+    }
     if (!speedButton) {
         CGFloat size = speedButtonSize;
         CGRect frame = CGRectMake((window.bounds.size.width - size) / 2.0, (window.bounds.size.height - size) / 2.0, size, size);
         speedButton = [[self alloc] initWithFrame:frame];
-        // 新控件先隐藏，是否显示由协调器决定。
+        // 新控件先隐藏，是否显示由 updateSpeedButtonVisibility 决定。
         speedButton.hidden = YES;
         updateSpeedButtonUI();
     }
@@ -315,6 +383,7 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
         [speedButton loadSavedPosition];
         [speedButton resetFadeTimer];
     }
+    updateSpeedButtonVisibility();
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -382,13 +451,11 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 }
 
 - (void)handleTouchDown:(UIButton *)sender {
-    if (self.isEdgeHidden) { [self dyyy_restoreFromEdgeHidden]; self.dyyyJustRestoredFromEdgeHidden = YES; return; }
     self.isResponding = YES;
     [self resetFadeTimer];
 }
 
 - (void)handleTouchUpInside:(UIButton *)sender {
-    if (self.dyyyJustRestoredFromEdgeHidden) { self.dyyyJustRestoredFromEdgeHidden = NO; return; }
     if (self.justToggledLock) {
         self.justToggledLock = NO;
         return;
@@ -485,36 +552,21 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 }
 
 - (void)resetButtonState {
-    BOOL preserveEdgeHidden = self.isEdgeHidden &&
-                              (DYYYAutoHideSpeedButtonEnabled() || self.dyyyEdgeHiddenByClearMode);
     self.justToggledLock = NO;
-    self.dyyyJustRestoredFromEdgeHidden = NO;
     self.isResponding = YES;
     self.userInteractionEnabled = YES;
     self.transform = CGAffineTransformIdentity;
+    self.alpha = self.originalAlpha;
 
-    if (preserveEdgeHidden) {
-        self.isEdgeHidden = YES;
-        self.alpha = 0.02;
-        [self dyyy_showEdgeIndicator];
-    } else {
-        self.isEdgeHidden = NO;
-        [self dyyy_hideEdgeIndicator];
-        self.alpha = self.originalAlpha;
-        [self dyyy_schedulePresentationTimersIfNeeded];
-    }
+    [self resetFadeTimer];
 
     [self setupGestureRecognizers];
 }
 
 - (void)resetFadeTimer {
-    [self dyyy_cancelAutoHideTimer];
     if (self.fadeTimer) {
         [self.fadeTimer invalidate];
         self.fadeTimer = nil;
-    }
-    if (self.isEdgeHidden) {
-        return;
     }
 
     if (self.alpha != self.originalAlpha) {
@@ -525,38 +577,21 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
     }
 
     __weak __typeof(self) weakSelf = self;
-    if (!DYYYAutoHideSpeedButtonEnabled()) {
-        NSTimer *fadeTimer = [NSTimer scheduledTimerWithTimeInterval:3.0
-                                                             repeats:NO
-                                                               block:^(NSTimer *timer) {
-                                                                 __strong __typeof(weakSelf) strongSelf = weakSelf;
-                                                                 if (!strongSelf || strongSelf.isEdgeHidden) {
-                                                                     return;
-                                                                 }
-                                                                 [UIView animateWithDuration:0.3
-                                                                                  animations:^{
-                                                                                    strongSelf.alpha = 0.5;
-                                                                                  }];
-                                                                 strongSelf.fadeTimer = nil;
-                                                               }];
-        self.fadeTimer = fadeTimer;
-        [[NSRunLoop mainRunLoop] addTimer:fadeTimer forMode:NSRunLoopCommonModes];
-        return;
-    }
-
-    NSTimeInterval interval = DYYYAutoHideSpeedButtonInterval();
-    NSTimer *autoHideTimer = [NSTimer scheduledTimerWithTimeInterval:interval
-                                                             repeats:NO
-                                                               block:^(NSTimer *timer) {
-                                                                 __strong __typeof(weakSelf) strongSelf = weakSelf;
-                                                                 if (!strongSelf) {
-                                                                     return;
-                                                                 }
-                                                                 [strongSelf dyyy_applyEdgeHiddenState];
-                                                                 strongSelf.autoHideTimer = nil;
-                                                               }];
-    self.autoHideTimer = autoHideTimer;
-    [[NSRunLoop mainRunLoop] addTimer:autoHideTimer forMode:NSRunLoopCommonModes];
+    NSTimer *fadeTimer = [NSTimer scheduledTimerWithTimeInterval:3.0
+                                                         repeats:NO
+                                                           block:^(NSTimer *timer) {
+                                                             __strong __typeof(weakSelf) strongSelf = weakSelf;
+                                                             if (!strongSelf) {
+                                                                 return;
+                                                             }
+                                                             [UIView animateWithDuration:0.3
+                                                                              animations:^{
+                                                                                strongSelf.alpha = 0.5;
+                                                                              }];
+                                                             strongSelf.fadeTimer = nil;
+                                                           }];
+    self.fadeTimer = fadeTimer;
+    [[NSRunLoop mainRunLoop] addTimer:fadeTimer forMode:NSRunLoopCommonModes];
 }
 
 - (void)handlePan:(UIPanGestureRecognizer *)pan {
@@ -564,8 +599,6 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
         return;
 
     self.justToggledLock = NO;
-    self.dyyyJustRestoredFromEdgeHidden = NO;
-    if (self.isEdgeHidden) [self dyyy_restoreFromEdgeHidden];
     [self resetFadeTimer];
 
     if (pan.state == UIGestureRecognizerStateBegan) {
@@ -594,17 +627,16 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
         self.center = [self dyyyConstrainedCenterForProposedCenter:self.center];
         self.alpha = self.originalAlpha;
         [self saveButtonPosition];
-        if (self.isEdgeHidden) {
-            [self dyyy_showEdgeIndicator];
-        }
     }
 }
 
 - (void)saveButtonPosition {
     if (self.superview) {
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        [defaults setFloat:self.center.x / self.superview.bounds.size.width forKey:@"DYYYSpeedButtonCenterXPercent"];
-        [defaults setFloat:self.center.y / self.superview.bounds.size.height forKey:@"DYYYSpeedButtonCenterYPercent"];
+        // 位置改存一个字串，不再存横纵百分比。
+        [defaults setObject:NSStringFromCGPoint(self.center) forKey:@"DYYYSpeedButtonPosition"];
+        [defaults removeObjectForKey:@"DYYYSpeedButtonCenterXPercent"];
+        [defaults removeObjectForKey:@"DYYYSpeedButtonCenterYPercent"];
         [defaults setBool:self.isLocked forKey:@"DYYYSpeedButtonLocked"];
     }
 }
@@ -618,11 +650,18 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
     self.isLocked = [defaults boolForKey:@"DYYYSpeedButtonLocked"];
 
     CGPoint targetCenter;
-    if ([self dyyyHasSavedPosition]) {
+    NSString *savedPosition = [defaults objectForKey:@"DYYYSpeedButtonPosition"];
+    if (savedPosition.length > 0) {
+        targetCenter = CGPointFromString(savedPosition);
+    } else if ([self dyyyHasSavedPosition]) {
+        // 旧版本百分比位置一次性迁移为字串，迁移后删除旧键。
         float centerXPercent = [defaults floatForKey:@"DYYYSpeedButtonCenterXPercent"];
         float centerYPercent = [defaults floatForKey:@"DYYYSpeedButtonCenterYPercent"];
         targetCenter = CGPointMake(centerXPercent * self.superview.bounds.size.width,
                                    centerYPercent * self.superview.bounds.size.height);
+        [defaults setObject:NSStringFromCGPoint(targetCenter) forKey:@"DYYYSpeedButtonPosition"];
+        [defaults removeObjectForKey:@"DYYYSpeedButtonCenterXPercent"];
+        [defaults removeObjectForKey:@"DYYYSpeedButtonCenterYPercent"];
     } else {
         targetCenter = [self dyyyDefaultCenter];
     }
@@ -634,7 +673,6 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
     [super didMoveToWindow];
     if (!self.window) {
         [self stopTimers];
-        [self dyyy_hideEdgeIndicator];
         return;
     }
     [self ensureStatusCheckTimerRunning];
@@ -651,7 +689,6 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 }
 
 - (void)stopTimers {
-    [self dyyy_cancelAutoHideTimer];
     if (self.statusCheckTimer) {
         [self.statusCheckTimer invalidate];
         self.statusCheckTimer = nil;
@@ -674,7 +711,6 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
 }
 
 - (void)dealloc {
-    [self.edgeIndicatorView removeFromSuperview];
     [self stopTimers];
 }
 - (void)resetToDefaultPosition {
@@ -682,159 +718,12 @@ static const CGFloat kDYYYSpeedButtonEdgeSwitchHysteresis = 12.0;
         return;
     }
 
-    self.dyyyHasCenterBeforeEdgeHidden = NO;
-    if (self.isEdgeHidden && !self.dyyyEdgeHiddenByClearMode) {
-        [self dyyy_restoreFromEdgeHidden];
-    }
-
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:@"DYYYSpeedButtonPosition"];
     [defaults removeObjectForKey:@"DYYYSpeedButtonCenterXPercent"];
     [defaults removeObjectForKey:@"DYYYSpeedButtonCenterYPercent"];
     self.center = [self dyyyDefaultCenter];
     [self resetFadeTimer];
-}
-
-- (void)dyyy_cancelAutoHideTimer {
-    if (self.autoHideTimer) {
-        [self.autoHideTimer invalidate];
-        self.autoHideTimer = nil;
-    }
-}
-
-- (void)dyyy_rememberCenterBeforeEdgeHidden {
-    if (self.dyyyHasCenterBeforeEdgeHidden) {
-        return;
-    }
-    self.dyyyCenterBeforeEdgeHidden = self.center;
-    self.dyyyHasCenterBeforeEdgeHidden = YES;
-}
-
-- (void)dyyy_moveToNearestEdgeForHiddenState {
-    [self dyyy_rememberCenterBeforeEdgeHidden];
-    self.center = [self dyyySnappedCenterForProposedCenter:self.center];
-}
-
-- (void)dyyy_restoreCenterBeforeEdgeHiddenIfNeeded {
-    if (!self.dyyyHasCenterBeforeEdgeHidden) {
-        return;
-    }
-    self.center = [self dyyyConstrainedCenterForProposedCenter:self.dyyyCenterBeforeEdgeHidden];
-    self.dyyyHasCenterBeforeEdgeHidden = NO;
-}
-
-- (void)dyyy_applyEdgeHiddenState {
-    // 位置锁定只限制拖动，不能阻止自动隐藏计时器收边。
-    if (self.hidden || !self.window || self.isEdgeHidden || self.dyyyEdgeHiddenByClearMode || !DYYYAutoHideSpeedButtonEnabled()) {
-        return;
-    }
-
-    [self dyyy_cancelAutoHideTimer];
-    [self dyyy_moveToNearestEdgeForHiddenState];
-    self.dyyyEdgeHiddenByClearMode = NO;
-    self.isEdgeHidden = YES;
-    self.alpha = 0.02;
-    [self dyyy_showEdgeIndicator];
-}
-
-- (void)dyyy_restoreFromEdgeHidden {
-    if (!self.isEdgeHidden || self.dyyyEdgeHiddenByClearMode) {
-        return;
-    }
-
-    self.isEdgeHidden = NO;
-    [self dyyy_restoreCenterBeforeEdgeHiddenIfNeeded];
-    self.alpha = self.originalAlpha;
-    [self dyyy_hideEdgeIndicator];
-    [self resetFadeTimer];
-}
-
-- (void)dyyy_schedulePresentationTimersIfNeeded {
-    if (self.isEdgeHidden || self.dyyyEdgeHiddenByClearMode) {
-        self.alpha = 0.02;
-        [self dyyy_showEdgeIndicator];
-        return;
-    }
-
-    if (DYYYAutoHideSpeedButtonEnabled() && self.autoHideTimer && [self.autoHideTimer isValid]) {
-        return;
-    }
-
-    [self resetFadeTimer];
-}
-
-- (void)dyyy_showEdgeIndicator {
-    if (!self.superview || !self.isEdgeHidden) {
-        return;
-    }
-
-    // 自动隐藏产生的边缘条只能依附于当前播放页；清屏边缘态由清屏流程单独管理。
-    if (!self.dyyyEdgeHiddenByClearMode && self.hidden) {
-        [self dyyy_hideEdgeIndicator];
-        return;
-    }
-
-    DYYYSpeedButtonEdge edge = [self dyyyEdgeForCenter:self.center];
-    CGFloat indicatorThickness = 2.0;
-    CGSize superSize = self.superview.bounds.size;
-    CGFloat centerX = self.center.x;
-    CGFloat centerY = self.center.y;
-
-    if (!self.edgeIndicatorView) {
-        self.edgeIndicatorView = [[UIView alloc] init];
-        self.edgeIndicatorView.backgroundColor = [UIColor systemGrayColor];
-        self.edgeIndicatorView.userInteractionEnabled = NO;
-        self.edgeIndicatorView.layer.masksToBounds = YES;
-    }
-
-    CGRect frame = CGRectZero;
-    CACornerMask maskedCorners = 0;
-    switch (edge) {
-        case DYYYSpeedButtonEdgeLeft:
-            frame = CGRectMake(0.0,
-                               centerY - CGRectGetHeight(self.bounds) * 0.5,
-                               indicatorThickness,
-                               CGRectGetHeight(self.bounds));
-            maskedCorners = kCALayerMaxXMinYCorner | kCALayerMaxXMaxYCorner;
-            break;
-        case DYYYSpeedButtonEdgeRight:
-            frame = CGRectMake(superSize.width - indicatorThickness,
-                               centerY - CGRectGetHeight(self.bounds) * 0.5,
-                               indicatorThickness,
-                               CGRectGetHeight(self.bounds));
-            maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
-            break;
-        case DYYYSpeedButtonEdgeTop:
-            frame = CGRectMake(centerX - CGRectGetWidth(self.bounds) * 0.5,
-                               0.0,
-                               CGRectGetWidth(self.bounds),
-                               indicatorThickness);
-            maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-            break;
-        case DYYYSpeedButtonEdgeBottom:
-            frame = CGRectMake(centerX - CGRectGetWidth(self.bounds) * 0.5,
-                               superSize.height - indicatorThickness,
-                               CGRectGetWidth(self.bounds),
-                               indicatorThickness);
-            maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
-            break;
-    }
-
-    self.edgeIndicatorView.frame = frame;
-    self.edgeIndicatorView.layer.cornerRadius = indicatorThickness;
-    self.edgeIndicatorView.layer.maskedCorners = maskedCorners;
-    self.edgeIndicatorView.alpha = 1.0;
-    self.edgeIndicatorView.hidden = NO;
-
-    if (![self.edgeIndicatorView isDescendantOfView:self.superview]) {
-        [self.superview addSubview:self.edgeIndicatorView];
-    }
-    [self.superview bringSubviewToFront:self.edgeIndicatorView];
-}
-
-- (void)dyyy_hideEdgeIndicator {
-    if (self.edgeIndicatorView) {
-        self.edgeIndicatorView.hidden = YES;
-    }
 }
 
 - (void)dyyyEdgeGeometryForSuperviewSize:(CGSize)size

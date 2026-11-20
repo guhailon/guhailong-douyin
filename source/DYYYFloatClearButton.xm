@@ -8,7 +8,6 @@
 #import "DYYYFloatClearButton.h"
 #import "DYYYConstants.h"
 #import "DYYYUtils.h"
-#import "DYYYFloatingButtonCoordinator.h"
 #import "GHLFeatures.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -41,6 +40,12 @@ typedef NS_ENUM(NSInteger, DYYYClearButtonEdge) {
 @end
 
 BOOL dyyyIsPerformingFloatClearOperation = NO;
+// v3.0 共享显示标志：由 DYYY.xm 的页面钩子与 App 生命周期通知维护。
+BOOL isInPlayInteractionVC = NO;
+BOOL isPureViewVisible = NO;
+BOOL clearButtonForceHidden = NO;
+BOOL isAppActive = YES;
+BOOL isAppInTransition = NO;
 
 static NSInteger dyyyClearButtonMutationDepth = 0;
 
@@ -275,6 +280,77 @@ UIWindow *getKeyWindow(void) {
     return keyWindow;
 }
 
+#pragma mark - v3.0 显示／隐藏模型
+
+static void DYYYApplyClearButtonHiddenState(HideUIButton *button, BOOL hidden) {
+    if (!button) {
+        return;
+    }
+    void (^applyBlock)(HideUIButton *) = ^(HideUIButton *target) {
+        if (!target) {
+            return;
+        }
+        if (target.hidden != hidden) {
+            target.hidden = hidden;
+        }
+    };
+
+    if ([NSThread isMainThread]) {
+        applyBlock(button);
+    } else {
+        __weak HideUIButton *weakButton = button;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            applyBlock(weakButton);
+        });
+    }
+}
+
+static BOOL DYYYShouldHideClearButton(void) {
+    // v3.0 规则：清屏状态下只留退出入口（只看前后台和强制隐藏）；
+    // 普通状态下，播放页、评论、纯净模式、前后台都可能隐藏按钮。
+    if (!isAppActive) {
+        return YES;
+    }
+    // 我们的自动净化：净化进行时不显示手动清屏入口（旧协调器行为，v3.0 没有这一项）。
+    if (hideButton && hideButton.homePurificationActive) {
+        return YES;
+    }
+    BOOL clearModeActive = (hideButton && hideButton.isElementsHidden);
+    if (clearModeActive) {
+        return clearButtonForceHidden;
+    }
+    if (!dyyyInteractionViewVisible) {
+        return YES;
+    }
+    if (dyyyCommentViewVisible) {
+        return YES;
+    }
+    if (isPureViewVisible) {
+        return YES;
+    }
+    if (clearButtonForceHidden) {
+        return YES;
+    }
+    return NO;
+}
+
+void updateClearButtonVisibility(void) {
+    if (!hideButton) {
+        return;
+    }
+    DYYYApplyClearButtonHiddenState(hideButton, DYYYShouldHideClearButton());
+}
+
+void showClearButton(void) {
+    clearButtonForceHidden = NO;
+    updateClearButtonVisibility();
+}
+
+void hideClearButton(void) {
+    clearButtonForceHidden = YES;
+    updateClearButtonVisibility();
+}
+
 static void forceResetAllUIElements(void) {
     DYYYPerformClearButtonMutation(^{ [hideButton restoreCachedTargetViews]; });
 }
@@ -366,7 +442,7 @@ void reloadClearButtonConfiguration(void) {
         hideButton.layer.cornerRadius = buttonSize / 2.0;
     }
 
-    // 净化也复用同一清屏实例，按钮是否显示仍由协调器决定。
+    // 净化也复用同一清屏实例，按钮是否显示仍由 updateClearButtonVisibility 决定。
     if (!isEnabled && hideButton.manualClearActive) {
         hideButton.manualClearActive = NO;
         [hideButton updateClearState];
@@ -381,6 +457,7 @@ void reloadClearButtonConfiguration(void) {
     if (hideButton.isElementsHidden) {
         [hideButton hideUIElements];
     }
+    updateClearButtonVisibility();
 }
 @implementation HideUIButton
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -418,7 +495,7 @@ void reloadClearButtonConfiguration(void) {
         [self startPeriodicCheck];
         [self resetFadeTimer];
 
-        // 新控件先隐藏，是否显示由协调器决定
+        // 新控件先隐藏，是否显示由 updateClearButtonVisibility 决定
         self.hidden = YES;
     }
     return self;
@@ -503,11 +580,10 @@ void reloadClearButtonConfiguration(void) {
 - (void)saveButtonPosition {
     if (self.superview) {
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        CGFloat centerXPercent = self.center.x / self.superview.bounds.size.width;
-        CGFloat centerYPercent = self.center.y / self.superview.bounds.size.height;
-
-        [defaults setFloat:centerXPercent forKey:@"DYYYHideButtonCenterXPercent"];
-        [defaults setFloat:centerYPercent forKey:@"DYYYHideButtonCenterYPercent"];
+        // 位置改存一个字串 DYYYHideUIButtonPosition，与 v3.0 的 DYYY.xm 创建时读取的键一致。
+        [defaults setObject:NSStringFromCGPoint(self.center) forKey:@"DYYYHideUIButtonPosition"];
+        [defaults removeObjectForKey:@"DYYYHideButtonCenterXPercent"];
+        [defaults removeObjectForKey:@"DYYYHideButtonCenterYPercent"];
     }
 }
 
@@ -518,9 +594,16 @@ void reloadClearButtonConfiguration(void) {
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     CGPoint targetCenter;
-    if ([self dyyyHasSavedPosition]) {
+    NSString *savedPosition = [defaults objectForKey:@"DYYYHideUIButtonPosition"];
+    if (savedPosition.length > 0) {
+        targetCenter = CGPointFromString(savedPosition);
+    } else if ([self dyyyHasSavedPosition]) {
+        // 旧版本百分比位置一次性迁移为字串，迁移后删除旧键。
         targetCenter = CGPointMake([defaults floatForKey:@"DYYYHideButtonCenterXPercent"] * self.superview.bounds.size.width,
                                    [defaults floatForKey:@"DYYYHideButtonCenterYPercent"] * self.superview.bounds.size.height);
+        [defaults setObject:NSStringFromCGPoint(targetCenter) forKey:@"DYYYHideUIButtonPosition"];
+        [defaults removeObjectForKey:@"DYYYHideButtonCenterXPercent"];
+        [defaults removeObjectForKey:@"DYYYHideButtonCenterYPercent"];
     } else {
         targetCenter = [self dyyyDefaultCenter];
     }
@@ -571,23 +654,14 @@ void reloadClearButtonConfiguration(void) {
 }
 
 - (void)handleTouchDown {
-    if ([self dyyy_isInSelfHiddenState]) {
-        return;
-    }
     [self resetFadeTimer];
 }
 
 - (void)handleTouchUpInside {
-    if ([self dyyy_isInSelfHiddenState]) {
-        return;
-    }
     [self resetFadeTimer];
 }
 
 - (void)handleTouchUpOutside {
-    if ([self dyyy_isInSelfHiddenState]) {
-        return;
-    }
     [self resetFadeTimer];
 }
 
@@ -632,66 +706,6 @@ void reloadClearButtonConfiguration(void) {
     if (gesture.state == UIGestureRecognizerStateEnded || gesture.state == UIGestureRecognizerStateCancelled) {
         self.center = [self dyyyConstrainedCenterForProposedCenter:self.center];
         [self saveButtonPosition];
-        if ([self dyyy_isInSelfHiddenState]) {
-            [self dyyy_showEdgeIndicator];
-        }
-    }
-}
-
-- (BOOL)dyyy_shouldSelfHideOnClear {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideClearButtonOnTap"];
-}
-
-- (BOOL)dyyy_isInSelfHiddenState {
-    return self.isElementsHidden && [self dyyy_shouldSelfHideOnClear];
-}
-
-- (void)dyyy_applySelfHiddenAlpha {
-    if (self.fadeTimer) {
-        [self.fadeTimer invalidate];
-        self.fadeTimer = nil;
-    }
-    // alpha 必须 > 0.01 才能继续接收 hit-test，0.02 在动态背景下几乎不可见
-    self.alpha = 0.02;
-    [self dyyy_showEdgeIndicator];
-}
-
-- (void)dyyy_showEdgeIndicator {
-    if (!self.superview) {
-        return;
-    }
-
-    CGFloat indicatorHeight = self.bounds.size.height;
-    CGFloat indicatorWidth = 2.0; // 2pt 宽度
-    CGFloat screenWidth = self.superview.bounds.size.width;
-    CGFloat centerY = self.center.y;
-
-    if (!self.edgeIndicatorView) {
-        self.edgeIndicatorView = [[UIView alloc] init];
-        self.edgeIndicatorView.backgroundColor = [UIColor blackColor];
-        // 左侧两角圆弧（右侧贴屏幕边缘无弧度），模拟扣在屏幕边缘的效果
-        self.edgeIndicatorView.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
-        self.edgeIndicatorView.layer.cornerRadius = indicatorWidth;
-        self.edgeIndicatorView.layer.masksToBounds = YES;
-        self.edgeIndicatorView.userInteractionEnabled = NO;
-    }
-
-    self.edgeIndicatorView.frame = CGRectMake(screenWidth - indicatorWidth,
-                                              centerY - indicatorHeight / 2.0,
-                                              indicatorWidth,
-                                              indicatorHeight);
-    self.edgeIndicatorView.layer.cornerRadius = indicatorWidth;
-    self.edgeIndicatorView.alpha = 1.0;
-    self.edgeIndicatorView.hidden = NO;
-
-    if (![self.edgeIndicatorView isDescendantOfView:self.superview]) {
-        [self.superview addSubview:self.edgeIndicatorView];
-    }
-}
-
-- (void)dyyy_hideEdgeIndicator {
-    if (self.edgeIndicatorView) {
-        self.edgeIndicatorView.hidden = YES;
     }
 }
 
@@ -705,6 +719,7 @@ void reloadClearButtonConfiguration(void) {
     if (_homePurificationActive == active) return;
     _homePurificationActive = active;
     [self updateClearState];
+    updateClearButtonVisibility();
 }
 
 - (void)updateClearState {
@@ -713,7 +728,6 @@ void reloadClearButtonConfiguration(void) {
     if (shouldHide) {
         [self hideUIElements];
         self.selected = YES;
-        if ([self dyyy_shouldSelfHideOnClear]) [self dyyy_applySelfHiddenAlpha];
         DYYYRefreshStatusBarVisibility();
     } else {
         [self safeResetState];
@@ -726,10 +740,23 @@ void reloadClearButtonConfiguration(void) {
         [self resetFadeTimer];
         return;
     }
+    // v3.0 做法：页面切换过渡期间忽略默认清屏切换，避免连点。
+    if (isAppInTransition)
+        return;
     self.manualClearActive = !self.manualClearActive;
-    if (!([self dyyy_shouldSelfHideOnClear] && self.manualClearActive)) [self resetFadeTimer];
+    [self resetFadeTimer];
     [self updateClearState];
-    [DYYYFloatingButtonCoordinator refresh];
+    // v3.0 做法：清屏时按 DYYYHideSpeed 同步倍速按钮，再统一刷新两个按钮的可见性。
+    BOOL hideSpeed = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideSpeed"];
+    if (hideSpeed) {
+        if (self.isElementsHidden) {
+            hideSpeedButton();
+        } else {
+            showSpeedButton();
+        }
+    }
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 
 - (void)restoreAWEPlayInteractionProgressContainerView {
@@ -882,15 +909,19 @@ void reloadClearButtonConfiguration(void) {
         self.alpha = self.originalAlpha;
         [self resetFadeTimer];
     }
-    [self dyyy_hideEdgeIndicator];
 
     // 清屏隐藏状态栏：触发系统重新评估状态栏显隐
     DYYYRefreshStatusBarVisibility();
-    [DYYYFloatingButtonCoordinator refresh];
+    // v3.0 做法：退出清屏时按 DYYYHideSpeed 恢复倍速按钮，再统一刷新两个按钮的可见性。
+    BOOL hideSpeed = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideSpeed"];
+    if (hideSpeed) {
+        showSpeedButton();
+    }
+    updateSpeedButtonVisibility();
+    updateClearButtonVisibility();
 }
 - (void)dealloc {
     [self stopTimers];
-    [self.edgeIndicatorView removeFromSuperview];
 }
 - (BOOL)dyyyEdgeMetricsWithLeftX:(CGFloat *)leftX
                           rightX:(CGFloat *)rightX
@@ -1013,6 +1044,7 @@ void reloadClearButtonConfiguration(void) {
     }
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:@"DYYYHideUIButtonPosition"];
     [defaults removeObjectForKey:@"DYYYHideButtonCenterXPercent"];
     [defaults removeObjectForKey:@"DYYYHideButtonCenterYPercent"];
     self.center = [self dyyyDefaultCenter];

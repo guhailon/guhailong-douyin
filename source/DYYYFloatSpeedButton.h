@@ -17,16 +17,7 @@
 - (void)resetButtonState;
 - (void)toggleLockState;
 - (void)resetFadeTimer;
-@property(nonatomic, strong) NSTimer *autoHideTimer;
-@property(nonatomic, strong) UIView *edgeIndicatorView;
-@property(nonatomic, assign) BOOL isEdgeHidden;
-@property(nonatomic, assign) BOOL dyyyEdgeHiddenByClearMode;
-@property(nonatomic, assign) BOOL dyyyJustRestoredFromEdgeHidden;
 - (void)resetToDefaultPosition;
-- (void)dyyy_schedulePresentationTimersIfNeeded;
-- (void)dyyy_restoreFromEdgeHidden;
-- (void)dyyy_hideEdgeIndicator;
-- (void)dyyy_showEdgeIndicator;
 @end
 
 #ifdef __cplusplus
@@ -37,6 +28,10 @@ extern FloatingSpeedButton *speedButton;
 extern BOOL isFloatSpeedButtonEnabled;
 extern BOOL showSpeedX;
 extern CGFloat speedButtonSize;
+// v3.0 共享显示标志：由 DYYY.xm 的页面钩子维护，本文件只读。
+extern BOOL dyyyCommentViewVisible;
+extern BOOL dyyyInteractionViewVisible;
+extern BOOL speedButtonForceHidden;
 
 extern NSArray *getSpeedOptions(void);
 extern NSString *DYYYDefaultSpeedSettingsString(void);
@@ -49,6 +44,10 @@ extern NSInteger getCurrentSpeedIndex(void);
 extern void setCurrentSpeedIndex(NSInteger index);
 extern BOOL setCurrentSpeedValue(float speed);
 extern void updateSpeedButtonUI(void);
+extern void showSpeedButton(void);
+extern void hideSpeedButton(void);
+extern void toggleSpeedButtonVisibility(void);
+extern void updateSpeedButtonVisibility(void);
 extern id DYYYCurrentSpeedInteractionController(void);
 
 #ifdef __cplusplus
