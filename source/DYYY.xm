@@ -9669,6 +9669,8 @@ static NSHashTable *processedParentViews = nil;
 
 
 // 屏蔽头像光圈
+// 1.0.43 A1：两个类都存在才挂钩（39.1.0 保护；%ctor 里查类存在才 %init）。
+%group DYYYAvatarRingGroup
 %hook AWEUserModel
 
 - (id)storyRing {
@@ -9710,6 +9712,7 @@ static NSHashTable *processedParentViews = nil;
 }
 
 %end
+%end // DYYYAvatarRingGroup
 
 // 屏蔽挑战贴纸
 %hook AWEInteractionHashtagStickerModel
@@ -13983,6 +13986,11 @@ static void findTargetViewInView(UIView *view) {
         if (objc_getClass("AWEDSpeedCoreContainer") || objc_getClass("AWEDSpeedFeedContainer") ||
             objc_getClass("AWEDSpeedPinchContainer") || objc_getClass("AFDPureModePageLongPressFastSpeedController")) {
             %init(DYYYDSpeedGroup);
+        }
+
+        // 1.0.43 A1：隐藏头像光圈（AWEUserModel／AWECodeGenStoryRingInfoModel；任一类不存在就不挂钩）。
+        if (objc_getClass("AWEUserModel") && objc_getClass("AWECodeGenStoryRingInfoModel")) {
+            %init(DYYYAvatarRingGroup);
         }
 
         // 1.0.43 C14：41.x 类名换代（新类名 hook；哪个类存在挂哪个，旧类名 hook 留着给 39.x 用）。

@@ -114,11 +114,12 @@ static const void *kAWMSafeDispatchTimerSpecificKey = &kAWMSafeDispatchTimerSpec
 }
 
 - (void)dealloc {
-    // 1.0.43 C15：按 v3.0 先清 specific 再 cancel（v3.0 同款写法）。
+    // 1.0.43 C15：按 v3.0 先清 specific 再取消；但不用 v3.0 的 [self cancel]——cancel 是 dispatch_async，
+    // block 会强捕获正在析构的 self（旧代码注释写过这个坑），直接调同步的 cancelLocked。
     if (self.synchronizationQueue) {
         dispatch_queue_set_specific(self.synchronizationQueue, kAWMSafeDispatchTimerSpecificKey, NULL, NULL);
     }
-    [self cancel];
+    [self cancelLocked];
 }
 
 @end
