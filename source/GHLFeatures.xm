@@ -260,7 +260,7 @@ NSString *GHLChangelogText(void) {
            @"1.0.39：替换语音评论正式做了——录完语音评论，停下那一刻把录好的文件换成语音包里选好的本地音频（开关默认关，没选音频不换；只换评论录音，直播/私信的录音不动；不是 .m4a 的选时自动转成 .m4a）；探针启动扫描改到后台跑（以前在主线程卡过 10 秒）。\n"
            @"1.0.40：保存语音评论改成真正存到本地语音包——长按语音评论点保存，直接拷进语音包「我的导入」（Documents/DYYY/VoicePackages/），存完能在「我的导入」里看到，也能当替换用音频；自己刚录的评论也能存（以前内容为空时保存项不出现）。\n"
            @"1.0.41：长按语音评论的保存行单独出来——以前顶着抖音自己的「下载到相册」，现在语音评论长按时那行改成「保存语音」，点按直接存进语音包、不弹分享表、不放出那段语音；表情包/图片评论还是抖音原标题不动。标题改法是运行时验证的：只当面板元素的 elementContent 回来的正好是「下载到相册」才换，换没换、elementContent 到底是什么，日志里「标题探针：」一行写明。下载的语音能在语音包里直接用——长按语音评论存下来的语音，在「我的导入」里能直接播、也能选来当替换音频；「我的导入」长按一行可以删除不喜欢的语音（弹确认再删；删的是当前替换音频时，替换选择一起清空）。\n"
-           @"1.0.42：替换音频挑选页加了两个功能——长按一行可以删除不喜欢的语音（弹确认再删；删的是当前已选的替换音频时，设置行恢复「未选择」）；右上角「添加」可以从文件里选音频导进「我的导入」，导完就能在挑选页看到、点行就能选来替换（只收音频文件；不是 .m4a 的选时再转码）。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。";
+           @"1.0.42：替换语音挑选页加了两个功能——左滑一行就能删除不喜欢的语音（点一下直接删；删的是当前已选的替换语音时，设置行恢复「未选择」）；「我的导入」列表左上方第一行是「＋ 添加语音」，点它可以从文件里选语音导进来，导完就能在挑选页看到、点行就能选来替换（只收语音文件；不是 .m4a 的选时再转码）。语音包「我的导入」那页也一样：删除改成左滑，长按恢复成收藏。另修 1.0.41 改名没生效的 bug：guard 只认「下载到相册」，但抖音那行实际叫「保存到相册」（Lee 照片证实），现在两串都认。";
 }
 
 // ===== 播放器查找（1.0.15；1.0.35：画中画装回来，A 路＋B 路）=====
@@ -2023,7 +2023,7 @@ void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSStrin
     AVAssetExportSession *session = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
     if (!session) {
         GHLLog(@"语音包导入：这个文件转不了音频（%@）", url.lastPathComponent);
-        [DYYYUtils showToast:@"这个文件里没有能转的音频"];
+        [DYYYUtils showToast:@"这个文件里没有能转的语音"];
         if (done) done(NO, nil);
         return;
     }
@@ -2031,13 +2031,13 @@ void GHLImportVoiceAudioFileAtURL(NSURL *url, void (^done)(BOOL success, NSStrin
     NSURL *outputURL = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:fileName]];
     session.outputURL = outputURL;
     session.outputFileType = AVFileTypeAppleM4A;
-    [DYYYUtils showToast:@"正在转音频…"];
+    [DYYYUtils showToast:@"正在转语音…"];
     [session exportAsynchronouslyWithCompletionHandler:^{
         if (session.status != AVAssetExportSessionStatusCompleted) {
             GHLLog(@"语音包导入：转音频失败 %@", session.error.localizedDescription);
             [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
             GHLRunOnMain(^{
-              [DYYYUtils showToast:@"导入失败，转音频没成功"];
+              [DYYYUtils showToast:@"导入失败，转语音没成功"];
               if (done) done(NO, nil);
             });
             return;
@@ -2086,7 +2086,7 @@ void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name) {
     };
     NSString *fileName = uniqueFileName(safeName);
     NSURL *outputURL = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:fileName]];
-    [DYYYUtils showToast:@"正在下载视频并提取音频…"];
+    [DYYYUtils showToast:@"正在下载视频并提取语音…"];
     [DYYYManager downloadMediaWithProgress:videoURL
                                  mediaType:MediaTypeVideo
                                      audio:nil
@@ -2094,7 +2094,7 @@ void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name) {
                                 completion:^(BOOL success, NSURL *fileURL) {
                                   if (!success || !fileURL) {
                                       GHLRunOnMain(^{
-                                        [DYYYUtils showToast:@"视频下载失败，音频没导出来"];
+                                        [DYYYUtils showToast:@"视频下载失败，语音没导出来"];
                                       });
                                       GHLLog(@"长按导入语音包：视频下载失败");
                                       return;
@@ -2122,7 +2122,7 @@ void GHLImportVideoAudioToVoicePackage(AWEAwemeModel *model, NSString *name) {
                                         GHLLog(@"长按导入语音包：导出失败 %@", exportSession.error.localizedDescription);
                                         [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
                                         GHLRunOnMain(^{
-                                          [DYYYUtils showToast:@"导入失败，转音频没成功"];
+                                          [DYYYUtils showToast:@"导入失败，转语音没成功"];
                                         });
                                         return;
                                     }
@@ -2537,8 +2537,8 @@ static BOOL ghlOnlineFetchFailed = NO;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // 1.0.39：挑选模式只选替换音频，不拉在线、不收藏。
-    self.title = self.ghlReplacePickMode ? @"选替换音频" : @"语音包";
+    // 1.0.39：挑选模式只选替换语音，不拉在线、不收藏。
+    self.title = self.ghlReplacePickMode ? @"选替换语音" : @"语音包";
     self.searchText = @"";
     self.searchBar = [[UISearchBar alloc] init];
     self.searchBar.placeholder = @"搜名字或 voiceId";
@@ -2547,11 +2547,10 @@ static BOOL ghlOnlineFetchFailed = NO;
     self.tableView.tableHeaderView = self.searchBar;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     // 1.0.28：右上角只留「刷新在线」（+ 菜单、导入、文件夹、导出、试听下载全随旧管理器砍掉）。
-    // 1.0.42：挑选模式右上角改成「添加」——从文件里选一段音频导进「我的导入」。
-    self.navigationItem.rightBarButtonItem = self.ghlReplacePickMode ? [[UIBarButtonItem alloc] initWithTitle:@"添加" style:UIBarButtonItemStylePlain target:self action:@selector(ghlAddAudio)] : [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
+    // 1.0.42：添加入口不在右上角，改成「我的导入」列表左上方第一行「＋ 添加语音」。
+    self.navigationItem.rightBarButtonItem = self.ghlReplacePickMode ? nil : [[UIBarButtonItem alloc] initWithTitle:@"刷新在线" style:UIBarButtonItemStylePlain target:self action:@selector(ghlRefreshOnline)];
     // 1.0.28：长按一行只留收藏/取消收藏。
-    // 1.0.41：「我的导入」里的本地语音长按改成删除（收藏改按行右侧的 ★ 按钮）。
-    // 1.0.42：挑选模式也要长按删除（原来挑选模式没装长按手势）；挑选页只列「我的导入」，长按到的都是本地项。
+    // 1.0.42：删除改成左滑，长按恢复成收藏/取消收藏（1.0.41 的长按删除已拿掉）；挑选模式也装长按手势。
     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ghlRowLongPressed:)];
     [self.tableView addGestureRecognizer:longPress];
     [self ghlApplyAppearance];
@@ -2597,8 +2596,8 @@ static BOOL ghlOnlineFetchFailed = NO;
     });
 }
 
-// 1.0.42：挑选模式「添加」——从文件里选一段音频导进「我的导入」。
-// 只收音频文件（public.audio），复用 GHLImportVoiceAudioFileAtURL：音频直接复制＋登记，
+// 1.0.42：「＋ 添加语音」入口行——从文件里选一段语音导进「我的导入」。
+// 只收语音文件（public.audio），复用 GHLImportVoiceAudioFileAtURL：语音直接复制＋登记，
 // 视频文件才转码；不是 .m4a 的不用在添加时转，选来替换时再按 1.0.39 的老办法转。
 - (void)ghlAddAudio {
     UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.audio"] inMode:UIDocumentPickerModeImport];
@@ -2629,35 +2628,14 @@ static BOOL ghlOnlineFetchFailed = NO;
 }
 
 // 1.0.28：长按一行只留收藏/取消收藏（确认框点一下就好，不再出多项菜单）。
+// 1.0.42：删除改成左滑，长按恢复成收藏/取消收藏（1.0.41 的长按删除已拿掉）。
 - (void)ghlRowLongPressed:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan) return;
     CGPoint point = [gesture locationInView:self.tableView];
     NSIndexPath *indexPath = [self.tableView indexPathForRowAtPoint:point];
     if (!indexPath) return;
-    NSArray *categories = [self ghlVisibleCategories];
-    if (indexPath.section < 0 || indexPath.section >= (NSInteger)categories.count) return;
-    NSArray *packages = [self ghlPackagesInCategory:categories[indexPath.section]];
-    if (indexPath.row < 0 || indexPath.row >= (NSInteger)packages.count) return;
-    GHLVoicePackageInfo *info = packages[indexPath.row];
-    // 1.0.41：「我的导入」里的本地语音，长按改成删除（收藏改按行右侧的 ★ 按钮）；其它档还是收藏/取消收藏。
-    if (info.source == GHLVoicePackageSourceCustom) {
-        __weak __typeof(self) weakSelf = self;
-        [DYYYBottomAlertView showAlertWithTitle:info.displayName
-                                        message:@"删除这段语音？"
-                                      avatarURL:nil
-                               cancelButtonText:@"取消"
-                              confirmButtonText:@"删除"
-                                   cancelAction:nil
-                                    closeAction:nil
-                                  confirmAction:^{
-            __strong __typeof(weakSelf) strongSelf = weakSelf;
-            if (!strongSelf) return;
-            GHLDeleteCustomVoicePackage(info);
-            [strongSelf.tableView reloadData];
-            [DYYYUtils showToast:[NSString stringWithFormat:@"已删除「%@」", info.displayName]];
-        }];
-        return;
-    }
+    GHLVoicePackageInfo *info = [self ghlPackageAtIndexPath:indexPath];
+    if (!info) return;
     __weak __typeof(self) weakSelf = self;
     BOOL favorited = GHLIsVoiceFavorite(info.voiceId);
     [DYYYBottomAlertView showAlertWithTitle:info.displayName
@@ -2673,6 +2651,42 @@ static BOOL ghlOnlineFetchFailed = NO;
         GHLSetVoiceFavorite(info.voiceId, !favorited);
         [strongSelf.tableView reloadData];
     }];
+}
+
+// 1.0.42：挑选模式「我的导入」分区第一行是「＋ 添加语音」入口行（不是一条语音），取包时要跳过它。
+- (BOOL)ghlIsAddRowAtIndexPath:(NSIndexPath *)indexPath {
+    return self.ghlReplacePickMode && indexPath.section == 0 && indexPath.row == 0;
+}
+
+// 取行对应的语音；入口行或越界返回 nil。
+- (GHLVoicePackageInfo *)ghlPackageAtIndexPath:(NSIndexPath *)indexPath {
+    if ([self ghlIsAddRowAtIndexPath:indexPath]) return nil;
+    NSArray *categories = [self ghlVisibleCategories];
+    if (indexPath.section < 0 || indexPath.section >= (NSInteger)categories.count) return nil;
+    NSInteger row = self.ghlReplacePickMode ? indexPath.row - 1 : indexPath.row;
+    NSArray *packages = [self ghlPackagesInCategory:categories[indexPath.section]];
+    if (row < 0 || row >= (NSInteger)packages.count) return nil;
+    return packages[row];
+}
+
+// 1.0.42：左滑删除——只有「我的导入」的本地项能左滑删（内置/在线没有本地文件，删不了）。
+// 点一下红色的「删除」就直接删，不再弹确认框（复用 1.0.41 的 GHLDeleteCustomVoicePackage）。
+- (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
+    GHLVoicePackageInfo *info = [self ghlPackageAtIndexPath:indexPath];
+    if (!info || info.source != GHLVoicePackageSourceCustom) return nil;
+    __weak __typeof(self) weakSelf = self;
+    UIContextualAction *deleteAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleDestructive title:@"删除" handler:^(UIContextualAction *action, __kindof UIView *sourceView, void (^completionHandler)(BOOL)) {
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) {
+          completionHandler(NO);
+          return;
+      }
+      GHLDeleteCustomVoicePackage(info);
+      [strongSelf.tableView reloadData];
+      [DYYYUtils showToast:[NSString stringWithFormat:@"已删除「%@」", info.displayName]];
+      completionHandler(YES);
+    }];
+    return [UISwipeActionsConfiguration configurationWithActions:@[deleteAction]];
 }
 
 - (NSArray<GHLVoicePackageInfo *> *)ghlVisiblePackages {
@@ -2721,7 +2735,9 @@ static BOOL ghlOnlineFetchFailed = NO;
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     NSArray *categories = [self ghlVisibleCategories];
     if (categories.count == 0) return 0;
-    return [self ghlPackagesInCategory:categories[section]].count;
+    // 1.0.42：挑选模式「我的导入」分区多一行「＋ 添加语音」入口行。
+    NSInteger addRow = (self.ghlReplacePickMode && section == 0) ? 1 : 0;
+    return [self ghlPackagesInCategory:categories[section]].count + addRow;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -2746,20 +2762,32 @@ static BOOL ghlOnlineFetchFailed = NO;
         return nil;
     }
     if ([categories[section] isEqualToString:@"内置"]) return nil;
-    // 1.0.39：挑选模式——点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换。
-    // 1.0.42：长按一行可以删除；点右上角「添加」可以从文件里导音频进来。
-    if (self.ghlReplacePickMode) return @"点一行就选它当替换音频；只有我的导入里的本地音频能拿来替换（内置/在线音色没有本地文件）；长按一行可以删除；点右上角「添加」可以导入音频文件。";
-    // 1.0.28：我的导入——长按视频导进来的音频都在这里，点一下就播放（不能用来合成文字）。
-    // 1.0.41：长按一行可以删除不喜欢的语音（弹确认再删）。
-    return @"长按视频选「导入至语音包」就能把当前作品的音频存到这里；点行播放（不能用来合成文字）；长按一行可以删除。";
+    // 1.0.39：挑选模式——点一行就选它当替换语音；只有我的导入里的本地语音能拿来替换。
+    // 1.0.42：删除改成左滑；第一行「＋ 添加语音」点它可以从文件里导语音进来。
+    if (self.ghlReplacePickMode) return @"点一行就选它当替换语音；只有我的导入里的本地语音能拿来替换（内置/在线音色没有本地文件）；左滑一行可以删除；点第一行「＋ 添加语音」可以导入语音文件。";
+    // 1.0.28：我的导入——长按视频导进来的语音都在这里，点一下就播放（不能用来合成文字）。
+    // 1.0.42：删除改成左滑（1.0.41 的长按删除已拿掉）。
+    return @"长按视频选「导入至语音包」就能把当前作品的语音存到这里；点行播放（不能用来合成文字）；左滑一行可以删除。";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    // 1.0.42：挑选模式第一行是「＋ 添加语音」入口行（左上方，金色字，点它导语音进来）。
+    if ([self ghlIsAddRowAtIndexPath:indexPath]) {
+        static NSString *addCellId = @"GHLAddVoiceCell";
+        UITableViewCell *addCell = [tableView dequeueReusableCellWithIdentifier:addCellId];
+        if (!addCell) addCell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:addCellId];
+        BOOL dark = [self ghlDarkModeActive];
+        addCell.backgroundColor = [DYYYUtils dYYYSettingsCellBackgroundColorForBackgroundImage:self.backgroundImage darkMode:dark];
+        addCell.textLabel.text = @"＋ 添加语音";
+        addCell.textLabel.textColor = [DYYYUtils dYYYGoldAccentColor];
+        addCell.detailTextLabel.text = nil;
+        addCell.accessoryView = nil;
+        return addCell;
+    }
     static NSString *cellId = @"GHLSimpleVoicePackageCell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
     if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
-    NSArray *categories = [self ghlVisibleCategories];
-    GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
+    GHLVoicePackageInfo *info = [self ghlPackageAtIndexPath:indexPath];
     cell.textLabel.text = info.displayName;
     cell.detailTextLabel.text = info.voiceId;
     // 1.0.24：导入的语音副标题显示文件名 + 大小（跟图层抖音一样显示大小）。
@@ -2801,20 +2829,22 @@ static BOOL ghlOnlineFetchFailed = NO;
 - (void)ghlFavoriteButtonTapped:(UIButton *)sender {
     NSInteger section = sender.tag / 10000;
     NSInteger row = sender.tag % 10000;
-    NSArray *categories = [self ghlVisibleCategories];
-    if (section < 0 || section >= (NSInteger)categories.count) return;
-    NSArray *packages = [self ghlPackagesInCategory:categories[section]];
-    if (row < 0 || row >= (NSInteger)packages.count) return;
-    GHLVoicePackageInfo *info = packages[row];
+    GHLVoicePackageInfo *info = [self ghlPackageAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]];
+    if (!info) return;
     GHLSetVoiceFavorite(info.voiceId, !GHLIsVoiceFavorite(info.voiceId));
     [self.tableView reloadData];
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    NSArray *categories = [self ghlVisibleCategories];
-    GHLVoicePackageInfo *info = [self ghlPackagesInCategory:categories[indexPath.section]][indexPath.row];
-    // 1.0.39：挑选模式——点行即选它当替换音频，选完回设置页（转码是异步的，成败弹提示）。
+    // 1.0.42：点「＋ 添加语音」行就打开文件挑选导语音进来。
+    if ([self ghlIsAddRowAtIndexPath:indexPath]) {
+        [self ghlAddAudio];
+        return;
+    }
+    GHLVoicePackageInfo *info = [self ghlPackageAtIndexPath:indexPath];
+    if (!info) return;
+    // 1.0.39：挑选模式——点行即选它当替换语音，选完回设置页（转码是异步的，成败弹提示）。
     if (self.ghlReplacePickMode) {
         if (info.source == GHLVoicePackageSourceCustom) {
             GHLSelectVoicePackageForReplace(info);
@@ -3370,7 +3400,7 @@ void GHLSelectVoicePackageForReplace(GHLVoicePackageInfo *info) {
       [[NSUserDefaults standardUserDefaults] setObject:displayName forKey:GHL_KEY_COMMENT_VOICE_REPLACE_NAME];
       GHLLog(@"语音替换：已选替换音频「%@」（%@）", displayName, path);
       GHLRunOnMain(^{
-        [DYYYUtils showToast:[NSString stringWithFormat:@"已选为替换音频「%@」", displayName]];
+        [DYYYUtils showToast:[NSString stringWithFormat:@"已选为替换语音「%@」", displayName]];
       });
     };
     if ([ext isEqualToString:@"m4a"]) {
@@ -3381,14 +3411,14 @@ void GHLSelectVoicePackageForReplace(GHLVoicePackageInfo *info) {
     AVAssetExportSession *session = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetAppleM4A];
     if (!session) {
         GHLLog(@"语音替换：这个文件转不了音频（%@）", info.audioFilePath.lastPathComponent);
-        [DYYYUtils showToast:@"这个文件里没有能转的音频"];
+        [DYYYUtils showToast:@"这个文件里没有能转的语音"];
         return;
     }
     NSString *outputPath = [GHLCommentVoiceReplaceDirectory() stringByAppendingPathComponent:@"replace.m4a"];
     [[NSFileManager defaultManager] removeItemAtPath:outputPath error:nil];
     session.outputURL = [NSURL fileURLWithPath:outputPath];
     session.outputFileType = AVFileTypeAppleM4A;
-    [DYYYUtils showToast:@"正在转音频…"];
+    [DYYYUtils showToast:@"正在转语音…"];
     [session exportAsynchronouslyWithCompletionHandler:^{
       if (session.status != AVAssetExportSessionStatusCompleted) {
           GHLLog(@"语音替换：转音频失败 %@", session.error.localizedDescription);

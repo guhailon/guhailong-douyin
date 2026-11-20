@@ -301,7 +301,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"语音包（选音色发语音/配音）" key:GHL_KEY_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"语音包音色（选完自动试听）" key:GHL_KEY_VOICE_PACKAGE_ID type:DYYYSettingItemTypePicker],
             // 1.0.28：长按导入至语音包（开后长按视频就能把当前作品的音频存进语音包）。
-            [DYYYSettingItem itemWithTitle:@"导入至语音包" key:GHL_KEY_IMPORT_TO_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch infoText:@"启用后，长按视频点击导入至语音包，输入你要设置的语音名称，则将当前作品的音频导入到语音包"],
+            [DYYYSettingItem itemWithTitle:@"导入至语音包" key:GHL_KEY_IMPORT_TO_VOICE_PACKAGE type:DYYYSettingItemTypeSwitch infoText:@"启用后，长按视频点击导入至语音包，输入你要设置的语音名称，则将当前作品的语音导入到语音包"],
             // 1.0.2 语音四项（对方 xuu 卡片上的语音功能）：1.0.28 下架转发/秒数/替换三项
             // （没做成）；保存语音评论的 AWECommentAudioModel 已确认有 audioFilePath
             // （本地文件路径），1.0.25 起开关连到长按菜单的保存代码（本地文件优先，
@@ -309,7 +309,7 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             // 里选好的本地音频，开关默认关；替换音频只认我的导入里的本地文件）。
             [DYYYSettingItem itemWithTitle:@"保存语音评论（实验，需真机日志验证）" key:GHL_KEY_COMMENT_VOICE_SAVE type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"替换语音评论" key:GHL_KEY_COMMENT_VOICE_REPLACE type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"替换用音频（我的导入里的本地文件）" key:GHL_KEY_COMMENT_VOICE_REPLACE_PATH type:DYYYSettingItemTypePicker],
+            [DYYYSettingItem itemWithTitle:@"替换用语音（我的导入里的本地文件）" key:GHL_KEY_COMMENT_VOICE_REPLACE_PATH type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"双击下载当前视频（开后双击不再快进）" key:GHL_KEY_DOUBLE_TAP_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"长按下载" key:GHL_KEY_LONG_PRESS_DOWNLOAD type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"下载进度日志+提示" key:GHL_KEY_DOWNLOAD_PROGRESS type:DYYYSettingItemTypeSwitch],
